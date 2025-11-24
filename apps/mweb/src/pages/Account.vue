@@ -17,11 +17,11 @@
       <!-- Guest State -->
       <div v-else class="guest-info" @click="loginNow">
         <span class="login-text">تسجيل الدخول/ تسجيل</span>
-        <ChevronLeft class="w-5 h-5 text-gray-800" />
+        <ChevronLeft class="w-5 h-5 text-[#8a1538]" />
       </div>
 
       <button class="icon-btn" @click="goToSettings" aria-label="الإعدادات">
-        <Settings class="w-6 h-6 text-gray-800" />
+        <Settings class="w-6 h-6 text-[#8a1538]" />
       </button>
     </header>
 
@@ -76,7 +76,7 @@
             <span class="stat-label">نقاط</span>
           </div>
           <div class="stat-item" @click="go('/giftcards')">
-            <CreditCard class="w-6 h-6 text-gray-700 mb-1" />
+            <CreditCard class="w-6 h-6 text-[#8a1538] mb-1" />
             <span class="stat-label">بطاقة هدية</span>
           </div>
         </div>
@@ -85,7 +85,7 @@
         <div class="coupon-strip" v-if="user.isLoggedIn && couponsCount > 0 && showCouponStrip">
           <span>لديك <span class="red-text">{{ couponsCount }} كوبونات</span> على وشك الانتهاء!</span>
           <button class="close-strip" @click="closeCouponStrip">
-            <X class="w-4 h-4 text-gray-500" />
+            <X class="w-4 h-4 text-[#8a1538]" />
           </button>
         </div>
       </section>
@@ -96,28 +96,28 @@
           <span class="section-title">طلبي</span>
           <div class="section-more">
             <span>الاراء الكاملة</span>
-            <ChevronLeft class="w-4 h-4" />
+            <ChevronLeft class="w-4 h-4 text-[#8a1538]" />
           </div>
         </div>
         <div class="orders-grid">
           <div class="order-item" @click="go('/orders?status=unpaid')">
-            <CreditCard class="w-6 h-6 text-gray-700 mb-2" />
+            <CreditCard class="w-6 h-6 text-[#8a1538] mb-2" />
             <span>غير مدفوع</span>
           </div>
           <div class="order-item" @click="go('/orders?status=processing')">
-            <Package class="w-6 h-6 text-gray-700 mb-2" />
+            <Package class="w-6 h-6 text-[#8a1538] mb-2" />
             <span>قيد التجهيز</span>
           </div>
           <div class="order-item" @click="go('/orders?status=shipped')">
-            <Truck class="w-6 h-6 text-gray-700 mb-2" />
+            <Truck class="w-6 h-6 text-[#8a1538] mb-2" />
             <span>تم الشحن</span>
           </div>
           <div class="order-item" @click="go('/orders?status=review')">
-            <MessageSquare class="w-6 h-6 text-gray-700 mb-2" />
+            <MessageSquare class="w-6 h-6 text-[#8a1538] mb-2" />
             <span>تعليق</span>
           </div>
           <div class="order-item" @click="go('/orders/returns')">
-            <RotateCcw class="w-6 h-6 text-gray-700 mb-2" />
+            <RotateCcw class="w-6 h-6 text-[#8a1538] mb-2" />
             <span>المنتجات<br>المسترجعة</span>
           </div>
         </div>
@@ -130,26 +130,26 @@
         </div>
         <div class="services-grid">
           <div class="service-item">
-            <Headphones class="w-6 h-6 text-gray-700 mb-2" />
+            <Headphones class="w-6 h-6 text-[#8a1538] mb-2" />
             <span>خدمة العملاء</span>
           </div>
           <div class="service-item">
             <div class="relative">
-              <FileText class="w-6 h-6 text-gray-700 mb-2" />
+              <FileText class="w-6 h-6 text-[#8a1538] mb-2" />
               <div class="badge-dot"></div>
             </div>
             <span>مركز إستطلاعات<br>الرأي</span>
           </div>
           <div class="service-item">
-            <Megaphone class="w-6 h-6 text-gray-700 mb-2" />
+            <Megaphone class="w-6 h-6 text-[#8a1538] mb-2" />
             <span>شركاء</span>
           </div>
           <div class="service-item">
-            <Store class="w-6 h-6 text-gray-700 mb-2" />
+            <Store class="w-6 h-6 text-[#8a1538] mb-2" />
             <span>متابع</span>
           </div>
           <div class="service-item" @click="go('/settings#info-section')">
-            <ShieldCheck class="w-6 h-6 text-gray-700 mb-2" />
+            <ShieldCheck class="w-6 h-6 text-[#8a1538] mb-2" />
             <span>سياسة</span>
           </div>
         </div>
@@ -192,7 +192,7 @@
                       basePrice: p.price,
                       discountPercent: 0
                     }"
-                    :ratio="1.3"
+                    :ratio="(p as any)._ratio || defaultRatio"
                     @add="openSuggestOptions"
                   />
                 </div>
@@ -209,7 +209,7 @@
                       basePrice: p.price,
                       discountPercent: 0
                     }"
-                    :ratio="1.3"
+                    :ratio="(p as any)._ratio || defaultRatio"
                     @add="openSuggestOptions"
                   />
                 </div>
@@ -218,7 +218,7 @@
             <!-- Empty State -->
             <div v-else class="empty-state">
               <div class="empty-icon">
-                <img src="https://img.icons8.com/ios/100/clothes.png" alt="No items" class="w-16 h-16 opacity-20" />
+                <div class="w-16 h-16 bg-[#8a1538]" style="-webkit-mask-image: url(https://img.icons8.com/ios/100/clothes.png); mask-image: url(https://img.icons8.com/ios/100/clothes.png); -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center;"></div>
               </div>
               <p>لم تقم بحفظ أي شيء مؤخراً.</p>
               <button class="shop-btn" @click="go('/')">تسوق</button>
@@ -240,7 +240,7 @@
                       basePrice: p.price,
                       discountPercent: p.discountPercent || 0
                     }"
-                    :ratio="1.3"
+                    :ratio="(p as any)._ratio || defaultRatio"
                     @add="openSuggestOptions"
                   />
                 </div>
@@ -257,7 +257,7 @@
                       basePrice: p.price,
                       discountPercent: p.discountPercent || 0
                     }"
-                    :ratio="1.3"
+                    :ratio="(p as any)._ratio || defaultRatio"
                     @add="openSuggestOptions"
                   />
                 </div>
@@ -266,7 +266,7 @@
             <!-- Empty State -->
             <div v-else class="empty-state">
               <div class="empty-icon">
-                <img src="https://img.icons8.com/ios/100/clothes.png" alt="No items" class="w-16 h-16 opacity-20" />
+                <div class="w-16 h-16 bg-[#8a1538]" style="-webkit-mask-image: url(https://img.icons8.com/ios/100/clothes.png); mask-image: url(https://img.icons8.com/ios/100/clothes.png); -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center;"></div>
               </div>
               <p>ليس لديك سجل تصفح بعد</p>
             </div>
@@ -312,20 +312,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive } from 'vue'
+import { ref, computed, onMounted, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUser } from '@/store/user'
 import { useWishlist } from '@/store/wishlist'
 import { useRecent } from '@/store/recent'
 import { useCart } from '@/store/cart'
 import { apiGet, API_BASE } from '@/lib/api'
+import { buildThumbUrl } from '@/lib/media'
 import BottomNav from '@/components/BottomNav.vue'
 import ProductGridCard from '@/components/ProductGridCard.vue'
 import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
 import { 
   Settings, MessageSquare, ChevronLeft, Gift, CreditCard, X, 
   Package, Truck, RotateCcw, Headphones, FileText, Megaphone, 
-  Store, ShieldCheck
+  Store, ShieldCheck, Heart, History
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -337,6 +338,38 @@ const activeTab = ref('wishlist')
 const couponsCount = ref(0)
 
 const username = computed(() => user.username || 'jeeey')
+
+// --- Dynamic Aspect Ratio Logic (from MasonryForYouBlock) ---
+const defaultRatio = 1.3
+
+function thumbSrc(p:any, w:number): string {
+  const u = (Array.isArray(p.images)&&p.images[0]) || p.img || p.image || ''
+  return buildThumbUrl(String(u||''), w, 60)
+}
+
+function probeRatioPromise(p: any): Promise<void>{
+  return new Promise((resolve)=>{
+    try{
+      if (p._ratio){ resolve(); return }
+      const u = thumbSrc(p, 64)
+      const img = new Image()
+      ;(img as any).loading = 'eager'
+      ;(img as any).decoding = 'async'
+      img.onload = ()=>{ try{ const w=(img as any).naturalWidth||64; const h=(img as any).naturalHeight||64; if (w>0&&h>0) p._ratio=h/w }catch{} finally{ resolve() } }
+      img.onerror = ()=> resolve()
+      img.src = u
+    }catch{ resolve() }
+  })
+}
+
+// Watchers to calculate ratios when items change
+watch(() => wishlist.items, (items) => {
+  items.forEach(p => probeRatioPromise(p))
+}, { immediate: true, deep: true })
+
+watch(() => recent.list, (items) => {
+  items.forEach(p => probeRatioPromise(p))
+}, { immediate: true, deep: true })
 
 // Split logic for 2-column grid
 const wishlistLeft = computed(() => wishlist.items.filter((_, i) => i % 2 === 0))
@@ -550,7 +583,17 @@ onMounted(async () => {
       const res = await apiGet<any>('/api/me/coupons')
       const list = res?.items || res?.coupons || []
       if (Array.isArray(list)) {
-        couponsCount.value = list.length
+        // Filter for valid (unused/not expired) coupons to match Coupons page logic
+        const now = Date.now()
+        const validCoupons = list.filter((c: any) => {
+          const validUntil = c?.validUntil ? new Date(c.validUntil).getTime() : null
+          // If no expiry, assume valid. If expiry, must be in future.
+          // Also check if status is explicitly 'used' if API provides it
+          const isExpired = validUntil ? validUntil < now : false
+          const isUsed = c?.status === 'used'
+          return !isExpired && !isUsed
+        })
+        couponsCount.value = validCoupons.length
       }
     } catch (e) {
       console.error('Failed to fetch coupons', e)
@@ -562,6 +605,8 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.product-grid{column-gap:5px!important;row-gap:0!important}
+
 .account-page {
   background-color: #F7F8FA;
   min-height: 100vh;
@@ -621,7 +666,7 @@ onMounted(async () => {
 .login-text {
   font-weight: bold;
   font-size: 16px;
-  color: #000;
+  color: #520f23;
 }
 
 /* Content */
@@ -777,7 +822,7 @@ onMounted(async () => {
 
 .stat-label {
   font-size: 12px;
-  color: #333;
+  color: #520f23;
 }
 
 /* Coupon Strip */
@@ -837,14 +882,15 @@ onMounted(async () => {
 .section-title {
   font-weight: bold;
   font-size: 14px;
-  color: #000;
+  color: #520f23;
 }
 
 .section-more {
   display: flex;
   align-items: center;
   font-size: 12px;
-  color: #999;
+  color: #8a1538;
+  opacity: 0.6;
 }
 
 /* Orders & Services Grid */
@@ -864,7 +910,7 @@ onMounted(async () => {
 
 .order-item span, .service-item span {
   font-size: 11px;
-  color: #333;
+  color: #520f23;
   line-height: 1.3;
 }
 
@@ -882,13 +928,15 @@ onMounted(async () => {
 /* Bottom Tabs */
 .bottom-tabs-section {
   margin-top: 20px;
-  background: #fff !important;
+  background: transparent !important;
   margin-inline: -12px; /* Compensate for parent padding */
 }
 
 .tabs-header {
   display: flex;
   background: #fff !important;
+  border-bottom: 1px solid #e5e7eb; /* Visible gray separator */
+  padding-bottom: 12px; /* Increased internal bottom spacing */
 }
 
 .tab-btn {
@@ -896,7 +944,8 @@ onMounted(async () => {
   background: none;
   border: none;
   font-size: 14px;
-  color: #999;
+  color: #8a1538;
+  opacity: 0.6;
   font-weight: bold;
   padding: 12px 0;
   position: relative;
@@ -905,7 +954,8 @@ onMounted(async () => {
 }
 
 .tab-btn.active {
-  color: #000;
+  color: #8a1538;
+  opacity: 1;
 }
 
 .active-line {
@@ -915,7 +965,7 @@ onMounted(async () => {
   transform: translateX(-50%);
   width: 40px;
   height: 3px;
-  background: #000;
+  background: #8a1538;
   border-radius: 2px;
 }
 
@@ -929,8 +979,13 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   padding: 40px 0;
-  color: #999;
+  color: #8a1538;
   font-size: 14px;
+}
+
+.empty-state .empty-icon,
+.empty-state p {
+  opacity: 0.6;
 }
 
 .empty-icon {
