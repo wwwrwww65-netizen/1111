@@ -767,11 +767,98 @@ async function loadMoreProducts() {
 
 async function bootstrap(){ await loadCategories(); await loadProducts() }
 
-// Coupons Logic (Simplified)
-const couponsCache = ref<any[]>([])
+// Coupons Logic
+type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
+const couponsCache = ref<SimpleCoupon[]>([])
+const couponsCacheTs = ref(0)
+
+async function fetchCouponsList(): Promise<SimpleCoupon[]> {
+  const { API_BASE, isAuthenticated } = await import('../lib/api')
+  const tryFetch = async (path: string) => {
+    try{
+      const creds = path.startsWith('/api/coupons/public')? 'omit':'include'
+      const { getAuthHeader } = await import('../lib/api')
+      const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json', ...getAuthHeader() } })
+      if(!r.ok) return null; return await r.json()
+    }catch{ return null }
+  }
+  if (isAuthenticated()){
+    const data1: any = await tryFetch('/api/me/coupons')
+    if (data1){
+      const itemsArr = Array.isArray(data1.items) ? data1.items : []
+      const couponsArr = Array.isArray(data1.coupons) ? data1.coupons : []
+      const merged = [...itemsArr, ...couponsArr]
+      if (merged.length>0) return normalizeCoupons(merged)
+    }
+  }
+  return []
+}
+
+function normalizeCoupons(list:any[]): SimpleCoupon[] {
+  return (list||[]).map((c:any)=> ({
+    code: c.code,
+    discountType: (String(c.discountType||'PERCENTAGE').toUpperCase()==='FIXED' ? 'FIXED' : 'PERCENTAGE'),
+    discountValue: Number(c.discountValue||c.discount||0),
+    audience: c.audience?.target || c.audience || undefined,
+    kind: c.kind || undefined,
+    rules: c.rules || undefined
+  }))
+}
+
+function priceAfterCoupon(base:number, cup: SimpleCoupon): number {
+  if (!Number.isFinite(base) || base<=0) return base
+  const v = Number(cup.discountValue||0)
+  if (cup.discountType==='FIXED') return Math.max(0, base - v)
+  return Math.max(0, base * (1 - v/100))
+}
+
+function isCouponSitewide(c: SimpleCoupon): boolean { return String(c.kind||'').toLowerCase()==='sitewide' || !Array.isArray(c?.rules?.includes) }
+
+function eligibleByTokens(prod: any, c: SimpleCoupon): boolean {
+  const inc = Array.isArray(c?.rules?.includes) ? c.rules!.includes! : []
+  const exc = Array.isArray(c?.rules?.excludes) ? c.rules!.excludes! : []
+  const tokens: string[] = []
+  if (prod?.categoryId) tokens.push(`category:${prod.categoryId}`)
+  if (prod?.id) tokens.push(`product:${prod.id}`)
+  if (prod?.brand) tokens.push(`brand:${prod.brand}`)
+  if (prod?.sku) tokens.push(`sku:${prod.sku}`)
+  const hasInc = !inc.length || inc.some(t=> tokens.includes(t))
+  const hasExc = exc.length && exc.some(t=> tokens.includes(t))
+  return hasInc && !hasExc
+}
+
+async function ensureProductMeta(p:any): Promise<any> {
+  if (p.categoryId!=null) return p
+  try{
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(p.id)}`)
+    if (d){ p.categoryId = d.categoryId || d.category?.id || d.category || null; p.brand = p.brand || d.brand; p.sku = p.sku || d.sku }
+  }catch{}
+  return p
+}
+
 async function hydrateCouponsAndPrices(){
-  // Fetch coupons if needed and calculate prices
-  // ... (Implementation similar to c/[slug] or simplified)
+  // Refresh coupons if cache is empty or older than 60s
+  try{
+    const now = Date.now()
+    if (!couponsCache.value.length || (now - couponsCacheTs.value) > 60000){
+      couponsCache.value = await fetchCouponsList(); couponsCacheTs.value = now
+    }
+  }catch{}
+  await computeCouponPrices(products.value)
+}
+
+async function computeCouponPrices(list:any[]){
+  const cups = couponsCache.value||[]
+  if (!cups.length) return
+  for (const p of list){
+    const base = Number(String(p.basePrice||'0').replace(/[^0-9.]/g,''))||0
+    if (!base) { p.couponPrice = undefined; continue }
+    const site = cups.find(isCouponSitewide)
+    if (site){ p.couponPrice = priceAfterCoupon(base, site).toFixed(2); continue }
+    await ensureProductMeta(p)
+    const match = cups.find(c=> eligibleByTokens(p, c))
+    if (match){ p.couponPrice = priceAfterCoupon(base, match).toFixed(2) }
+  }
 }
 
 const visibleCategories = computed(()=> categories.value)

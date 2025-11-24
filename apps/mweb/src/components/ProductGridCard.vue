@@ -102,7 +102,7 @@ type P = {
 }
 
 const props = defineProps<{ product: P; priority?: boolean; ratio?: number }>()
-const emit = defineEmits<{ (e:'add', id: string): void }>()
+const emit = defineEmits<{ (e:'add', product: any): void }>()
 const router = useRouter()
 const cart = useCart()
 
@@ -277,7 +277,7 @@ function open(ev?: Event){
   }catch{}
   go()
 }
-function add(){ if (id.value){ emit('add', id.value); return } cart.add({ id: id.value, title: title.value, price: Number((basePrice.value||'0').toString().replace(/[^\d.]/g,''))||0, img: gallery.value[0]||'' }, 1) }
+function add(){ if (id.value){ emit('add', props.product as any); return } cart.add({ id: id.value, title: title.value, price: Number((basePrice.value||'0').toString().replace(/[^\d.]/g,''))||0, img: gallery.value[0]||'' }, 1) }
 </script>
 
 <style scoped>
