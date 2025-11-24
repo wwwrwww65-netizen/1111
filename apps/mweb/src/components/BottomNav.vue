@@ -24,10 +24,9 @@
 
       <!-- Trends (Center Floating) -->
       <div class="nav-item center-placeholder">
-        <RouterLink to="/search/trending" class="fab-wrapper">
+        <RouterLink to="/products" class="fab-wrapper">
           <div class="fab-circle">
-            <span class="fab-text-sm">أهم</span>
-            <span class="fab-text-lg">الترندات</span>
+            <span class="fab-text-lg">جديدنا</span>
             <div class="fab-badge"></div>
           </div>
         </RouterLink>
