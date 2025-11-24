@@ -550,76 +550,71 @@ function goToCart() { router.push('/cart'); }
 function goToCategories() { router.push('/categories'); }
 
 // Options Modal Logic
-const optionsModal = reactive({
-  open: false,
-  color: '',
-  size: '',
-  groupValues: undefined as any
+const optionsModal = reactive<{ open: boolean; productId: string; color: string; size: string; groupValues: Record<string, string> }>({
+  open: false, productId: '', color: '', size: '', groupValues: {}
 })
-const optionsProduct = ref<any>(null)
+const optionsProduct = ref<any|null>(null)
 const requireOptionsNotice = ref(false)
 const toast = ref(false)
 const toastText = ref('تمت الإضافة إلى السلة')
+function showToast(msg?: string){ try{ if(msg) toastText.value = msg }catch{}; toast.value = true; setTimeout(()=>{ toast.value=false; try{ toastText.value='تمت الإضافة إلى السلة' }catch{} }, 1200) }
 
-function showToast(msg?: string){
-  if (msg) toastText.value = msg
-  toast.value = true
-  setTimeout(()=>{ toast.value = false; toastText.value = 'تمت الإضافة إلى السلة' }, 1200)
+async function fetchProductDetails(id: string){
+  try{
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`)
+    const imgs = Array.isArray(d.images)? d.images : []
+    const filteredImgs = imgs.filter((u:string)=> /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
+    const galleries = Array.isArray(d.colorGalleries) ? d.colorGalleries : []
+    const colors = galleries.map((g:any)=> ({ label: String(g.name||'').trim(), img: (g.primaryImageUrl || (Array.isArray(g.images)&&g.images[0]) || filteredImgs[0] || '/images/placeholder-product.jpg') })).filter((c:any)=> !!c.label)
+    const sizes: string[] = Array.isArray(d.sizes)? d.sizes: []
+    const letters = sizes.filter((s:string)=> /^(xxs|xs|s|m|l|xl|2xl|3xl|4xl|5xl)$/i.test(String(s)))
+    const numbers = sizes.filter((s:string)=> /^\d{1,3}$/.test(String(s)))
+    const sizeGroups: Array<{label:string; values:string[]}> = []
+    if (letters.length) sizeGroups.push({ label:'مقاسات بالأحرف', values: letters })
+    if (numbers.length) sizeGroups.push({ label:'مقاسات بالأرقام', values: numbers })
+    optionsProduct.value = { id: d.id||id, title: d.name||'', price: Number(d.price||0), images: filteredImgs.length? filteredImgs: ['/images/placeholder-product.jpg'], colors, sizes, sizeGroups, colorGalleries: galleries }
+  }catch{ optionsProduct.value = { id, title:'', price:0, images: ['/images/placeholder-product.jpg'], colors: [], sizes: [], sizeGroups: [] } }
 }
 
-function closeOptions(){ optionsModal.open = false }
-
-async function openSuggestOptions(p: any){
-  // Check if product has options
-  try {
-    // Quick check or fetch details if needed. For now, assume if it has colors/sizes in object
-    // Or fetch full details
-    const d = await apiGet<any>(`/api/product/${encodeURIComponent(p.id)}`)
-    const hasColors = (d.colorGalleries?.length || 0) > 1
-    const hasSizes = (d.sizes?.length || 0) > 0
-    
-    if (!hasColors && !hasSizes) {
-      // Add directly
-      cart.add({ id: p.id, title: p.title, price: parseFloat(p.basePrice), img: (p.images&&p.images[0])||p.image }, 1)
-      showToast()
+async function openSuggestOptions(id: string){
+  try{
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`)
+    const galleries = Array.isArray(d?.colorGalleries) ? d.colorGalleries : []
+    const colorsCount = galleries.filter((g:any)=> String(g?.name||'').trim()).length
+    const hasColors = colorsCount > 1
+    const sizesArr = Array.isArray(d?.sizes) ? (d.sizes as any[]).filter((s:any)=> typeof s==='string' && String(s).trim()) : []
+    const variantsHasSize = Array.isArray(d?.variants) && d.variants.some((v:any)=> !!v?.size || /size|مقاس/i.test(String(v?.name||'')))
+    const hasSizes = (new Set(sizesArr.map((s:string)=> s.trim().toLowerCase()))).size > 1 || (!!variantsHasSize && (sizesArr.length>1))
+    if (!hasColors && !hasSizes){
+      const p = products.value.find(x=> String(x.id)===String(id))
+      if (p){ cart.add({ id: String(p.id), title: String(p.title), price: Number(String(p.basePrice||'0').replace(/[^0-9.]/g,''))||0, img: (Array.isArray(p.images)&&p.images[0]) || p.image || '/images/placeholder-product.jpg' }, 1); showToast() }
       return
     }
-
-    // Open Modal
-    optionsProduct.value = { ...p, ...d, price: Number(p.basePrice) }
-    optionsModal.groupValues = d.sizeGroups // If available from API or derived
-    // Derive size groups if not present
-    if (!optionsModal.groupValues && d.sizes) {
-       const letters = d.sizes.filter((s:string)=> /^(xxs|xs|s|m|l|xl|2xl|3xl|4xl|5xl)$/i.test(String(s)))
-       const numbers = d.sizes.filter((s:string)=> /^\d{1,3}$/.test(String(s)))
-       const groups: Array<{label:string; values:string[]}> = []
-       if (letters.length) groups.push({ label:'مقاسات بالأحرف', values: letters })
-       if (numbers.length) groups.push({ label:'مقاسات بالأرقام', values: numbers })
-       optionsModal.groupValues = groups
-    }
-
-    optionsModal.color = d.colorGalleries?.[0]?.name || ''
-    optionsModal.size = ''
-    optionsModal.open = true
-
-  } catch {
-    // Fallback add
-    cart.add({ id: p.id, title: p.title, price: parseFloat(p.basePrice), img: (p.images&&p.images[0])||p.image }, 1)
-    showToast()
-  }
+  }catch{}
+  optionsModal.productId = id
+  optionsModal.color = ''
+  optionsModal.size = ''
+  optionsModal.groupValues = {}
+  optionsModal.open = true
+  await fetchProductDetails(id)
 }
-
+function closeOptions(){ optionsModal.open = false }
 function onOptionsSave(payload: { color: string; size: string }){
-  if (!optionsProduct.value) return
-  cart.add({ 
-    id: optionsProduct.value.id, 
-    title: optionsProduct.value.title, 
-    price: Number(optionsProduct.value.price||0), 
-    img: (optionsProduct.value.images?.[0]||''), 
-    variantColor: payload.color||undefined, 
-    variantSize: payload.size||undefined 
-  }, 1)
-  showToast()
+  try{
+    const prod = optionsProduct.value
+    const groups = Array.isArray(prod?.sizeGroups) ? prod!.sizeGroups : []
+    if (groups.length){
+      const composite = String(payload.size||'')
+      const missing = groups.some((g:any)=> !new RegExp(`(?:^|\\|)${g.label}:[^|]+`).test(composite))
+      if (missing){ requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value=false, 2000); return }
+    } else {
+      const hasSizes = Array.isArray(prod?.sizes) && prod!.sizes.length>0
+      if (hasSizes && !String(payload.size||'').trim()){ requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value=false, 2000); return }
+    }
+    const img = (prod?.images && prod.images[0]) || '/images/placeholder-product.jpg'
+    cart.add({ id: prod?.id || optionsModal.productId, title: prod?.title || '', price: Number(prod?.price||0), img, variantColor: payload.color||undefined, variantSize: payload.size||undefined }, 1)
+    showToast()
+  }catch{}
   optionsModal.open = false
 }
 
