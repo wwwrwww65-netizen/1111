@@ -34,7 +34,7 @@
           <span v-if="colorsHex.length>5" class="text-[10px] bg-white/90 rounded px-1 border">+{{ colorsHex.length-5 }}</span>
         </template>
         <template v-else>
-          <img v-for="(u,i) in colorThumbs.slice(0,5)" :key="'c-'+i" :src="u" alt="لون" class="w-4 h-4 rounded-full border border-white shadow" loading="lazy" />
+          <img v-for="(u,i) in colorThumbs.slice(0,5)" :key="'c-'+i" :src="thumb(u, 32)" alt="لون" class="w-4 h-4 rounded-full border border-white shadow" loading="lazy" />
           <span v-if="colorThumbs.length>5" class="text-[10px] bg-white/90 rounded px-1 border">+{{ colorThumbs.length-5 }}</span>
         </template>
       </div>
