@@ -1888,6 +1888,12 @@ shop.get('/product/:id', async (req, res) => {
         (p as any).soldPlus = found ? String(found.qty) : undefined;
       }
     } catch { }
+    // Helper to force CDN source for image proxy
+    const toCdnUrl = (u: string) => {
+      if (!u) return '';
+      return String(u).replace('api.jeeey.com', 'cdn.jeeey.com');
+    };
+
     // Load color galleries (ProductColor + ProductColorImage)
     let colorGalleries: Array<{ name: string; primaryImageUrl?: string | null; isPrimary: boolean; order: number; images: string[] }> = [];
     try {
@@ -1899,10 +1905,21 @@ shop.get('/product/:id', async (req, res) => {
       for (const c of (colors || [])) {
         let imgs: Array<{ url: string; order: number }> = [];
         try { imgs = await db.productColorImage.findMany({ where: { productColorId: c.id }, orderBy: { order: 'asc' } } as any) } catch { }
-        galleries.push({ name: c.name, primaryImageUrl: c.primaryImageUrl, isPrimary: !!c.isPrimary, order: Number(c.order || 0), images: (imgs || []).map(x => x.url).filter(Boolean) });
+        galleries.push({
+          name: c.name,
+          primaryImageUrl: toCdnUrl(c.primaryImageUrl || ''),
+          isPrimary: !!c.isPrimary,
+          order: Number(c.order || 0),
+          images: (imgs || []).map(x => toCdnUrl(x.url)).filter(Boolean)
+        });
       }
       colorGalleries = galleries;
     } catch { }
+
+    // Apply CDN URL to main images
+    if (Array.isArray((p as any).images)) {
+      (p as any).images = (p as any).images.map((u: string) => toCdnUrl(u));
+    }
     // Derive colors/sizes arrays from variants
     const colors = new Set<string>();
     const sizes = new Set<string>();

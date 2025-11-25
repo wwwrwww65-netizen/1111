@@ -114,7 +114,7 @@
            @scroll.passive="onGalleryScroll">
           <div class="flex h-full">
             <div v-for="(img,idx) in images" :key="'hero-'+idx" class="w-full h-full flex-shrink-0 snap-start relative flex items-center justify-center" style="min-width:100%">
-              <img :src="img" :alt="title" class="w-full h-full block" :class="getImgFitClass(idx)" loading="lazy" decoding="async" :fetchpriority="idx===0 ? 'high' : 'low'" sizes="100vw" @click="openLightbox(idx)" :style="idx===activeIdx ? { viewTransitionName: ('p-img-'+String(product?.id||id)) } : {}" />
+              <img :src="buildThumbUrl(img, 768)" :srcset="`${buildThumbUrl(img,384)} 384w, ${buildThumbUrl(img,512)} 512w, ${buildThumbUrl(img,768)} 768w, ${buildThumbUrl(img,1024)} 1024w`" :alt="title" class="w-full h-full block" :class="getImgFitClass(idx)" loading="lazy" decoding="async" :fetchpriority="idx===0 ? 'high' : 'low'" sizes="100vw" @click="openLightbox(idx)" :style="idx===activeIdx ? { viewTransitionName: ('p-img-'+String(product?.id||id)) } : {}" />
             </div>
         </div>
       </div>
@@ -244,7 +244,7 @@
           <template v-if="!isLoadingPdp">
             <div v-for="(c,i) in colorVariants" :key="'color-'+i" class="flex-shrink-0 relative" data-testid="color-swatch" :data-color="c.name">
               <div class="w-[50px] h-[70px] rounded-lg border-2 overflow-hidden cursor-pointer transition-all hover:scale-105" :class="i===colorIdx ? '' : 'border-gray-200'" :style="i===colorIdx ? 'border-color: #8a1538' : ''" @click="colorIdx=i" :aria-selected="i===colorIdx">
-                <img :src="c.image" class="w-full h-full object-cover" :alt="c.name" />
+                <img :src="buildThumbUrl(c.image, 128)" class="w-full h-full object-cover" :alt="c.name" />
               </div>
               <div v-if="c.isHot" class="absolute top-0 right-0 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl">HOT</div>
               <div v-if="i===colorIdx" class="absolute bottom-0 left-0 right-0 h-0.5" style="background-color: #8a1538"></div>
@@ -1826,7 +1826,7 @@ async function computeGalleryHeight(){
   try{
     const width = galleryRef.value?.clientWidth || window.innerWidth
     const sizes: Array<{w:number,h:number,ratio:number,area:number,scaled:number}> = await Promise.all(
-      images.value.map(src => new Promise<{w:number,h:number,ratio:number,area:number,scaled:number}>(resolve=>{
+      allImages.value.map(src => new Promise<{w:number,h:number,ratio:number,area:number,scaled:number}>(resolve=>{
         const im = new Image()
         im.onload = ()=> {
           const w = im.width||width; const h = im.height||width; const ratio = h/Math.max(1,w); resolve({ w, h, ratio, area: w*h, scaled: width*ratio })
@@ -2167,13 +2167,22 @@ const attrsLoaded = ref(false)
 async function loadNormalizedVariants(pid?: string){
   // 1) Fetch normalized variants list
   const p = String(pid || route.query.id || id)
-  const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/variants`).catch(()=>null)
-  let list: any[] = Array.isArray(j?.items) ? j!.items : []
-  if (!list.length && Array.isArray(product.value?.variants)) list = product.value.variants as any[]
+  // Optimization: if product already has attributes/variants loaded, use them
+  let list: any[] = []
+  let pd: any = null
+  
+  if (product.value && Array.isArray(product.value.variants) && product.value.variants.length > 0 && Array.isArray(product.value.attributes)) {
+    list = product.value.variants as any[]
+    pd = product.value
+  } else {
+    const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/variants`).catch(()=>null)
+    list = Array.isArray(j?.items) ? j!.items : []
+    if (!list.length && Array.isArray(product.value?.variants)) list = product.value.variants as any[]
+  }
 
   // 2) Prefer grouped attributes from product endpoint to render buttons per group
   try {
-    const pd = await apiGet<any>(`/api/product/${encodeURIComponent(p)}`).catch(()=>null)
+    if (!pd) pd = await apiGet<any>(`/api/product/${encodeURIComponent(p)}`).catch(()=>null)
     const attrs: Array<{ key:string; label:string; values:string[] }> = Array.isArray(pd?.attributes) ? pd!.attributes : []
     // Ingest server color galleries
     if (Array.isArray(pd?.colorGalleries)) colorGalleries.value = pd!.colorGalleries
@@ -2913,7 +2922,7 @@ function imageAt(i:number): string {
     const arr = images.value||[]
     if (!Array.isArray(arr) || arr.length===0) return '/images/placeholder-product.jpg'
     const idx = Math.max(0, (i % arr.length))
-    return arr[idx]
+    return buildThumbUrl(arr[idx], 128)
   }catch{ return '/images/placeholder-product.jpg' }
 }
 

@@ -41,7 +41,7 @@
               class="w-[164px] h-[218px] rounded-[8px] overflow-hidden shrink-0 bg-gray-100"
             >
               <img
-                :src="src"
+                :src="buildThumbUrl(src, 384)"
                 :alt="`صورة ${idx + 1}`"
                 class="w-full h-full object-cover"
                 loading="lazy"
@@ -84,7 +84,7 @@
               }`"
             >
               <img
-                :src="color.img"
+                :src="buildThumbUrl(color.img, 128)"
                 :alt="color.label"
                 class="w-full h-full object-cover"
                 loading="lazy"
@@ -167,6 +167,7 @@
 <script setup lang="ts">
 import { ref, computed, watchEffect, watch } from 'vue'
 import { X, Heart as HeartIcon } from 'lucide-vue-next'
+import { buildThumbUrl } from '@/lib/media'
 
 const props = defineProps<{
   onClose: () => void
