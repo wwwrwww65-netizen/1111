@@ -2017,34 +2017,17 @@ async function loadProductData(pid?: string) {
     const pref = consumePrefetchPayload(String(p))
     if (pref?.productData) {
       const pd = pref.productData
-      
-      // Instantly populate images from prefetched data (try multiple sources)
-      let prefetchedImages: string[] = []
+      // Instantly populate images from prefetched data
       if (Array.isArray(pd.images) && pd.images.length > 0) {
-        prefetchedImages = pd.images
-      } else if (pd.image) {
-        prefetchedImages = [pd.image]
-      }
-      
-      if (prefetchedImages.length > 0) {
-        allImages.value = prefetchedImages
-        images.value = prefetchedImages
+        allImages.value = pd.images
+        images.value = pd.images
         try { await nextTick(); await computeGalleryHeight() } catch {}
       }
-      
       // Instantly show title and price if available
       if (pd.title) title.value = pd.title
       if (pd.basePrice) {
         const priceNum = Number(String(pd.basePrice).replace(/[^\d.]/g,'')) || 0
         if (priceNum > 0) price.value = priceNum
-      }
-      
-      // Show brand if available
-      if (pd.brand) brand.value = pd.brand
-      
-      // Mark that we have prefetched data (reduces loading skeleton)
-      if (prefetchedImages.length > 0 || pd.title) {
-        isLoadingPdp.value = false
       }
     }
     
