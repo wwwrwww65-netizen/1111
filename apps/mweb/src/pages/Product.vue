@@ -1108,22 +1108,21 @@ function pdpExpiryDateText(c:any){
 // Map to coupons.vue card shape
 const pdpCouponsCards = computed(()=>{
   return (pdpCoupons.value||[]).map((c, i)=>{
-    const ca = c as any // Type assertion to access dynamic properties
-    const discountPct = Number(String(ca.percentLabel||c.discountLabel||'').toString().replace(/[^0-9.]/g,''))||0
+    const discountPct = Number(String(c.percentLabel||c.discountLabel||'').toString().replace(/[^0-9.]/g,''))||0
     const expiryText = pdpExpiryDateText(c)
     return {
       id: c.code || 'c'+i,
       status: 'unused',
       categories: [],
       title: c.title || 'كوبون',
-      category: ca.kindLabel || 'خصم',
+      category: c.kindLabel || 'خصم',
       discount: discountPct,
       minOrderText: c.minLabel || '',
-      validUntil: ca.validUntil || null,
-      schedule: ca.schedule || null,
-      expiresAt: ca.expiresAt || null,
+      validUntil: c.validUntil || null,
+      schedule: c.schedule || null,
+      expiresAt: c.expiresAt || null,
       expiryText,
-      conditions: [ca.kindLabel || 'عروض']
+      conditions: [c.kindLabel || 'عروض']
     }
   })
 })
@@ -2042,6 +2041,11 @@ async function loadProductData(pid?: string) {
       
       // Show brand if available
       if (pd.brand) brand.value = pd.brand
+      
+      // Mark that we have prefetched data (reduces loading skeleton)
+      if (prefetchedImages.length > 0 || pd.title) {
+        isLoadingPdp.value = false
+      }
     }
     
     const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(p)}`, { 
@@ -2055,13 +2059,13 @@ async function loadProductData(pid?: string) {
       price.value = Number(d.price||129)
       const imgs = Array.isArray(d.images)? d.images : []
       try{
-        // recent.add({
-        //   id: d.id,
-        //   title: d.name,
-        //   price: Number(d.price),
-        //   img: imgs[0] || '',
-        //   brand: d.brand
-        // })
+        recent.add({
+          id: d.id,
+          title: d.name,
+          price: Number(d.price),
+          img: imgs[0] || '',
+          brand: d.brand
+        })
       }catch{}
       try{
         // If we have a prefetched hero, place it first and animate from its rect
