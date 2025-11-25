@@ -252,7 +252,11 @@ function open(ev?: Event){
         imgEl = (root?.querySelector('img') as HTMLElement | null)
       }
       const rect = imgEl ? imgEl.getBoundingClientRect() : undefined
-      setPrefetchPayload(id.value, { imgUrl: (gallery.value?.[0]||''), rect: rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : undefined })
+      setPrefetchPayload(id.value, { 
+        imgUrl: (gallery.value?.[0]||''), 
+        rect: rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : undefined,
+        productData: props.product // Pass full product data
+      })
     }catch{}
     router.push(`/p?id=${encodeURIComponent(id.value)}`)
   }

@@ -137,7 +137,7 @@
       <div class="flex-1 relative">
         <div ref="lightboxRef" class="w-full h-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
           <div class="flex h-full">
-            <img v-for="(img,i) in images" :key="'lb-'+i" :src="img" class="w-full h-full object-contain flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" decoding="async" sizes="100vw" />
+            <img v-for="(img,i) in images" :key="'lb-'+i" :src="buildThumbUrl(img, 1024)" :srcset="`${buildThumbUrl(img,768)} 768w, ${buildThumbUrl(img,1024)} 1024w, ${buildThumbUrl(img,1200)} 1200w`" class="w-full h-full object-contain flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" decoding="async" sizes="100vw" />
           </div>
         </div>
         <button class="absolute left-2 top-1/2 -translate-y-1/2 text-white text-2xl" @click="prevLightbox" aria-label="السابق">‹</button>
@@ -1855,9 +1855,7 @@ watch(images, async ()=>{ try{ await nextTick(); await computeGalleryHeight() }c
 watch(price, ()=>{ try{ hydrateCouponsForPdp() }catch{} })
 
 function getImgFitClass(idx: number): string {
-  try{
-    if (idx === tallestIndex.value) return 'object-contain'
-  }catch{}
+  // Use object-cover to fill space completely (may crop edges)
   return 'object-cover'
 }
 
@@ -2014,6 +2012,25 @@ async function loadProductData(pid?: string) {
   try{
     isLoadingPdp.value = true
     const p = String(pid || id)
+    
+    // ✨ NEW: Check for prefetched data and use it immediately
+    const pref = consumePrefetchPayload(String(p))
+    if (pref?.productData) {
+      const pd = pref.productData
+      // Instantly populate images from prefetched data
+      if (Array.isArray(pd.images) && pd.images.length > 0) {
+        allImages.value = pd.images
+        images.value = pd.images
+        try { await nextTick(); await computeGalleryHeight() } catch {}
+      }
+      // Instantly show title and price if available
+      if (pd.title) title.value = pd.title
+      if (pd.basePrice) {
+        const priceNum = Number(String(pd.basePrice).replace(/[^\d.]/g,'')) || 0
+        if (priceNum > 0) price.value = priceNum
+      }
+    }
+    
     const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(p)}`, { 
       credentials:'omit', 
       headers:{ 'Accept':'application/json' } 
@@ -2035,7 +2052,6 @@ async function loadProductData(pid?: string) {
       }catch{}
       try{
         // If we have a prefetched hero, place it first and animate from its rect
-        const pref = consumePrefetchPayload(String(d.id||id))
         if (pref?.imgUrl){
           const list = [pref.imgUrl, ...imgs.filter((u:string)=> u!==pref.imgUrl)]
           allImages.value = list
