@@ -190,7 +190,12 @@
                       title: p.title,
                       images: [p.img],
                       basePrice: p.price,
-                      discountPercent: 0
+                      discountPercent: p.discountPercent,
+                      brand: p.brand,
+                      soldPlus: p.soldPlus,
+                      couponPrice: p.couponPrice,
+                      overlayBannerSrc: p.overlayBannerSrc,
+                      overlayBannerAlt: p.overlayBannerAlt
                     }"
                     :ratio="(p as any)._ratio || defaultRatio"
                     @add="openSuggestOptions"
@@ -207,7 +212,12 @@
                       title: p.title,
                       images: [p.img],
                       basePrice: p.price,
-                      discountPercent: 0
+                      discountPercent: p.discountPercent,
+                      brand: p.brand,
+                      soldPlus: p.soldPlus,
+                      couponPrice: p.couponPrice,
+                      overlayBannerSrc: p.overlayBannerSrc,
+                      overlayBannerAlt: p.overlayBannerAlt
                     }"
                     :ratio="(p as any)._ratio || defaultRatio"
                     @add="openSuggestOptions"
@@ -238,7 +248,12 @@
                       title: p.title,
                       images: [p.img],
                       basePrice: p.price,
-                      discountPercent: p.discountPercent || 0
+                      discountPercent: p.discountPercent,
+                      brand: p.brand,
+                      soldPlus: p.soldPlus,
+                      couponPrice: p.couponPrice,
+                      overlayBannerSrc: p.overlayBannerSrc,
+                      overlayBannerAlt: p.overlayBannerAlt
                     }"
                     :ratio="(p as any)._ratio || defaultRatio"
                     @add="openSuggestOptions"
@@ -255,7 +270,12 @@
                       title: p.title,
                       images: [p.img],
                       basePrice: p.price,
-                      discountPercent: p.discountPercent || 0
+                      discountPercent: p.discountPercent,
+                      brand: p.brand,
+                      soldPlus: p.soldPlus,
+                      couponPrice: p.couponPrice,
+                      overlayBannerSrc: p.overlayBannerSrc,
+                      overlayBannerAlt: p.overlayBannerAlt
                     }"
                     :ratio="(p as any)._ratio || defaultRatio"
                     @add="openSuggestOptions"
@@ -532,7 +552,14 @@ async function openSuggestOptions(id: string){
         const rItem = recent.items.find(i => i.id === id)
         const p = wItem || rItem
         if (p){ 
-          cart.add({ id: String(p.id), title: String(p.title), price: Number(String(p.price||'0').replace(/[^0-9.]/g,''))||0, img: (Array.isArray(p.images)&&p.images[0]) || p.img || '/images/placeholder-product.jpg' }, 1); 
+          cart.add({ 
+            id: String(p.id), 
+            title: String(p.title), 
+            price: Number(String(p.price||'0').replace(/[^0-9.]/g,''))||0, 
+            img: (Array.isArray((p as any).images)&&(p as any).images[0]) || p.img || '/images/placeholder-product.jpg',
+            variantColor: undefined,
+            variantSize: undefined
+          }, 1); 
           showToast() 
         }
         return
@@ -972,7 +999,7 @@ onMounted(async () => {
 }
 
 .tab-content {
-  padding: 0;
+  /* padding: 0; Removed to allow px-1 to work */
 }
 
 .empty-state {

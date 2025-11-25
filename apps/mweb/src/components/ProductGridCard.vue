@@ -136,10 +136,16 @@ const displayCoupon = computed(()=>{
 })
 const gallery = computed(()=> {
   const raw = Array.isArray(props.product?.images) ? props.product!.images! : []
-  const norm = raw
+  let norm = raw
     .map(u => String(u||'').trim())
     // اقبل الروابط المطلقة والنسبيّة (uploads/ أو /uploads)، واستبعد blob: فقط
     .filter(u => !!u && !u.startsWith('blob:'))
+  
+  if (heroImage.value) {
+     norm = norm.filter(u => u !== heroImage.value)
+     norm.unshift(heroImage.value)
+  }
+
   if (norm.length) return norm
   const single = String(props.product?.image||'').trim()
   return [single && !single.startsWith('blob:') ? single : '/images/placeholder-product.jpg']
@@ -186,6 +192,7 @@ watch(() => (gallery.value && gallery.value[0]) ? gallery.value[0] : '', () => {
 // Lazy enrichment: colors + category label if missing
 import { onMounted } from 'vue'
 const colorThumbs = ref<string[]>([])
+const heroImage = ref<string>('')
 const bestRankCategoryLocal = ref<string>('')
 const colorsHex = computed(()=>{
   try{
@@ -197,7 +204,7 @@ const colorsHex = computed(()=>{
 onMounted(async ()=>{
   try{
     if (!id.value) return
-    if (bestRankCategory.value && colorThumbs.value.length) return
+    // Always fetch to get color galleries for hero image logic, even if we have some data
     const d:any = await apiGet(`/api/product/${encodeURIComponent(id.value)}`)
     if (d){
       try{
@@ -212,6 +219,17 @@ onMounted(async ()=>{
           if (s.startsWith('uploads/')) return `${API_BASE}/${s}`
           return s
         }).filter(Boolean)
+
+        // Determine hero image from default (first) color gallery
+        if (g.length > 0) {
+           // Prefer primary gallery if marked, else first one
+           const first = g.find(x => x.isPrimary) || g[0]
+           const img = first.primaryImageUrl || (Array.isArray(first.images) && first.images[0])
+           if (img) {
+             const s = String(img).trim()
+             if (s) heroImage.value = s
+           }
+        }
       }catch{}
       try{ if (!bestRankCategory.value && d.category?.name) bestRankCategoryLocal.value = String(d.category.name) }catch{}
     }

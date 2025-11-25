@@ -1,7 +1,19 @@
 import { defineStore } from 'pinia'
 import { apiGet } from '@/lib/api'
 
-export type RecentItem = { id: string; title: string; price: number; img: string; brand?: string; discountPercent?: number; basePrice?: number; soldPlus?: boolean; couponPrice?: number }
+export type RecentItem = {
+    id: string;
+    title: string;
+    price: number;
+    img: string;
+    brand?: string;
+    discountPercent?: number;
+    basePrice?: number;
+    soldPlus?: boolean;
+    couponPrice?: number;
+    overlayBannerSrc?: string;
+    overlayBannerAlt?: string;
+}
 
 function load(): RecentItem[] {
     try { return JSON.parse(localStorage.getItem('recent_viewed') || '[]') } catch { return [] }
