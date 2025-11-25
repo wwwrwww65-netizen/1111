@@ -6,10 +6,75 @@ import { readTokenFromRequest, verifyJwt, signJwt } from '../utils/jwt';
 import type { Request } from 'express';
 import type { Response } from 'express';
 import { normalizeCategoriesPageConfig } from '../validators/categories-page';
-import path from 'path';
-import fs from 'fs';
+import * as path from 'path';
+import * as fs from 'fs';
 
 const shop = Router();
+
+// Image Proxy & Resizer
+import sharp from 'sharp';
+import * as https from 'https';
+import * as http from 'http';
+import { pipeline } from 'stream';
+
+shop.get('/media/thumb', async (req: any, res) => {
+  try {
+    const src = String(req.query.src || '').trim();
+    if (!src) return res.status(400).send('Missing src');
+
+    const width = Math.min(2000, Math.max(16, Number(req.query.w || 512)));
+    const quality = Math.min(100, Math.max(10, Number(req.query.q || 60)));
+
+    // Cache headers (long cache for resized images)
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('Content-Type', 'image/webp');
+
+    // Resolve source
+    let inputStream: any;
+
+    if (src.startsWith('http')) {
+      // Remote URL
+      const client = src.startsWith('https') ? https : http;
+      inputStream = await new Promise((resolve, reject) => {
+        const r = client.get(src, (resp) => {
+          if (resp.statusCode && resp.statusCode >= 400) {
+            reject(new Error(`Remote error ${resp.statusCode}`));
+            return;
+          }
+          resolve(resp);
+        }).on('error', reject);
+      });
+    } else {
+      // Local file
+      // Remove leading slash if present to avoid absolute path issues on Windows/Linux mix
+      const cleanSrc = src.startsWith('/') ? src.slice(1) : src;
+      // Assume uploads are in project root/uploads
+      const localPath = path.resolve(process.cwd(), cleanSrc);
+      if (!fs.existsSync(localPath)) {
+        // Fallback to placeholder if not found
+        return res.redirect('/images/placeholder-product.jpg');
+      }
+      inputStream = fs.createReadStream(localPath);
+    }
+
+    // Resize pipeline
+    const transform = sharp()
+      .resize({ width, withoutEnlargement: true })
+      .webp({ quality, effort: 0 }); // effort 0 for speed
+
+    pipeline(inputStream, transform, res, (err) => {
+      if (err) {
+        console.error('Image pipeline error:', err);
+        if (!res.headersSent) res.status(500).end();
+      }
+    });
+
+  } catch (e: any) {
+    console.error('Thumb error:', e);
+    if (!res.headersSent) res.redirect('/images/placeholder-product.jpg');
+  }
+});
+
 
 // -------- Auth: logout (shop scope) --------
 // Provide REST logout for mweb to clear auth cookies reliably
@@ -1888,12 +1953,6 @@ shop.get('/product/:id', async (req, res) => {
         (p as any).soldPlus = found ? String(found.qty) : undefined;
       }
     } catch { }
-    // Helper to force CDN source for image proxy
-    const toCdnUrl = (u: string) => {
-      if (!u) return '';
-      return String(u).replace('api.jeeey.com', 'cdn.jeeey.com');
-    };
-
     // Load color galleries (ProductColor + ProductColorImage)
     let colorGalleries: Array<{ name: string; primaryImageUrl?: string | null; isPrimary: boolean; order: number; images: string[] }> = [];
     try {
@@ -1907,19 +1966,19 @@ shop.get('/product/:id', async (req, res) => {
         try { imgs = await db.productColorImage.findMany({ where: { productColorId: c.id }, orderBy: { order: 'asc' } } as any) } catch { }
         galleries.push({
           name: c.name,
-          primaryImageUrl: toCdnUrl(c.primaryImageUrl || ''),
+          primaryImageUrl: c.primaryImageUrl,
           isPrimary: !!c.isPrimary,
           order: Number(c.order || 0),
-          images: (imgs || []).map(x => toCdnUrl(x.url)).filter(Boolean)
+          images: (imgs || []).map(x => x.url).filter(Boolean)
         });
       }
       colorGalleries = galleries;
     } catch { }
 
     // Apply CDN URL to main images
-    if (Array.isArray((p as any).images)) {
-      (p as any).images = (p as any).images.map((u: string) => toCdnUrl(u));
-    }
+    // if (Array.isArray((p as any).images)) {
+    //   (p as any).images = (p as any).images.map((u: string) => toCdnUrl(u));
+    // }
     // Derive colors/sizes arrays from variants
     const colors = new Set<string>();
     const sizes = new Set<string>();
