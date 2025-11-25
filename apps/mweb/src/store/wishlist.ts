@@ -1,11 +1,14 @@
 import { defineStore } from 'pinia'
 import { apiGet, apiPost } from '@/lib/api'
 
-export type WishItem = { 
-  id: string; 
-  title: string; 
-  price: number; 
+export type WishItem = {
+  id: string;
+  title: string;
+  price: number;
   img: string;
+  images?: string[];
+  colorThumbs?: string[];
+  colors?: string[];
   brand?: string;
   discountPercent?: number;
   basePrice?: number;

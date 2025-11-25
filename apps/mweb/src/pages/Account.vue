@@ -188,7 +188,9 @@
                     :product="{
                       id: p.id,
                       title: p.title,
-                      images: [p.img],
+                      images: (p as any).images || [p.img],
+                      colorThumbs: (p as any).colorThumbs,
+                      colors: (p as any).colors,
                       basePrice: p.price,
                       discountPercent: p.discountPercent,
                       brand: p.brand,
@@ -210,7 +212,9 @@
                     :product="{
                       id: p.id,
                       title: p.title,
-                      images: [p.img],
+                      images: (p as any).images || [p.img],
+                      colorThumbs: (p as any).colorThumbs,
+                      colors: (p as any).colors,
                       basePrice: p.price,
                       discountPercent: p.discountPercent,
                       brand: p.brand,
@@ -246,7 +250,9 @@
                     :product="{
                       id: p.id,
                       title: p.title,
-                      images: [p.img],
+                      images: (p as any).images || [p.img],
+                      colorThumbs: (p as any).colorThumbs,
+                      colors: (p as any).colors,
                       basePrice: p.price,
                       discountPercent: p.discountPercent,
                       brand: p.brand,
@@ -268,7 +274,9 @@
                     :product="{
                       id: p.id,
                       title: p.title,
-                      images: [p.img],
+                      images: (p as any).images || [p.img],
+                      colorThumbs: (p as any).colorThumbs,
+                      colors: (p as any).colors,
                       basePrice: p.price,
                       discountPercent: p.discountPercent,
                       brand: p.brand,

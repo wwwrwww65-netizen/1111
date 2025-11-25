@@ -2642,7 +2642,7 @@ async function computeCouponPricesForRecommended(list:any[]){
   }
 }
 
-async function onRecoAdd(pid: string){
+async function openSuggestOptions(pid: string){
   try{
     // probe options
     const d = await apiGet<any>(`/api/product/${encodeURIComponent(pid)}`)

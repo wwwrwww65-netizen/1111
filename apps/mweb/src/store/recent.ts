@@ -6,6 +6,9 @@ export type RecentItem = {
     title: string;
     price: number;
     img: string;
+    images?: string[];
+    colorThumbs?: string[];
+    colors?: string[];
     brand?: string;
     discountPercent?: number;
     basePrice?: number;
