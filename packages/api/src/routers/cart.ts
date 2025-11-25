@@ -13,7 +13,10 @@ export const cartRouter = router({
           items: {
             include: {
               product: {
-                select: { id: true, name: true, price: true, images: true, stockQuantity: true },
+                select: {
+                  id: true, name: true, price: true, images: true, stockQuantity: true,
+                  colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
+                },
               },
             },
           },
@@ -28,11 +31,34 @@ export const cartRouter = router({
             items: {
               include: {
                 product: {
-                  select: { id: true, name: true, price: true, images: true, stockQuantity: true },
+                  select: {
+                    id: true, name: true, price: true, images: true, stockQuantity: true,
+                    colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
+                  },
                 },
               },
             },
           },
+        });
+      }
+
+      // Post-process items to prioritize hero image if no variant image is selected
+      if (cart && cart.items) {
+        cart.items.forEach((item: any) => {
+          const p = item.product;
+          if (Array.isArray(p.colors) && p.colors.length > 0) {
+            const colors = p.colors;
+            const defaultColor = colors.find((c: any) => c.isPrimary) || colors[0];
+            const hero = defaultColor.primaryImageUrl || (Array.isArray(defaultColor.images) && defaultColor.images[0]?.url);
+            if (hero) {
+              const heroUrl = String(hero).trim();
+              if (heroUrl) {
+                p.images = p.images || [];
+                p.images = p.images.filter((u: string) => u !== heroUrl);
+                p.images.unshift(heroUrl);
+              }
+            }
+          }
         });
       }
 

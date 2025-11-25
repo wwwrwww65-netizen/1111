@@ -77,22 +77,57 @@ shop.get('/auth/wishlist', async (req: any, res) => {
     const payload = verifyJwt(token);
     if (!payload) return res.status(401).json({ error: 'invalid_token' });
 
-    const items = await db.$queryRawUnsafe(
-      `SELECT p.id, p.name as title, p.price, p.images, p.image 
-       FROM "Wishlist" w
-       JOIN "Product" p ON w."productId" = p.id
-       WHERE w."userId" = $1
-       ORDER BY w."createdAt" DESC`,
-      payload.userId
-    );
+    const items = await db.wishlistItem.findMany({
+      where: { userId: payload.userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        product: {
+          select: {
+            id: true, name: true, price: true, images: true, image: true,
+            colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
+          }
+        }
+      }
+    });
 
     // Normalize images for frontend
-    const formatted = (items as any[]).map(p => ({
-      id: p.id,
-      title: p.title,
-      price: p.price,
-      img: (Array.isArray(p.images) && p.images[0]) ? p.images[0] : (p.image || '')
-    }));
+    const formatted = items.map(item => {
+      const p = item.product;
+      let img = (Array.isArray(p.images) && p.images[0]) ? p.images[0] : (p.image || '');
+      let images = Array.isArray(p.images) ? p.images : [];
+      let colorThumbs: string[] = [];
+      let colors: string[] = [];
+
+      if (Array.isArray(p.colors) && p.colors.length > 0) {
+        const cols = p.colors;
+        const defaultColor = cols.find((c: any) => c.isPrimary) || cols[0];
+        const hero = defaultColor.primaryImageUrl || (Array.isArray(defaultColor.images) && defaultColor.images[0]?.url);
+        if (hero) {
+          const heroUrl = String(hero).trim();
+          if (heroUrl) {
+            // Prioritize hero image
+            img = heroUrl;
+            images = images.filter((u: string) => u !== heroUrl);
+            images.unshift(heroUrl);
+          }
+        }
+        colorThumbs = cols.map((c: any) => {
+          const u = c.primaryImageUrl || (Array.isArray(c.images) && c.images[0]?.url);
+          return u ? String(u).trim() : '';
+        }).filter(Boolean);
+        colors = cols.map((c: any) => String(c.name || '').trim()).filter((n: string) => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(n));
+      }
+
+      return {
+        id: p.id,
+        title: p.name,
+        price: p.price,
+        img,
+        images,
+        colorThumbs,
+        colors
+      };
+    });
 
     return res.json(formatted);
   } catch (e: any) {
@@ -1687,7 +1722,10 @@ shop.get('/products', async (req, res) => {
       // Explicit ids preserve order
       const rows = await db.product.findMany({
         where: { isActive: true, id: { in: ids } },
-        select: { id: true, name: true, price: true, images: true },
+        select: {
+          id: true, name: true, price: true, images: true,
+          colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
+        },
       });
       const byId = new Map<string, any>(rows.map(r => [String(r.id), r]));
       items = ids.map(id => byId.get(id)).filter(Boolean) as any[];
@@ -1723,7 +1761,10 @@ shop.get('/products', async (req, res) => {
 
           items = await db.product.findMany({
             where: finalWhere,
-            select: { id: true, name: true, price: true, images: true },
+            select: {
+              id: true, name: true, price: true, images: true,
+              colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
+            },
             orderBy,
             skip: offset,
             take: limit,
@@ -1733,7 +1774,10 @@ shop.get('/products', async (req, res) => {
           const fallbackWhere = { ...where, categoryId: { in: categoryIds } };
           items = await db.product.findMany({
             where: fallbackWhere,
-            select: { id: true, name: true, price: true, images: true },
+            select: {
+              id: true, name: true, price: true, images: true,
+              colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
+            },
             orderBy,
             skip: offset,
             take: limit,
@@ -1743,13 +1787,43 @@ shop.get('/products', async (req, res) => {
         // No category filter
         items = await db.product.findMany({
           where,
-          select: { id: true, name: true, price: true, images: true },
+          select: {
+            id: true, name: true, price: true, images: true,
+            colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
+          },
           orderBy,
           skip: offset,
           take: limit,
         }) as any;
       }
     }
+
+    // Post-process items to prioritize hero image and populate colorThumbs
+    items.forEach((it: any) => {
+      if (Array.isArray(it.colors) && it.colors.length > 0) {
+        const colors = it.colors;
+        // 1. Determine hero image
+        const defaultColor = colors.find((c: any) => c.isPrimary) || colors[0];
+        const hero = defaultColor.primaryImageUrl || (Array.isArray(defaultColor.images) && defaultColor.images[0]?.url);
+        if (hero) {
+          const heroUrl = String(hero).trim();
+          if (heroUrl) {
+            it.images = it.images || [];
+            // Remove hero if already exists to avoid dupes (optional, but cleaner)
+            it.images = it.images.filter((u: string) => u !== heroUrl);
+            it.images.unshift(heroUrl);
+          }
+        }
+        // 2. Populate colorThumbs (primary image of each color)
+        it.colorThumbs = colors.map((c: any) => {
+          const u = c.primaryImageUrl || (Array.isArray(c.images) && c.images[0]?.url);
+          return u ? String(u).trim() : '';
+        }).filter(Boolean);
+
+        // 3. Populate colors (hex) if names look like hex
+        it.colors = colors.map((c: any) => String(c.name || '').trim()).filter((n: string) => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(n));
+      }
+    });
 
     // annotate global top-sellers rank and sold counts
     try {
@@ -2178,11 +2252,36 @@ shop.get('/reviews', async (req, res) => {
 // Public: recommendations (recent)
 shop.get('/recommendations/recent', async (_req, res) => {
   try {
-    const items = await db.product.findMany({
+    const itemsRaw = await db.product.findMany({
       where: { isActive: true },
-      select: { id: true, name: true, price: true, images: true, brand: true },
+      select: {
+        id: true, name: true, price: true, images: true, brand: true,
+        colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
+      },
       orderBy: { updatedAt: 'desc' },
       take: 12,
+    });
+
+    const items = itemsRaw.map((it: any) => {
+      if (Array.isArray(it.colors) && it.colors.length > 0) {
+        const colors = it.colors;
+        const defaultColor = colors.find((c: any) => c.isPrimary) || colors[0];
+        const hero = defaultColor.primaryImageUrl || (Array.isArray(defaultColor.images) && defaultColor.images[0]?.url);
+        if (hero) {
+          const heroUrl = String(hero).trim();
+          if (heroUrl) {
+            it.images = it.images || [];
+            it.images = it.images.filter((u: string) => u !== heroUrl);
+            it.images.unshift(heroUrl);
+          }
+        }
+        it.colorThumbs = colors.map((c: any) => {
+          const u = c.primaryImageUrl || (Array.isArray(c.images) && c.images[0]?.url);
+          return u ? String(u).trim() : '';
+        }).filter(Boolean);
+        it.colors = colors.map((c: any) => String(c.name || '').trim()).filter((n: string) => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(n));
+      }
+      return it;
     });
     // annotate sold counts and rank (global)
     try {
@@ -2208,11 +2307,36 @@ shop.get('/recommendations/similar/:productId', async (req, res) => {
     const productId = String(req.params.productId);
     const p = await db.product.findUnique({ where: { id: productId }, select: { id: true, categoryId: true } });
     if (!p) return res.status(404).json({ error: 'not_found' });
-    const items = await db.product.findMany({
+    const itemsRaw = await db.product.findMany({
       where: { categoryId: p.categoryId, isActive: true, NOT: { id: productId } },
-      select: { id: true, name: true, price: true, images: true, brand: true },
+      select: {
+        id: true, name: true, price: true, images: true, brand: true,
+        colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
+      },
       orderBy: { updatedAt: 'desc' },
       take: 12,
+    });
+
+    const items = itemsRaw.map((it: any) => {
+      if (Array.isArray(it.colors) && it.colors.length > 0) {
+        const colors = it.colors;
+        const defaultColor = colors.find((c: any) => c.isPrimary) || colors[0];
+        const hero = defaultColor.primaryImageUrl || (Array.isArray(defaultColor.images) && defaultColor.images[0]?.url);
+        if (hero) {
+          const heroUrl = String(hero).trim();
+          if (heroUrl) {
+            it.images = it.images || [];
+            it.images = it.images.filter((u: string) => u !== heroUrl);
+            it.images.unshift(heroUrl);
+          }
+        }
+        it.colorThumbs = colors.map((c: any) => {
+          const u = c.primaryImageUrl || (Array.isArray(c.images) && c.images[0]?.url);
+          return u ? String(u).trim() : '';
+        }).filter(Boolean);
+        it.colors = colors.map((c: any) => String(c.name || '').trim()).filter((n: string) => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(n));
+      }
+      return it;
     });
     try {
       const rows: any[] = await db.$queryRawUnsafe(`
@@ -5267,24 +5391,46 @@ shop.get('/products/recent', async (req: any, res) => {
     const pids = rows.map(r => String(r.productId));
 
     // Fetch product details
-    const products = await db.product.findMany({
+    const productRows: any[] = await db.product.findMany({
       where: { id: { in: pids }, isActive: true },
-      select: { id: true, name: true, price: true, images: true, brand: true }
+      select: {
+        id: true, name: true, price: true, images: true, brand: true,
+        colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
+      }
     });
-
-    // Map back to preserve order
-    const map = new Map(products.map(p => [p.id, p]));
-    const items = pids.map(id => {
-      const p = map.get(id);
-      if (!p) return null;
+    // Map to preserve order of pids
+    const byId = new Map<string, any>(productRows.map(r => [String(r.id), r]));
+    const items = pids.map(id => byId.get(id)).filter(Boolean).map((it: any) => {
+      // Post-process logic (same as /products)
+      if (Array.isArray(it.colors) && it.colors.length > 0) {
+        const colors = it.colors;
+        const defaultColor = colors.find((c: any) => c.isPrimary) || colors[0];
+        const hero = defaultColor.primaryImageUrl || (Array.isArray(defaultColor.images) && defaultColor.images[0]?.url);
+        if (hero) {
+          const heroUrl = String(hero).trim();
+          if (heroUrl) {
+            it.images = it.images || [];
+            it.images = it.images.filter((u: string) => u !== heroUrl);
+            it.images.unshift(heroUrl);
+          }
+        }
+        it.colorThumbs = colors.map((c: any) => {
+          const u = c.primaryImageUrl || (Array.isArray(c.images) && c.images[0]?.url);
+          return u ? String(u).trim() : '';
+        }).filter(Boolean);
+        it.colors = colors.map((c: any) => String(c.name || '').trim()).filter((n: string) => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(n));
+      }
       return {
-        id: p.id,
-        title: p.name,
-        price: Number(p.price),
-        img: Array.isArray(p.images) ? p.images[0] : '',
-        brand: p.brand
+        id: it.id,
+        title: it.name,
+        price: Number(it.price),
+        img: (Array.isArray(it.images) && it.images[0]) ? it.images[0] : '',
+        images: it.images,
+        colorThumbs: it.colorThumbs,
+        colors: it.colors,
+        brand: it.brand
       };
-    }).filter(Boolean);
+    });
 
     res.json({ items });
   } catch (e: any) {
