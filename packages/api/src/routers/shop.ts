@@ -83,7 +83,7 @@ shop.get('/auth/wishlist', async (req: any, res) => {
       include: {
         product: {
           select: {
-            id: true, name: true, price: true, images: true, image: true,
+            id: true, name: true, price: true, images: true,
             colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
           }
         }
@@ -93,7 +93,7 @@ shop.get('/auth/wishlist', async (req: any, res) => {
     // Normalize images for frontend
     const formatted = items.map(item => {
       const p = item.product;
-      let img = (Array.isArray(p.images) && p.images[0]) ? p.images[0] : (p.image || '');
+      let img = (Array.isArray(p.images) && p.images[0]) ? p.images[0] : '';
       let images = Array.isArray(p.images) ? p.images : [];
       let colorThumbs: string[] = [];
       let colors: string[] = [];
