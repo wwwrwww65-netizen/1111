@@ -1108,21 +1108,22 @@ function pdpExpiryDateText(c:any){
 // Map to coupons.vue card shape
 const pdpCouponsCards = computed(()=>{
   return (pdpCoupons.value||[]).map((c, i)=>{
-    const discountPct = Number(String(c.percentLabel||c.discountLabel||'').toString().replace(/[^0-9.]/g,''))||0
+    const ca = c as any // Type assertion to access dynamic properties
+    const discountPct = Number(String(ca.percentLabel||c.discountLabel||'').toString().replace(/[^0-9.]/g,''))||0
     const expiryText = pdpExpiryDateText(c)
     return {
       id: c.code || 'c'+i,
       status: 'unused',
       categories: [],
       title: c.title || 'كوبون',
-      category: c.kindLabel || 'خصم',
+      category: ca.kindLabel || 'خصم',
       discount: discountPct,
       minOrderText: c.minLabel || '',
-      validUntil: c.validUntil || null,
-      schedule: c.schedule || null,
-      expiresAt: c.expiresAt || null,
+      validUntil: ca.validUntil || null,
+      schedule: ca.schedule || null,
+      expiresAt: ca.expiresAt || null,
       expiryText,
-      conditions: [c.kindLabel || 'عروض']
+      conditions: [ca.kindLabel || 'عروض']
     }
   })
 })
@@ -2017,18 +2018,30 @@ async function loadProductData(pid?: string) {
     const pref = consumePrefetchPayload(String(p))
     if (pref?.productData) {
       const pd = pref.productData
-      // Instantly populate images from prefetched data
+      
+      // Instantly populate images from prefetched data (try multiple sources)
+      let prefetchedImages: string[] = []
       if (Array.isArray(pd.images) && pd.images.length > 0) {
-        allImages.value = pd.images
-        images.value = pd.images
+        prefetchedImages = pd.images
+      } else if (pd.image) {
+        prefetchedImages = [pd.image]
+      }
+      
+      if (prefetchedImages.length > 0) {
+        allImages.value = prefetchedImages
+        images.value = prefetchedImages
         try { await nextTick(); await computeGalleryHeight() } catch {}
       }
+      
       // Instantly show title and price if available
       if (pd.title) title.value = pd.title
       if (pd.basePrice) {
         const priceNum = Number(String(pd.basePrice).replace(/[^\d.]/g,'')) || 0
         if (priceNum > 0) price.value = priceNum
       }
+      
+      // Show brand if available
+      if (pd.brand) brand.value = pd.brand
     }
     
     const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(p)}`, { 
@@ -2042,13 +2055,13 @@ async function loadProductData(pid?: string) {
       price.value = Number(d.price||129)
       const imgs = Array.isArray(d.images)? d.images : []
       try{
-        recent.add({
-          id: d.id,
-          title: d.name,
-          price: Number(d.price),
-          img: imgs[0] || '',
-          brand: d.brand
-        })
+        // recent.add({
+        //   id: d.id,
+        //   title: d.name,
+        //   price: Number(d.price),
+        //   img: imgs[0] || '',
+        //   brand: d.brand
+        // })
       }catch{}
       try{
         // If we have a prefetched hero, place it first and animate from its rect
