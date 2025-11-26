@@ -7351,67 +7351,85 @@ adminRest.post('/shipping/zones/sync-from-geo', async (_req, res) => {
 
     let createdCount = 0;
     let updatedCount = 0;
+    let deletedCount = 0;
+    const expectedZones = new Set<string>();
 
-    // 1. Sync Countries
+    // Helper to upsert zone
+    const upsertZone = async (name: string, countryCodes: string[], cities: string[], areas: string[]) => {
+      expectedZones.add(name);
+      const exists = await db.shippingZone.findFirst({ where: { name } });
+      if (!exists) {
+        await db.shippingZone.create({
+          data: {
+            name,
+            countryCodes,
+            cities,
+            areas,
+            isActive: true,
+          }
+        });
+        createdCount++;
+      } else {
+        // Only update if content changed to avoid unnecessary writes, but for now just update to ensure sync
+        await db.shippingZone.update({
+          where: { id: exists.id },
+          data: {
+            countryCodes, // Ensure country code is correct
+            cities,
+            areas,
+          }
+        });
+        updatedCount++;
+      }
+    };
+
+    // 1. Sync Countries (Zone - Country)
+    // Contains: All cities in country, All areas in country
     for (const c of countries) {
       const name = `Zone - ${c.name}`;
       const countryCities = cities.filter(city => city.countryId === c.id).map(city => city.name);
       const countryAreas = areas.filter(area => area.city.countryId === c.id).map(area => area.name);
-      
-      const exists = await db.shippingZone.findFirst({ where: { name } });
-      if (!exists) {
-        await db.shippingZone.create({
-          data: {
-            name,
-            countryCodes: [c.code || c.name.slice(0, 2).toUpperCase()],
-            cities: countryCities,
-            areas: countryAreas,
-            isActive: true,
-          }
-        });
-        createdCount++;
-      } else {
-        await db.shippingZone.update({
-          where: { id: exists.id },
-          data: {
-            cities: countryCities,
-            areas: countryAreas,
-          }
-        });
-        updatedCount++;
-      }
+      const code = c.code || c.name.slice(0, 2).toUpperCase();
+      await upsertZone(name, [code], countryCities, countryAreas);
     }
 
-    // 2. Sync Cities
+    // 2. Sync Cities (Zone - CountryCode - City)
+    // Contains: The City, All areas in city
     for (const c of cities) {
       const countryCode = c.country?.code || c.country?.name.slice(0, 2).toUpperCase() || 'SA';
       const name = `Zone - ${countryCode} - ${c.name}`;
       const cityAreas = areas.filter(area => area.cityId === c.id).map(area => area.name);
+      await upsertZone(name, [countryCode], [c.name], cityAreas);
+    }
 
-      const exists = await db.shippingZone.findFirst({ where: { name } });
-      if (!exists) {
-        await db.shippingZone.create({
-          data: {
-            name,
-            countryCodes: [countryCode],
-            cities: [c.name],
-            areas: cityAreas,
-            isActive: true,
-          }
-        });
-        createdCount++;
-      } else {
-        await db.shippingZone.update({
-          where: { id: exists.id },
-          data: {
-            areas: cityAreas,
-          }
-        });
-        updatedCount++;
+    // 3. Sync Areas (Zone - CountryCode - City - Area)
+    // Contains: The Area
+    for (const a of areas) {
+      const countryCode = a.city?.country?.code || a.city?.country?.name.slice(0, 2).toUpperCase() || 'SA';
+      const cityName = a.city?.name || '';
+      const name = `Zone - ${countryCode} - ${cityName} - ${a.name}`;
+      await upsertZone(name, [countryCode], [cityName], [a.name]);
+    }
+
+    // 4. Cleanup Obsolete Zones
+    // Find all zones starting with "Zone -"
+    const allAutoZones = await db.shippingZone.findMany({
+      where: { name: { startsWith: 'Zone -' } },
+      select: { id: true, name: true }
+    });
+
+    for (const z of allAutoZones) {
+      if (!expectedZones.has(z.name)) {
+        await db.shippingZone.delete({ where: { id: z.id } });
+        deletedCount++;
       }
     }
 
-    res.json({ ok: true, message: `Synced successfully. Created: ${createdCount}, Updated: ${updatedCount}` });
+    res.json({ 
+      ok: true, 
+      message: `Synced successfully. Created: ${createdCount}, Updated: ${updatedCount}, Deleted: ${deletedCount}`,
+      stats: { created: createdCount, updated: updatedCount, deleted: deletedCount }
+    });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: e.message || 'sync_failed' });
   }
