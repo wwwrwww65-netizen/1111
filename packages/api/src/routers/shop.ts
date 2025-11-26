@@ -5608,8 +5608,11 @@ shop.get('/shipping/methods', async (req, res) => {
         }).map((z: any) => String(z.id))
       } catch { }
       const where: any = zoneIds.length ? { isActive: true, zoneId: { in: zoneIds } } : { isActive: true }
-      const rates = await db.deliveryRate.findMany({ where, select: { id: true, baseFee: true, etaMinHours: true, etaMaxHours: true, carrier: true, offerTitle: true, freeOverSubtotal: true, minSubtotal: true } } as any)
-      items = (rates || []).map((r: any) => ({
+      const rates = await db.deliveryRate.findMany({ where, select: { id: true, baseFee: true, etaMinHours: true, etaMaxHours: true, carrier: true, offerTitle: true, freeOverSubtotal: true, minSubtotal: true, excludedZoneIds: true } } as any)
+      items = (rates || []).filter((r: any) => {
+        if (Array.isArray(r.excludedZoneIds) && r.excludedZoneIds.some((ex: string) => zoneIds.includes(ex))) return false;
+        return true;
+      }).map((r: any) => ({
         id: r.id,
         name: r.carrier || 'شحن',
         desc: r.offerTitle || (r.etaMinHours || r.etaMaxHours ? `توصيل خلال ${r.etaMinHours || r.etaMaxHours} - ${r.etaMaxHours || r.etaMinHours} ساعة` : ''),

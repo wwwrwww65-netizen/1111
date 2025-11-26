@@ -1126,6 +1126,7 @@ model DeliveryRate {
   activeFrom       DateTime?
   activeUntil      DateTime?
   isActive         Boolean  @default(true)
+  excludedZoneIds  String[] @default([])
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
