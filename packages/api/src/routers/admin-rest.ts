@@ -7286,6 +7286,7 @@ adminRest.get('/currencies', async (_req, res) => {
 });
 
 // Shipping Zones CRUD
+// Shipping Zones CRUD
 adminRest.get('/shipping/zones', async (_req, res) => {
   try {
     const zones = await db.shippingZone.findMany({ orderBy: { createdAt: 'desc' } });
@@ -7351,85 +7352,67 @@ adminRest.post('/shipping/zones/sync-from-geo', async (_req, res) => {
 
     let createdCount = 0;
     let updatedCount = 0;
-    let deletedCount = 0;
-    const expectedZones = new Set<string>();
 
-    // Helper to upsert zone
-    const upsertZone = async (name: string, countryCodes: string[], cities: string[], areas: string[]) => {
-      expectedZones.add(name);
+    // 1. Sync Countries
+    for (const c of countries) {
+      const name = `Zone - ${c.name}`;
+      const countryCities = cities.filter(city => city.countryId === c.id).map(city => city.name);
+      const countryAreas = areas.filter(area => area.city.countryId === c.id).map(area => area.name);
+      
       const exists = await db.shippingZone.findFirst({ where: { name } });
       if (!exists) {
         await db.shippingZone.create({
           data: {
             name,
-            countryCodes,
-            cities,
-            areas,
+            countryCodes: [c.code || c.name.slice(0, 2).toUpperCase()],
+            cities: countryCities,
+            areas: countryAreas,
             isActive: true,
           }
         });
         createdCount++;
       } else {
-        // Only update if content changed to avoid unnecessary writes, but for now just update to ensure sync
         await db.shippingZone.update({
           where: { id: exists.id },
           data: {
-            countryCodes, // Ensure country code is correct
-            cities,
-            areas,
+            cities: countryCities,
+            areas: countryAreas,
           }
         });
         updatedCount++;
       }
-    };
-
-    // 1. Sync Countries (Zone - Country)
-    // Contains: All cities in country, All areas in country
-    for (const c of countries) {
-      const name = `Zone - ${c.name}`;
-      const countryCities = cities.filter(city => city.countryId === c.id).map(city => city.name);
-      const countryAreas = areas.filter(area => area.city.countryId === c.id).map(area => area.name);
-      const code = c.code || c.name.slice(0, 2).toUpperCase();
-      await upsertZone(name, [code], countryCities, countryAreas);
     }
 
-    // 2. Sync Cities (Zone - CountryCode - City)
-    // Contains: The City, All areas in city
+    // 2. Sync Cities
     for (const c of cities) {
       const countryCode = c.country?.code || c.country?.name.slice(0, 2).toUpperCase() || 'SA';
       const name = `Zone - ${countryCode} - ${c.name}`;
       const cityAreas = areas.filter(area => area.cityId === c.id).map(area => area.name);
-      await upsertZone(name, [countryCode], [c.name], cityAreas);
-    }
 
-    // 3. Sync Areas (Zone - CountryCode - City - Area)
-    // Contains: The Area
-    for (const a of areas) {
-      const countryCode = a.city?.country?.code || a.city?.country?.name.slice(0, 2).toUpperCase() || 'SA';
-      const cityName = a.city?.name || '';
-      const name = `Zone - ${countryCode} - ${cityName} - ${a.name}`;
-      await upsertZone(name, [countryCode], [cityName], [a.name]);
-    }
-
-    // 4. Cleanup Obsolete Zones
-    // Find all zones starting with "Zone -"
-    const allAutoZones = await db.shippingZone.findMany({
-      where: { name: { startsWith: 'Zone -' } },
-      select: { id: true, name: true }
-    });
-
-    for (const z of allAutoZones) {
-      if (!expectedZones.has(z.name)) {
-        await db.shippingZone.delete({ where: { id: z.id } });
-        deletedCount++;
+      const exists = await db.shippingZone.findFirst({ where: { name } });
+      if (!exists) {
+        await db.shippingZone.create({
+          data: {
+            name,
+            countryCodes: [countryCode],
+            cities: [c.name],
+            areas: cityAreas,
+            isActive: true,
+          }
+        });
+        createdCount++;
+      } else {
+        await db.shippingZone.update({
+          where: { id: exists.id },
+          data: {
+            areas: cityAreas,
+          }
+        });
+        updatedCount++;
       }
     }
 
-    res.json({ 
-      ok: true, 
-      message: `Synced successfully. Created: ${createdCount}, Updated: ${updatedCount}, Deleted: ${deletedCount}`,
-      stats: { created: createdCount, updated: updatedCount, deleted: deletedCount }
-    });
+    res.json({ ok: true, message: `Synced successfully. Created: ${createdCount}, Updated: ${updatedCount}` });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: e.message || 'sync_failed' });
   }
@@ -7443,6 +7426,7 @@ adminRest.get('/shipping/rates', async (req, res) => {
 
 adminRest.post('/shipping/rates', async (req, res) => {
   const schema = z.object({
+    zoneId: z.string(),
     carrier: z.string().optional(),
     baseFee: z.coerce.number().min(0),
     perKgFee: z.coerce.number().optional(),
@@ -7507,31 +7491,29 @@ adminRest.get('/payments/gateways', async (_req, res) => {
   try { const rows = await db.paymentGateway.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }] }); res.json({ ok: true, gateways: rows }); }
   catch (e: any) { res.status(500).json({ ok: false, code: 'pg_list_failed', error: e.message || 'pg_list_failed' }); }
 });
+
 adminRest.post('/payments/gateways', async (req, res) => {
   const schema = z.object({ name: z.string().min(2), provider: z.string().min(2), mode: z.string().default('TEST'), isActive: z.coerce.boolean().default(true), sortOrder: z.coerce.number().int().default(0), feesFixed: z.coerce.number().optional(), feesPercent: z.coerce.number().optional(), minAmount: z.coerce.number().optional(), maxAmount: z.coerce.number().optional(), credentials: z.any().optional(), options: z.any().optional() });
   try { const data = schema.parse(req.body || {}); const gw = await db.paymentGateway.create({ data }); res.json({ ok: true, gateway: gw }); }
   catch (e: any) { res.status(400).json({ ok: false, code: 'pg_create_failed', error: e.message || 'pg_create_failed' }); }
 });
+
 adminRest.put('/payments/gateways/:id', async (req, res) => {
   const { id } = req.params; const schema = z.object({ name: z.string().min(2).optional(), provider: z.string().min(2).optional(), mode: z.string().optional(), isActive: z.coerce.boolean().optional(), sortOrder: z.coerce.number().int().optional(), feesFixed: z.coerce.number().optional(), feesPercent: z.coerce.number().optional(), minAmount: z.coerce.number().optional(), maxAmount: z.coerce.number().optional(), credentials: z.any().optional(), options: z.any().optional() });
   try { const d = schema.parse(req.body || {}); const gw = await db.paymentGateway.update({ where: { id }, data: d }); res.json({ ok: true, gateway: gw }); }
   catch (e: any) { res.status(400).json({ ok: false, code: 'pg_update_failed', error: e.message || 'pg_update_failed' }); }
 });
+
 adminRest.delete('/payments/gateways/:id', async (req, res) => {
   const { id } = req.params; try { await db.paymentGateway.delete({ where: { id } }); res.json({ ok: true }); } catch (e: any) { res.status(400).json({ ok: false, error: e.message || 'pg_delete_failed' }); }
 });
 
-// Helpers: sync ShippingZone with Country/City/Area
-function toCode(candidate?: string | null): string | null {
-  if (!candidate) return null;
-  const s = String(candidate).trim();
-  if (!s) return null;
-  return s.toUpperCase();
+function toCode(s?: string | null) {
+  if (!s) return undefined;
+  return s.trim().toUpperCase();
 }
 function asStringArray(v: any): string[] {
-  if (Array.isArray(v)) return v.map((x) => String(x));
-  if (v == null) return [];
-  return [];
+  return Array.isArray(v) ? v : [];
 }
 function pushUnique(list: string[], value: string): string[] {
   const set = new Set(list || []);
@@ -7701,6 +7683,7 @@ adminRest.delete('/geo/areas/:id', async (req, res) => {
     await db.area.delete({ where: { id } }); if (code && prev) await removeAreaFromZoneByCode(code, prev.name); res.json({ ok: true });
   } catch (e: any) { res.status(400).json({ ok: false, error: e.message || 'area_delete_failed' }); }
 });
+
 
 adminRest.post('/currencies', async (req, res) => {
   const schema = z.object({ code: z.string().min(2).max(6), name: z.string().min(2), symbol: z.string().min(1), precision: z.coerce.number().int().min(0).max(6).default(2), rateToBase: z.coerce.number().positive().default(1), isBase: z.coerce.boolean().default(false), isActive: z.coerce.boolean().default(true) });
