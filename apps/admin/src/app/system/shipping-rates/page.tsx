@@ -10,8 +10,12 @@ export default function ShippingRatesPage(): JSX.Element {
   const [error, setError] = React.useState('');
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
   const [allChecked, setAllChecked] = React.useState(false);
-  const [toast, setToast] = React.useState('');
-  const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(''), 1600); };
+  const [toast, setToast] = React.useState<{ text: string, type: 'ok' | 'err' } | null>(null);
+
+  const showToast = (text: string, type: 'ok' | 'err' = 'ok') => {
+    setToast({ text, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Geo cascade: Country -> City -> Area (UI helper for filtering)
   const [geoLoading, setGeoLoading] = React.useState(false);
@@ -78,160 +82,206 @@ export default function ShippingRatesPage(): JSX.Element {
     return rows.filter(r => matchingZoneIds.has(r.zoneId));
   }, [rows, zones, countryId, cityId, areaId, countriesOptions, citiesOptions, areasOptions]);
 
-  async function remove(id: string) { if (!confirm('حذف السعر؟')) return; const r = await fetch(`/api/admin/shipping/rates/${id}`, { method: 'DELETE', credentials: 'include' }); if (r.ok) await load(); }
+  async function remove(id: string) {
+    if (!confirm('هل أنت متأكد من حذف سعر الشحن هذا؟')) return;
+    try {
+      const r = await fetch(`/api/admin/shipping/rates/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (r.ok) {
+        showToast('تم الحذف بنجاح', 'ok');
+        await load();
+      } else {
+        const j = await r.json().catch(() => ({}));
+        showToast(j.error || 'فشل الحذف', 'err');
+      }
+    } catch (e) {
+      showToast('خطأ في الاتصال', 'err');
+    }
+  }
+
+  async function bulkRemove() {
+    const ids = Object.keys(selected).filter(id => selected[id]);
+    if (!ids.length) return;
+    if (!confirm(`هل أنت متأكد من حذف ${ids.length} عنصر؟`)) return;
+    
+    let successCount = 0;
+    for (const id of ids) {
+      try {
+        const r = await fetch(`/api/admin/shipping/rates/${id}`, { method: 'DELETE', credentials: 'include' });
+        if (r.ok) successCount++;
+      } catch { }
+    }
+    
+    setSelected({});
+    setAllChecked(false);
+    await load();
+    showToast(`تم حذف ${successCount} عنصر`, 'ok');
+  }
 
   return (
-    <div className="container mx-auto p-6">
-      <main className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        {toast && (
-          <div className="fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-lg z-50 animate-fade-in-down">
-            {toast}
-          </div>
-        )}
-        
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-          <h1 className="text-2xl font-bold text-gray-900">أسعار التوصيل</h1>
-          <div className="flex gap-3">
-            <button 
-              className="px-4 py-2 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={async () => {
-                const ids = Object.keys(selected).filter(id => selected[id]); if (!ids.length) return;
-                if (!confirm(`هل أنت متأكد من حذف ${ids.length} عنصر؟`)) return;
-                for (const id of ids) { try { await fetch(`/api/admin/shipping/rates/${id}`, { method: 'DELETE', credentials: 'include' }); } catch { } }
-                setSelected({}); setAllChecked(false); await load(); showToast('تم حذف المحدد');
-              }}
-              disabled={!Object.values(selected).some(Boolean)}
-            >
-              حذف المحدد
-            </button>
-            <button 
-              onClick={() => router.push('/system/shipping-rates/new')} 
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors shadow-sm"
-            >
-              إضافة سعر
-            </button>
-          </div>
+    <div className="w-full space-y-6">
+      {toast && (
+        <div className={`fixed bottom-4 left-4 z-50 px-4 py-2 rounded shadow-lg text-white ${toast.type === 'ok' ? 'bg-green-600' : 'bg-red-600'}`}>
+          {toast.text}
         </div>
-
-        {/* Filter Bar */}
-        <div className="bg-gray-50 p-4 rounded-lg mb-6 flex flex-wrap gap-4 items-center border border-gray-100">
-          <span className="text-sm font-semibold text-gray-700">تصفية حسب الموقع:</span>
-          <select 
-            value={countryId} 
-            onChange={(e) => setCountryId(e.target.value)} 
-            className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-1.5"
-          >
-            <option value="">كل الدول</option>
-            {countriesOptions.map((c: any) => (<option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>))}
-          </select>
-          <select 
-            value={cityId} 
-            onChange={(e) => setCityId(e.target.value)} 
-            className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-1.5 disabled:bg-gray-100 disabled:text-gray-400" 
-            disabled={!countryId}
-          >
-            <option value="">كل المدن</option>
-            {citiesOptions.map((c: any) => (<option key={c.id} value={c.id}>{c.name}</option>))}
-          </select>
-          <select 
-            value={areaId} 
-            onChange={(e) => setAreaId(e.target.value)} 
-            className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-1.5 disabled:bg-gray-100 disabled:text-gray-400" 
-            disabled={!cityId}
-          >
-            <option value="">كل المناطق</option>
-            {areasOptions.map((a: any) => (<option key={a.id} value={a.id}>{a.name}</option>))}
-          </select>
+      )}
+      
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text)]">أسعار التوصيل</h1>
+          <p className="text-[var(--sub)] mt-1">إدارة أسعار الشحن للمناطق المختلفة</p>
         </div>
+        <div className="flex gap-3">
+          {Object.values(selected).some(Boolean) && (
+            <button 
+              className="btn bg-red-500/10 text-red-500 hover:bg-red-500/20 border-red-500/20"
+              onClick={bulkRemove}
+            >
+              حذف المحدد ({Object.values(selected).filter(Boolean).length})
+            </button>
+          )}
+          <button 
+            onClick={() => router.push('/system/shipping-rates/new')} 
+            className="btn"
+          >
+            <svg className="w-5 h-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            إضافة سعر جديد
+          </button>
+        </div>
+      </div>
 
-        {loading ? (
-          <div className="animate-pulse space-y-4">
-            <div className="h-10 bg-gray-200 rounded w-full"></div>
-            <div className="h-40 bg-gray-100 rounded w-full"></div>
-          </div>
-        ) : error ? (
-          <div className="p-4 bg-red-50 text-red-700 rounded-md border border-red-200">فشل: {error}</div>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+      {/* Filter Bar */}
+      <div className="panel p-4 flex flex-wrap gap-4 items-center">
+        <div className="flex items-center gap-2 text-[var(--sub)]">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+          <span className="text-sm font-medium">تصفية:</span>
+        </div>
+        <select 
+          value={countryId} 
+          onChange={(e) => setCountryId(e.target.value)} 
+          className="select w-auto min-w-[160px] py-1.5 h-9 text-sm"
+        >
+          <option value="">كل الدول</option>
+          {countriesOptions.map((c: any) => (<option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>))}
+        </select>
+        <select 
+          value={cityId} 
+          onChange={(e) => setCityId(e.target.value)} 
+          className="select w-auto min-w-[160px] py-1.5 h-9 text-sm disabled:opacity-50" 
+          disabled={!countryId}
+        >
+          <option value="">كل المدن</option>
+          {citiesOptions.map((c: any) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+        </select>
+        <select 
+          value={areaId} 
+          onChange={(e) => setAreaId(e.target.value)} 
+          className="select w-auto min-w-[160px] py-1.5 h-9 text-sm disabled:opacity-50" 
+          disabled={!cityId}
+        >
+          <option value="">كل المناطق</option>
+          {areasOptions.map((a: any) => (<option key={a.id} value={a.id}>{a.name}</option>))}
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="animate-pulse space-y-4">
+          <div className="h-12 bg-[var(--panel)] rounded w-full border border-[rgba(255,255,255,0.05)]"></div>
+          <div className="h-64 bg-[var(--panel)] rounded w-full border border-[rgba(255,255,255,0.05)]"></div>
+        </div>
+      ) : error ? (
+        <div className="p-4 bg-red-900/20 text-red-400 rounded-lg border border-red-900/50 flex items-center gap-2">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          فشل تحميل البيانات: {error}
+        </div>
+      ) : (
+        <div className="panel overflow-hidden p-0">
+          <div className="overflow-x-auto">
+            <table className="table w-full">
+              <thead>
+                <tr className="bg-[rgba(255,255,255,0.02)] border-b border-[rgba(255,255,255,0.06)]">
+                  <th className="w-10 px-4 py-3">
                     <input
                       type="checkbox"
                       checked={allChecked}
                       onChange={(e) => { const v = e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(filteredRows.map(r => [r.id, v]))); }}
-                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                      className="rounded border-gray-600 bg-transparent text-[var(--primary)] focus:ring-[var(--primary)] h-4 w-4"
                     />
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">المنطقة</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">استثناءات</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">المشغل</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الرسوم الأساسية</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">لكل كجم</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">مجاني فوق</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">ETA</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">نشط</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">إجراءات</th>
+                  <th className="px-4 py-3 text-right">المنطقة</th>
+                  <th className="px-4 py-3 text-right">استثناءات</th>
+                  <th className="px-4 py-3 text-right">المشغل</th>
+                  <th className="px-4 py-3 text-right">الرسوم الأساسية</th>
+                  <th className="px-4 py-3 text-right">لكل كجم</th>
+                  <th className="px-4 py-3 text-right">مجاني فوق</th>
+                  <th className="px-4 py-3 text-right">مدة التوصيل</th>
+                  <th className="px-4 py-3 text-center">الحالة</th>
+                  <th className="px-4 py-3 text-left">إجراءات</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="divide-y divide-[rgba(255,255,255,0.06)]">
                 {filteredRows.map(r => {
                   const z = zones.find(z => z.id === r.zoneId)
                   const excludedCount = Array.isArray(r.excludedZoneIds) ? r.excludedZoneIds.length : 0;
                   return (
-                    <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
+                    <tr key={r.id} className="hover:bg-[rgba(255,255,255,0.02)] transition-colors">
+                      <td className="px-4 py-3">
                         <input 
                           type="checkbox" 
                           checked={!!selected[r.id]} 
                           onChange={() => setSelected(s => ({ ...s, [r.id]: !s[r.id] }))} 
-                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                          className="rounded border-gray-600 bg-transparent text-[var(--primary)] focus:ring-[var(--primary)] h-4 w-4"
                         />
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">{z?.name || r.zoneId}</div>
-                        <div className="text-xs text-gray-500 mt-1">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-[var(--text)]">{z?.name || r.zoneId}</div>
+                        <div className="text-xs text-[var(--sub)] mt-0.5">
                           {[
                             Array.isArray(z?.cities) && z.cities.length ? `${z.cities.length} مدن` : null,
                             Array.isArray(z?.areas) && z.areas.length ? `${z.areas.length} مناطق` : null
                           ].filter(Boolean).join('، ')}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-3">
                         {excludedCount > 0 ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-900/30 text-red-400 border border-red-900/50">
                             {excludedCount} مستثنى
                           </span>
                         ) : (
-                          <span className="text-gray-400">—</span>
+                          <span className="text-[var(--sub)] text-xs">—</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{r.carrier || '—'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{r.baseFee}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{r.perKgFee ?? '—'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{r.freeOverSubtotal ?? '—'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {r.etaMinHours ? `${r.etaMinHours}-${r.etaMaxHours || r.etaMinHours} ساعة` : '—'}
+                      <td className="px-4 py-3 text-sm text-[var(--sub)]">{r.carrier || '—'}</td>
+                      <td className="px-4 py-3 font-medium text-[var(--text)]">{r.baseFee}</td>
+                      <td className="px-4 py-3 text-sm text-[var(--sub)]">{r.perKgFee ?? '—'}</td>
+                      <td className="px-4 py-3 text-sm text-[var(--sub)]">{r.freeOverSubtotal ?? '—'}</td>
+                      <td className="px-4 py-3 text-sm text-[var(--sub)]">
+                        {r.etaMinHours ? (
+                          <div className="flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            {r.etaMinHours}-{r.etaMaxHours || r.etaMinHours} ساعة
+                          </div>
+                        ) : '—'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${r.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                          {r.isActive ? 'نعم' : 'لا'}
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${r.isActive ? 'bg-green-900/30 text-green-400 border border-green-900/50' : 'bg-gray-700/30 text-gray-400 border border-gray-700/50'}`}>
+                          {r.isActive ? 'نشط' : 'معطل'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex gap-2">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-2">
                           <button 
                             onClick={() => router.push(`/system/shipping-rates/${r.id}`)} 
-                            className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded transition-colors"
+                            className="p-1.5 text-[var(--sub)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded transition-colors"
+                            title="تعديل"
                           >
-                            تعديل
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                           </button>
                           <button 
                             onClick={() => remove(r.id)} 
-                            className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1 rounded transition-colors"
+                            className="p-1.5 text-[var(--sub)] hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                            title="حذف"
                           >
-                            حذف
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                           </button>
                         </div>
                       </td>
@@ -239,13 +289,13 @@ export default function ShippingRatesPage(): JSX.Element {
                   )
                 })}
                 {filteredRows.length === 0 && (
-                  <tr><td colSpan={10} className="px-6 py-12 text-center text-gray-500 text-sm">لا توجد أسعار مطابقة</td></tr>
+                  <tr><td colSpan={10} className="px-6 py-12 text-center text-[var(--sub)] text-sm">لا توجد أسعار شحن مطابقة لخيارات التصفية</td></tr>
                 )}
               </tbody>
             </table>
           </div>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   );
 }

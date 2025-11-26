@@ -1,5 +1,6 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
+import { Combobox } from './ui/combobox';
 
 interface Zone {
   id: string;
@@ -23,26 +24,30 @@ export default function ShippingRateForm({ initialData, zones, onSubmit, loading
   const [zoneId, setZoneId] = React.useState(initialData?.zoneId || '');
   const [excludedZoneIds, setExcludedZoneIds] = React.useState<string[]>(initialData?.excludedZoneIds || []);
   const [carrier, setCarrier] = React.useState(initialData?.carrier || '');
-  const [baseFee, setBaseFee] = React.useState<number>(initialData?.baseFee || 0);
-  const [perKgFee, setPerKgFee] = React.useState<number | ''>(initialData?.perKgFee ?? '');
-  const [minWeightKg, setMinWeightKg] = React.useState<number | ''>(initialData?.minWeightKg ?? '');
-  const [maxWeightKg, setMaxWeightKg] = React.useState<number | ''>(initialData?.maxWeightKg ?? '');
-  const [minSubtotal, setMinSubtotal] = React.useState<number | ''>(initialData?.minSubtotal ?? '');
-  const [freeOverSubtotal, setFreeOverSubtotal] = React.useState<number | ''>(initialData?.freeOverSubtotal ?? '');
-  const [etaMinHours, setEtaMinHours] = React.useState<number | ''>(initialData?.etaMinHours ?? '');
-  const [etaMaxHours, setEtaMaxHours] = React.useState<number | ''>(initialData?.etaMaxHours ?? '');
+  const [baseFee, setBaseFee] = React.useState<string>(initialData?.baseFee ? String(initialData.baseFee) : '');
+  const [perKgFee, setPerKgFee] = React.useState<string>(initialData?.perKgFee ? String(initialData.perKgFee) : '');
+  const [minWeightKg, setMinWeightKg] = React.useState<string>(initialData?.minWeightKg ? String(initialData.minWeightKg) : '');
+  const [maxWeightKg, setMaxWeightKg] = React.useState<string>(initialData?.maxWeightKg ? String(initialData.maxWeightKg) : '');
+  const [minSubtotal, setMinSubtotal] = React.useState<string>(initialData?.minSubtotal ? String(initialData.minSubtotal) : '');
+  const [freeOverSubtotal, setFreeOverSubtotal] = React.useState<string>(initialData?.freeOverSubtotal ? String(initialData.freeOverSubtotal) : '');
+  const [etaMinHours, setEtaMinHours] = React.useState<string>(initialData?.etaMinHours ? String(initialData.etaMinHours) : '');
+  const [etaMaxHours, setEtaMaxHours] = React.useState<string>(initialData?.etaMaxHours ? String(initialData.etaMaxHours) : '');
   const [offerTitle, setOfferTitle] = React.useState(initialData?.offerTitle || '');
   const [activeFrom, setActiveFrom] = React.useState<string>(initialData?.activeFrom ? String(initialData.activeFrom).slice(0, 10) : '');
   const [activeUntil, setActiveUntil] = React.useState<string>(initialData?.activeUntil ? String(initialData.activeUntil).slice(0, 10) : '');
   const [isActive, setIsActive] = React.useState(initialData?.isActive ?? true);
 
-  // Search state for Exclude Zones
-  const [excludeSearch, setExcludeSearch] = React.useState('');
+  const zoneOptions = zones.map(z => ({ value: z.id, label: z.name }));
+  
+  // Filter out the selected target zone from the excluded zones options
+  const excludedZoneOptions = zoneOptions.filter(z => z.value !== zoneId);
 
-  const filteredExcludeZones = zones.filter(z =>
-    z.id !== zoneId &&
-    z.name.toLowerCase().includes(excludeSearch.toLowerCase())
-  );
+  const handleNumberChange = (val: string, setter: (v: string) => void) => {
+    // Allow digits and one decimal point
+    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+      setter(val);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,219 +80,283 @@ export default function ShippingRateForm({ initialData, zones, onSubmit, loading
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {error && <div className="p-4 text-sm text-red-600 bg-red-50 rounded-md border border-red-200">{error}</div>}
-
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">نطاق التوصيل</h3>
-        
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            المنطقة المستهدفة (Target Zone)
-          </label>
-          <select
-            value={zoneId}
-            onChange={e => { setZoneId(e.target.value); setExcludedZoneIds(prev => prev.filter(id => id !== e.target.value)); }}
-            disabled={isEdit}
-            className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-500 sm:text-sm"
-            required
-          >
-            <option value="">اختر منطقة...</option>
-            {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
-          </select>
-          {isEdit && <p className="mt-1 text-xs text-gray-500">لا يمكن تغيير المنطقة بعد الإنشاء</p>}
-        </div>
-
+    <form onSubmit={handleSubmit} className="space-y-8 w-full">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            استثناء مناطق (Exclude Zones)
-          </label>
-          <div className="border border-gray-300 rounded-md p-3 bg-white">
-            <input
-              type="text"
-              placeholder="بحث في المناطق..."
-              value={excludeSearch}
-              onChange={e => setExcludeSearch(e.target.value)}
-              className="w-full mb-3 rounded-md border border-gray-300 py-1.5 px-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-            <div className="max-h-48 overflow-y-auto space-y-2">
-              {filteredExcludeZones.map(z => (
-                <label key={z.id} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-50 p-1 rounded">
-                  <input
-                    type="checkbox"
-                    checked={excludedZoneIds.includes(z.id)}
-                    onChange={e => {
-                      if (e.target.checked) setExcludedZoneIds(prev => [...prev, z.id]);
-                      else setExcludedZoneIds(prev => prev.filter(id => id !== z.id));
-                    }}
-                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  {z.name}
-                </label>
-              ))}
-              {filteredExcludeZones.length === 0 && <div className="text-sm text-gray-500 text-center py-2">لا توجد مناطق مطابقة</div>}
+          <h1 className="text-2xl font-bold text-[var(--text)]">
+            {isEdit ? 'تعديل سعر الشحن' : 'إضافة سعر شحن جديد'}
+          </h1>
+          <p className="text-[var(--sub)] mt-1">قم بتكوين أسعار الشحن للمناطق المختلفة</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 bg-[var(--panel)] px-4 py-2 rounded-lg border border-[rgba(255,255,255,0.08)]">
+            <span className="text-sm font-medium text-[var(--sub)]">الحالة:</span>
+            <div dir="ltr" className="flex items-center">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="sr-only peer" />
+                <div className="w-11 h-6 bg-[var(--muted)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--primary)]"></div>
+              </label>
             </div>
-            {excludedZoneIds.length > 0 && (
-              <div className="mt-3 text-xs text-gray-500 border-t pt-2">
-                تم استثناء {excludedZoneIds.length} مناطق
+            <span className={`text-sm font-medium ${isActive ? 'text-green-500' : 'text-[var(--sub)]'}`}>{isActive ? 'مفعّل' : 'معطل'}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="btn btn-outline"
+          >
+            إلغاء
+          </button>
+          <button
+            type="submit"
+            disabled={saving || loading || (!zoneId && !isEdit)}
+            className="btn"
+          >
+            {saving && <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" style={{ width: '16px', height: '16px' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
+            {saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="p-4 text-sm text-red-400 bg-red-900/20 rounded-lg border border-red-900/50 flex items-center gap-2">
+          <svg className="w-5 h-5 flex-shrink-0" style={{ width: '20px', height: '20px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          {error}
+        </div>
+      )}
+
+      {/* Main Configuration Card */}
+      <div className="panel">
+        <div className="flex items-center justify-between mb-6 border-b border-[rgba(255,255,255,0.06)] pb-4">
+          <h3 className="h3 flex items-center gap-2 text-[var(--text)] mb-0">
+            <svg className="w-5 h-5 text-[var(--primary)] flex-shrink-0" style={{ width: '20px', height: '20px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            نطاق التوصيل
+          </h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="space-y-6">
+            <div>
+              <label className="form-label">المنطقة المستهدفة (Target Zone) <span className="text-red-500">*</span></label>
+              <Combobox
+                options={zoneOptions}
+                value={zoneId}
+                onChange={(val) => {
+                  setZoneId(val);
+                  // Remove selected zone from excluded list if it was there
+                  setExcludedZoneIds(prev => prev.filter(id => id !== val));
+                }}
+                placeholder="اختر منطقة..."
+                disabled={isEdit}
+              />
+              {isEdit && <p className="mt-1.5 text-xs text-[var(--sub)] flex items-center gap-1"><svg className="w-3 h-3 flex-shrink-0" style={{ width: '12px', height: '12px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> لا يمكن تغيير المنطقة بعد الإنشاء</p>}
+            </div>
+
+            <div>
+              <label className="form-label">المشغل (Carrier)</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={carrier}
+                  onChange={e => setCarrier(e.target.value)}
+                  className="input"
+                  placeholder="مثال: DHL, سمسا"
+                />
               </div>
-            )}
+            </div>
+
+            <div>
+              <label className="form-label">عنوان العرض (Offer Title)</label>
+              <input
+                type="text"
+                value={offerTitle}
+                onChange={e => setOfferTitle(e.target.value)}
+                className="input"
+                placeholder="مثال: توصيل سريع خلال 24 ساعة"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="form-label">استثناء مناطق (Exclude Zones)</label>
+            <Combobox
+              options={excludedZoneOptions}
+              value={excludedZoneIds}
+              onChange={setExcludedZoneIds}
+              placeholder="بحث وتحديد مناطق للاستثناء..."
+              multiple
+            />
+            <p className="mt-2 text-xs text-[var(--sub)]">
+              المناطق المحددة هنا لن يطبق عليها هذا السعر حتى لو كانت ضمن المنطقة المستهدفة.
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">المشغل (Carrier)</label>
-          <input
-            type="text"
-            value={carrier}
-            onChange={e => setCarrier(e.target.value)}
-            className="w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm"
-            placeholder="مثال: DHL, سمسا"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">عنوان العرض (Offer Title)</label>
-          <input
-            type="text"
-            value={offerTitle}
-            onChange={e => setOfferTitle(e.target.value)}
-            className="w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm"
-            placeholder="مثال: توصيل سريع"
-          />
+      {/* Pricing & Conditions */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Pricing Card */}
+        <div className="panel">
+          <div className="mb-6 border-b border-[rgba(255,255,255,0.06)] pb-4">
+            <h3 className="h3 flex items-center gap-2 text-[var(--text)] mb-0">
+              <svg className="w-5 h-5 text-green-500 flex-shrink-0" style={{ width: '20px', height: '20px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              التسعير
+            </h3>
+          </div>
+          <div className="space-y-6">
+            <div className="form-grid">
+              <div>
+                <label className="form-label">السعر الأساسي <span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={baseFee}
+                    onChange={e => handleNumberChange(e.target.value, setBaseFee)}
+                    className="input"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="form-label">لكل كجم إضافي</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={perKgFee}
+                    onChange={e => handleNumberChange(e.target.value, setPerKgFee)}
+                    className="input"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-[rgba(255,255,255,0.06)] pt-6">
+              <label className="form-label">شحن مجاني للطلبات فوق</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={freeOverSubtotal}
+                  onChange={e => handleNumberChange(e.target.value, setFreeOverSubtotal)}
+                  className="input"
+                  placeholder="اتركه فارغاً للتعطيل"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">السعر الأساسي <span className="text-red-500">*</span></label>
-          <input
-            type="number"
-            step="0.01"
-            value={baseFee}
-            onChange={e => setBaseFee(Number(e.target.value))}
-            className="w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm"
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">رسوم لكل كجم إضافي</label>
-          <input
-            type="number"
-            step="0.01"
-            value={perKgFee}
-            onChange={e => setPerKgFee(e.target.value === '' ? '' : Number(e.target.value))}
-            className="w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
+        {/* Conditions Card */}
+        <div className="panel">
+          <div className="mb-6 border-b border-[rgba(255,255,255,0.06)] pb-4">
+            <h3 className="h3 flex items-center gap-2 text-[var(--text)] mb-0">
+              <svg className="w-5 h-5 text-blue-500 flex-shrink-0" style={{ width: '20px', height: '20px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+              الشروط والقيود
+            </h3>
+          </div>
+          <div className="space-y-6">
+            <div className="form-grid">
+              <div>
+                <label className="form-label">الوزن الأدنى (كجم)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={minWeightKg}
+                  onChange={e => handleNumberChange(e.target.value, setMinWeightKg)}
+                  className="input"
+                />
+              </div>
+              <div>
+                <label className="form-label">الوزن الأقصى (كجم)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={maxWeightKg}
+                  onChange={e => handleNumberChange(e.target.value, setMaxWeightKg)}
+                  className="input"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="form-label">الحد الأدنى للطلب</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={minSubtotal}
+                  onChange={e => handleNumberChange(e.target.value, setMinSubtotal)}
+                  className="input"
+                />
+              </div>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">الوزن الأدنى (كجم)</label>
-          <input
-            type="number"
-            step="0.01"
-            value={minWeightKg}
-            onChange={e => setMinWeightKg(e.target.value === '' ? '' : Number(e.target.value))}
-            className="w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">الوزن الأقصى (كجم)</label>
-          <input
-            type="number"
-            step="0.01"
-            value={maxWeightKg}
-            onChange={e => setMaxWeightKg(e.target.value === '' ? '' : Number(e.target.value))}
-            className="w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">الحد الأدنى للطلب</label>
-          <input
-            type="number"
-            step="0.01"
-            value={minSubtotal}
-            onChange={e => setMinSubtotal(e.target.value === '' ? '' : Number(e.target.value))}
-            className="w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">شحن مجاني فوق</label>
-          <input
-            type="number"
-            step="0.01"
-            value={freeOverSubtotal}
-            onChange={e => setFreeOverSubtotal(e.target.value === '' ? '' : Number(e.target.value))}
-            className="w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">مدة التوصيل (من ساعة)</label>
-          <input
-            type="number"
-            value={etaMinHours}
-            onChange={e => setEtaMinHours(e.target.value === '' ? '' : Number(e.target.value))}
-            className="w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">مدة التوصيل (إلى ساعة)</label>
-          <input
-            type="number"
-            value={etaMaxHours}
-            onChange={e => setEtaMaxHours(e.target.value === '' ? '' : Number(e.target.value))}
-            className="w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">ساري من</label>
-          <input
-            type="date"
-            value={activeFrom}
-            onChange={e => setActiveFrom(e.target.value)}
-            className="w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">ساري إلى</label>
-          <input
-            type="date"
-            value={activeUntil}
-            onChange={e => setActiveUntil(e.target.value)}
-            className="w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm"
-          />
+            <div className="form-grid">
+              <div>
+                <label className="form-label">مدة التوصيل (من)</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={etaMinHours}
+                    onChange={e => handleNumberChange(e.target.value, setEtaMinHours)}
+                    className="input pl-12"
+                  />
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className="text-[var(--sub)] text-sm">ساعة</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="form-label">مدة التوصيل (إلى)</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={etaMaxHours}
+                    onChange={e => handleNumberChange(e.target.value, setEtaMaxHours)}
+                    className="input pl-12"
+                  />
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className="text-[var(--sub)] text-sm">ساعة</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={isActive}
-            onChange={e => setIsActive(e.target.checked)}
-            className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-          />
-          <span className="text-sm font-medium text-gray-900">مفعّل (Active)</span>
-        </label>
-      </div>
-
-      <div className="flex gap-4 pt-4">
-        <button
-          type="submit"
-          disabled={saving || loading || (!zoneId && !isEdit)}
-          className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:bg-indigo-400 disabled:cursor-not-allowed"
-        >
-          {saving ? 'جاري الحفظ...' : 'حفظ'}
-        </button>
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="inline-flex justify-center rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-        >
-          إلغاء
-        </button>
+      {/* Validity Card */}
+      <div className="panel">
+        <div className="mb-6 border-b border-[rgba(255,255,255,0.06)] pb-4">
+          <h3 className="h3 flex items-center gap-2 text-[var(--text)] mb-0">
+            <svg className="w-5 h-5 text-purple-500 flex-shrink-0" style={{ width: '20px', height: '20px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            الصلاحية
+          </h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="form-label">ساري من</label>
+            <input
+              type="date"
+              value={activeFrom}
+              onChange={e => setActiveFrom(e.target.value)}
+              className="input"
+            />
+          </div>
+          <div>
+            <label className="form-label">ساري إلى</label>
+            <input
+              type="date"
+              value={activeUntil}
+              onChange={e => setActiveUntil(e.target.value)}
+              className="input"
+            />
+          </div>
+        </div>
       </div>
     </form>
   );
