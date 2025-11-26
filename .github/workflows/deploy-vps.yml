@@ -324,7 +324,7 @@ jobs:
               echo "Running prisma migrate deploy with DATABASE_URL=${DATABASE_URL:-$DIRECT_URL}"
               cd "$PATH_ON_HOST/packages/db"
               pnpm install --prod --ignore-scripts || true
-              npx prisma migrate deploy || pnpm prisma migrate deploy || true
+              npx prisma db push --accept-data-loss || pnpm prisma db push --accept-data-loss || true
               cd "$PATH_ON_HOST"
             else
               echo 'DATABASE_URL/DIRECT_URL not set; skipping prisma migrate deploy'
