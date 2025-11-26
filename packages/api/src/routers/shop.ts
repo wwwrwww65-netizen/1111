@@ -5533,9 +5533,9 @@ shop.get('/trending/products', async (_req: any, res) => {
     `) as any[];
     const items = (rows || []).map(r => ({ id: String(r.id) }));
     res.json({ items });
-  } catch (e: any) { 
+  } catch (e: any) {
     console.error('Trending fetch failed:', e.message);
-    res.json({ items: [] }); 
+    res.json({ items: [] });
   }
 });
 
@@ -5553,7 +5553,7 @@ shop.get('/shipping/quote', async (req, res) => {
     const state = String(req.query.state || '').trim()
     const area = String(req.query.area || '').trim()
     const country = String(req.query.country || '').trim().toUpperCase()
-    
+
     // Resolve applicable zoneIds
     let zoneIds: string[] = []
     try {
@@ -5585,7 +5585,7 @@ shop.get('/shipping/quote', async (req, res) => {
 
     const where: any = zoneIds.length ? { isActive: true, zoneId: { in: zoneIds } } : { isActive: true }
     const rates = await db.deliveryRate.findMany({ where, select: { baseFee: true, perKgFee: true, freeOverSubtotal: true, excludedZoneIds: true } } as any)
-    
+
     if (rates && rates.length) {
       const validRates = rates.filter((r: any) => {
         if (Array.isArray(r.excludedZoneIds) && r.excludedZoneIds.some((ex: string) => zoneIds.includes(ex))) return false;
@@ -5644,7 +5644,7 @@ shop.get('/shipping/methods', async (req, res) => {
           }
           // No constraints → applies everywhere
           if (!areas.length && !cities.length && !countries.length) matched = true
-          
+
           return matched
         }).map((z: any) => String(z.id))
       } catch { }

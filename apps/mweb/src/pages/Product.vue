@@ -2,6 +2,7 @@
   <div class="bg-[#f7f7f7] pb-24" dir="rtl">
     <!-- Header - Dynamic with Search Bar on Scroll -->
     <div class="fixed top-0 left-0 right-0 z-50 bg-white">
+
       <!-- Main Header -->
       <div 
         class="flex items-center justify-between px-4 py-3 border-b transition-all duration-300"
@@ -971,33 +972,44 @@
   <div v-if="shippingDetailsOpen" class="fixed inset-0 z-50">
     <div class="absolute inset-0 bg-black/50" @click="closeShippingDetails"></div>
     <div class="absolute inset-0 bg-[#fafafa] flex flex-col transform">
-      <div class="relative flex items-center justify-center p-3 border-b">
+      <div class="relative flex items-center justify-center p-3 border-b bg-white">
         <button class="absolute right-3 top-1/2 -translate-y-1/2" @click="closeShippingDetails">
           <ChevronRight :size="22" />
         </button>
         <div class="text-[16px] font-bold">معلومات الشحن والتوصيل</div>
       </div>
-      <div class="p-3 space-y-3">
+      <div class="p-3 space-y-3 overflow-y-auto">
+        <!-- Address Selector -->
         <div class="p-3 rounded-lg border bg-white flex items-center justify-between" role="button" @click="router.push(`/address?return=${encodeURIComponent('/p?id='+id)}`)">
           <div>
             <div class="text-[14px] font-semibold mb-0.5">الشحن إلى :</div>
-            <div class="text-[13px] text-gray-700">{{ selectedAddress ? (selectedAddress.state||'') + ' - ' + (selectedAddress.city||'') : 'لا يوجد عنوان محفوظ' }}</div>
+            <div class="text-[13px] text-gray-700" v-if="selectedAddress">
+              {{ selectedAddress.city }} - {{ selectedAddress.state }}
+              <div class="text-[11px] text-gray-500 mt-0.5">{{ selectedAddress.street || selectedAddress.address }}</div>
+            </div>
+            <div class="text-[13px] text-gray-500" v-else>يرجى تحديد عنوان للشحن</div>
           </div>
           <ChevronLeft :size="18" class="text-gray-500" />
         </div>
+
+        <!-- Shipping Methods Table -->
         <div class="p-3 rounded-lg border bg-white">
-          <div class="mb-2 text-[14px] font-semibold">تسليم</div>
-          <div class="w-full border rounded-lg overflow-hidden">
-          <div class="grid grid-cols-3 text-[13px] bg-gray-50 border-b">
-            <div class="p-2">التكاليف</div>
-            <div class="p-2">زمن الشحن</div>
-            <div class="p-2">وسيلة الشحن</div>
+          <div class="mb-2 text-[14px] font-semibold">خيارات التوصيل المتاحة</div>
+          <div v-if="shippingMethods.length" class="w-full border rounded-lg overflow-hidden">
+            <div class="grid grid-cols-3 text-[13px] bg-gray-50 border-b font-medium">
+              <div class="p-2 text-center">التكلفة</div>
+              <div class="p-2 text-center">المدة</div>
+              <div class="p-2 text-center">الشركة</div>
+            </div>
+            <div v-for="(m,i) in shippingMethods" :key="m.id||i" class="grid grid-cols-3 text-[13px] border-b last:border-b-0 items-center">
+              <div class="p-2 text-center font-bold text-gray-900">{{ Number(m.price)>0 ? fmtPrice(Number(m.price)) : 'مجاني' }}</div>
+              <div class="p-2 text-center text-gray-600">{{ formatEtaRange(m?.etaMinHours, m?.etaMaxHours) || (m.desc||'') }}</div>
+              <div class="p-2 text-center text-[12px]">{{ m.offerTitle || m.name }}</div>
+            </div>
           </div>
-          <div v-for="(m,i) in shippingMethods" :key="m.id||i" class="grid grid-cols-3 text-[13px] border-b last:border-b-0">
-            <div class="p-2">{{ fmtPrice(Number(m.price||0)) }}</div>
-            <div class="p-2">{{ formatEtaRange(m?.etaMinHours, m?.etaMaxHours) || (m.desc||'') }}</div>
-            <div class="p-2">{{ m.offerTitle || m.name }}</div>
-          </div>
+          <div v-else class="text-center py-8 text-gray-500 text-[13px]">
+            <Truck :size="32" class="mx-auto mb-2 opacity-50" />
+            <div>لا توجد خيارات شحن متاحة لهذا العنوان حالياً.</div>
           </div>
         </div>
       </div>
@@ -1496,19 +1508,11 @@ async function buildRecTabsFromCategory(){
     const parentId = current.parentId || current.parentID || current.parent_id || null
     const parent = parentId ? idToCat.get(String(parentId)) : null
     const children = cats.filter(c=> String(c.parentId||c.parentID||c.parent_id||'') === String(parent ? parent.id : current.id))
-    // build tabs then filter out empty child categories (limit=1 probe, cached)
+    // build tabs directly without probing (optimization)
     const baseTabs: Array<{key:string;label:string;catId?:string}> = [ { key:'reco', label:'التوصية' } ]
-    const probes = await Promise.all(children.map(async (ch:any)=>{
-      const cid = String(ch.id)
-      if (nonEmptyCatCache.value[cid] === true) return { cid, ok: true, name: String(ch.name||'') }
-      try{
-        const r = await apiGet<any>(`/api/catalog/${encodeURIComponent(cid)}?limit=1`)
-        const ok = Array.isArray(r?.items) && r.items.length>0
-        nonEmptyCatCache.value[cid] = ok
-        return { cid, ok, name: String(ch.name||'') }
-      }catch{ return { cid, ok:false, name:String(ch.name||'') } }
-    }))
-    for (const pr of probes){ if (pr.ok) baseTabs.push({ key:'cat:'+pr.cid, label: pr.name, catId: pr.cid }) }
+    for (const ch of children){
+      baseTabs.push({ key:'cat:'+ch.id, label: String(ch.name||''), catId: String(ch.id) })
+    }
     recTabs.value = baseTabs
   }catch{}
 }
@@ -1688,8 +1692,8 @@ async function addToCart(){
 }
 async function addToCartInternal(){
   const chosenSize = sizeGroups.value.length ? Object.entries(selectedGroupValues.value).map(([label,val])=> `${label}:${val}`).join('|') : size.value
+  // cart.add handles the API call internally
   cart.add({ id, title: title.value, price: Number(price.value)||0, img: activeImg.value, variantColor: currentColorName.value || undefined, variantSize: chosenSize || undefined }, 1)
-  try { await apiPost('/api/cart/add', { productId: id, variantId: selectedVariantId.value, quantity: 1 }) } catch {}
   showToast()
 }
 const hasWish = ref(false)
@@ -2748,8 +2752,10 @@ const destinationText = computed(()=>{
   if (selectedAddress.value) {
     const st = String(selectedAddress.value.state||'').trim()
     const ct = String(selectedAddress.value.city||'').trim()
-    const parts = [st, ct].filter(Boolean)
+    const parts = [ct, st].filter(Boolean) // City first, then State
     if (parts.length) return parts.join(' - ')
+    // Fallback to country if city/state missing
+    if (selectedAddress.value.country) return String(selectedAddress.value.country)
   }
   return 'اليمن'
 })
@@ -2809,10 +2815,12 @@ watch(selectedAddress, ()=> loadShipping())
 // Load saved addresses and pick default
 async function loadAddresses(){
   try{
+    const { isAuthenticated } = await import('@/lib/api')
     if (!isAuthenticated()) { addresses.value = []; selectedAddress.value = null; return }
     const j = await apiGet<any>('/api/addresses')
     const list = Array.isArray(j?.items) ? j.items : Array.isArray(j) ? j : []
     addresses.value = list
+    // Prefer default, then first
     selectedAddress.value = list.find((a:any)=> a.isDefault) || list[0] || null
   }catch{ addresses.value = []; selectedAddress.value = null }
 }
