@@ -5607,7 +5607,7 @@ shop.get('/shipping/methods', async (req, res) => {
           return true
         }).map((z: any) => String(z.id))
       } catch { }
-      const where: any = zoneIds.length ? { isActive: true, zoneId: { in: zoneIds } } : { isActive: true }
+      const where: any = { isActive: true, zoneId: { in: zoneIds } }
       const rates = await db.deliveryRate.findMany({ where, select: { id: true, baseFee: true, etaMinHours: true, etaMaxHours: true, carrier: true, offerTitle: true, freeOverSubtotal: true, minSubtotal: true, excludedZoneIds: true } } as any)
       items = (rates || []).filter((r: any) => {
         if (Array.isArray(r.excludedZoneIds) && r.excludedZoneIds.some((ex: string) => zoneIds.includes(ex))) return false;
@@ -5629,12 +5629,7 @@ shop.get('/shipping/methods', async (req, res) => {
         etaMaxHours: r.etaMaxHours ?? null,
       }))
     } catch { }
-    if (!items.length) {
-      items = [
-        { id: 'std', name: 'شحن عادي', desc: '4 - 9 أيام عمل', price: 18 },
-        { id: 'fast', name: 'شحن سريع', desc: '2 - 6 أيام عمل', price: 30 }
-      ]
-    }
+    // Removed hardcoded fallback to ensure only configured rates are shown
     res.json({ items })
   } catch { res.status(200).json({ items: [] }) }
 })
