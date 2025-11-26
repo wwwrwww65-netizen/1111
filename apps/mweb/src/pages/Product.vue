@@ -1936,7 +1936,7 @@ function onScroll(){
 }
 
 // ==================== LIFECYCLE HOOKS ====================
-onMounted(()=>{ 
+onMounted(async ()=>{ 
   onScroll()
   window.addEventListener('scroll', onScroll, { passive:true })
   computeGalleryHeight()
@@ -1944,8 +1944,8 @@ onMounted(()=>{
   // حاول استعادة حالة الصفحة (التوصيات + موضع التمرير) أولاً
   try{ restorePdpCache() }catch{}
   loadProductData()
+  await loadAddresses()
   loadShipping()
-  loadAddresses()
   loadPdpMeta()
   loadSeller()
   trackViewItem()
@@ -2785,19 +2785,26 @@ const shippingEtaText = computed(()=>{
   return s || m?.desc || ''
 })
 async function loadShipping(){
+  const addr = selectedAddress.value
+  const qp = new URLSearchParams()
+  if (addr){
+    if (addr.city) qp.set('city', String(addr.city))
+    if (addr.state) qp.set('state', String(addr.state))
+    if (addr.area) qp.set('area', String(addr.area))
+    if (addr.country) qp.set('country', String(addr.country))
+  }
   // Always try to get quick quote (used in summary)
   try{
-    const q = await apiGet<any>('/api/shipping/quote?method=std')
+    const q = await apiGet<any>(`/api/shipping/quote?method=std&${qp.toString()}`)
     if (q && typeof q.price === 'number') shippingQuote.value = Number(q.price)
   }catch{}
   // Fetch methods in background so summary is not empty
-  if (shippingMethods.value.length===0){
-    try{
-      const m = await apiGet<any>('/api/shipping/methods')
-      shippingMethods.value = Array.isArray(m?.items)? m!.items : []
-    }catch{}
-  }
+  try{
+    const m = await apiGet<any>(`/api/shipping/methods?${qp.toString()}`)
+    shippingMethods.value = Array.isArray(m?.items)? m!.items : []
+  }catch{}
 }
+watch(selectedAddress, ()=> loadShipping())
 
 // Load saved addresses and pick default
 async function loadAddresses(){

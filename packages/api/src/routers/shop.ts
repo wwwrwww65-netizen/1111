@@ -5533,7 +5533,10 @@ shop.get('/trending/products', async (_req: any, res) => {
     `) as any[];
     const items = (rows || []).map(r => ({ id: String(r.id) }));
     res.json({ items });
-  } catch (e: any) { res.status(500).json({ error: e?.message || 'trending_failed' }) }
+  } catch (e: any) { 
+    console.error('Trending fetch failed:', e.message);
+    res.json({ items: [] }); 
+  }
 });
 
 function escapeXml(s: string): string { return String(s).replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' } as any)[c] || c) }
@@ -5546,24 +5549,59 @@ shop.get('/shipping/quote', async (req, res) => {
     let price = method === 'fast' ? 30 : 18
     const subtotal = Number(req.query.subtotal || 0)
     // If DeliveryRate exists for city via zones, try to compute minimal price
+    const city = String(req.query.city || '').trim()
+    const state = String(req.query.state || '').trim()
+    const area = String(req.query.area || '').trim()
+    const country = String(req.query.country || '').trim().toUpperCase()
+    
+    // Resolve applicable zoneIds
+    let zoneIds: string[] = []
     try {
-      const city = String(req.query.city || '').trim()
-      if (city) {
-        // naive: pick lowest active rate
-        const rates = await db.deliveryRate.findMany({ where: { isActive: true }, select: { baseFee: true, perKgFee: true, freeOverSubtotal: true } } as any)
-        if (rates && rates.length) {
-          // apply free-over rule when applicable
-          const best = rates
-            .map((r: any) => {
-              const base = Number(r.baseFee || 0)
-              const freeOver = Number(r.freeOverSubtotal || 0)
-              return (freeOver > 0 && subtotal >= freeOver) ? 0 : base
-            })
-            .sort((a: number, b: number) => a - b)[0]
-          price = Number(best ?? price)
+      const zones: any[] = await db.shippingZone.findMany({ where: { isActive: true }, select: { id: true, countryCodes: true, cities: true, areas: true } } as any)
+      const norm = (s: string) => String(s || '').trim().toLowerCase()
+      const cCity = norm(city); const cState = norm(state); const cArea = norm(area); const cCountry = (country || '').toUpperCase()
+      const arr = (v: any) => Array.isArray(v) ? v : []
+      zoneIds = zones.filter((z: any) => {
+        const countries: string[] = arr(z.countryCodes)
+        const cities: string[] = arr(z.cities)
+        const areas: string[] = arr(z.areas)
+        let matched = false
+        if (areas.length) {
+          const A = areas.map(norm)
+          if ((!!cArea && A.includes(cArea)) || (!!cCity && A.includes(cCity)) || (!!cState && A.includes(cState))) matched = true
         }
-      }
+        if (!matched && cities.length) {
+          const C = cities.map(norm)
+          if ((!!cCity && C.includes(cCity)) || (!!cState && C.includes(cState))) matched = true
+        }
+        if (!matched && countries.length) {
+          const K = countries.map((x) => String(x).toUpperCase())
+          if (!!cCountry && K.includes(cCountry)) matched = true
+        }
+        if (!areas.length && !cities.length && !countries.length) matched = true
+        return matched
+      }).map((z: any) => String(z.id))
     } catch { }
+
+    const where: any = zoneIds.length ? { isActive: true, zoneId: { in: zoneIds } } : { isActive: true }
+    const rates = await db.deliveryRate.findMany({ where, select: { baseFee: true, perKgFee: true, freeOverSubtotal: true, excludedZoneIds: true } } as any)
+    
+    if (rates && rates.length) {
+      const validRates = rates.filter((r: any) => {
+        if (Array.isArray(r.excludedZoneIds) && r.excludedZoneIds.some((ex: string) => zoneIds.includes(ex))) return false;
+        return true;
+      })
+      if (validRates.length) {
+        const best = validRates
+          .map((r: any) => {
+            const base = Number(r.baseFee || 0)
+            const freeOver = Number(r.freeOverSubtotal || 0)
+            return (freeOver > 0 && subtotal >= freeOver) ? 0 : base
+          })
+          .sort((a: number, b: number) => a - b)[0]
+        price = Number(best ?? price)
+      }
+    }
     res.json({ price })
   } catch { res.status(500).json({ error: 'failed' }) }
 })
