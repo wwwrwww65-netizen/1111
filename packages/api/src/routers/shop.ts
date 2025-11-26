@@ -5590,24 +5590,27 @@ shop.get('/shipping/methods', async (req, res) => {
           const cities: string[] = arr(z.cities)
           const areas: string[] = arr(z.areas)
           // Priority: areas > cities > countries
+          let matched = false
           if (areas.length) {
             const A = areas.map(norm)
             // area can be matched to area explicitly, or sometimes UI sends area in city/state
-            return (!!cArea && A.includes(cArea)) || (!!cCity && A.includes(cCity)) || (!!cState && A.includes(cState))
+            if ((!!cArea && A.includes(cArea)) || (!!cCity && A.includes(cCity)) || (!!cState && A.includes(cState))) matched = true
           }
-          if (cities.length) {
+          if (!matched && cities.length) {
             const C = cities.map(norm)
-            return (!!cCity && C.includes(cCity)) || (!!cState && C.includes(cState))
+            if ((!!cCity && C.includes(cCity)) || (!!cState && C.includes(cState))) matched = true
           }
-          if (countries.length) {
+          if (!matched && countries.length) {
             const K = countries.map((x) => String(x).toUpperCase())
-            return !!cCountry && K.includes(cCountry)
+            if (!!cCountry && K.includes(cCountry)) matched = true
           }
           // No constraints → applies everywhere
-          return true
+          if (!areas.length && !cities.length && !countries.length) matched = true
+          
+          return matched
         }).map((z: any) => String(z.id))
       } catch { }
-      const where: any = { isActive: true, zoneId: { in: zoneIds } }
+      const where: any = zoneIds.length ? { isActive: true, zoneId: { in: zoneIds } } : { isActive: true }
       const rates = await db.deliveryRate.findMany({ where, select: { id: true, baseFee: true, etaMinHours: true, etaMaxHours: true, carrier: true, offerTitle: true, freeOverSubtotal: true, minSubtotal: true, excludedZoneIds: true } } as any)
       items = (rates || []).filter((r: any) => {
         if (Array.isArray(r.excludedZoneIds) && r.excludedZoneIds.some((ex: string) => zoneIds.includes(ex))) return false;
