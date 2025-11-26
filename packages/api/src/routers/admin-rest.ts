@@ -7287,9 +7287,81 @@ adminRest.get('/currencies', async (_req, res) => {
 
 // Shipping Zones CRUD
 adminRest.get('/shipping/zones', async (_req, res) => {
-  try { const zones = await db.shippingZone.findMany({ orderBy: { createdAt: 'desc' } }); res.json({ ok: true, zones }); }
-  catch (e: any) { res.status(500).json({ ok: false, error: e.message || 'zones_list_failed' }); }
+  try {
+    const zones = await db.shippingZone.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json({ ok: true, zones });
+  } catch (e: any) { res.status(500).json({ ok: false, error: e.message || 'zones_list_failed' }); }
 });
+
+adminRest.post('/shipping/zones/sync-from-geo', async (_req, res) => {
+  try {
+    // 1. Fetch all geo entities
+    const [countries, cities, areas] = await Promise.all([
+      db.country.findMany({ where: { isActive: true } }),
+      db.city.findMany({ where: { isActive: true }, include: { country: true } }),
+      db.area.findMany({ where: { isActive: true }, include: { city: { include: { country: true } } } }),
+    ]);
+
+    let createdCount = 0;
+
+    // 2. Sync Countries
+    for (const c of countries) {
+      const name = `Zone - ${c.name}`;
+      const exists = await db.shippingZone.findFirst({ where: { name } });
+      if (!exists) {
+        await db.shippingZone.create({
+          data: {
+            name,
+            countryCodes: [c.code || c.name.slice(0, 2).toUpperCase()],
+            isActive: true,
+          }
+        });
+        createdCount++;
+      }
+    }
+
+    // 3. Sync Cities
+    for (const c of cities) {
+      const name = `Zone - ${c.country?.code || 'XX'} - ${c.name}`;
+      const exists = await db.shippingZone.findFirst({ where: { name } });
+      if (!exists) {
+        await db.shippingZone.create({
+          data: {
+            name,
+            countryCodes: [c.country?.code || 'XX'],
+            cities: [c.name],
+            isActive: true,
+          }
+        });
+        createdCount++;
+      }
+    }
+
+    // 4. Sync Areas
+    for (const a of areas) {
+      const name = `Zone - ${a.city?.name || 'XX'} - ${a.name}`;
+      const exists = await db.shippingZone.findFirst({ where: { name } });
+      if (!exists) {
+        await db.shippingZone.create({
+          data: {
+            name,
+            countryCodes: [a.city?.country?.code || 'XX'],
+            cities: [a.city?.name || 'XX'],
+            areas: [a.name],
+            isActive: true,
+          }
+        });
+        createdCount++;
+      }
+    }
+
+    res.json({ ok: true, created: createdCount, message: `Synced ${createdCount} new zones` });
+  } catch (e: any) {
+    console.error('Sync failed:', e);
+    res.status(500).json({ ok: false, error: e.message || 'sync_failed' });
+  }
+});
+
 adminRest.post('/shipping/zones', async (req, res) => {
   // Accept comma-separated strings or arrays for list fields
   const StrOrArray = z.union([z.string(), z.array(z.string())]).optional();
@@ -7316,6 +7388,7 @@ adminRest.post('/shipping/zones', async (req, res) => {
   }
   catch (e: any) { res.status(400).json({ ok: false, code: 'zone_create_failed', error: e.message || 'zone_create_failed' }); }
 });
+
 adminRest.put('/shipping/zones/:id', async (req, res) => {
   const { id } = req.params;
   const StrOrArray = z.union([z.string(), z.array(z.string())]).optional();
@@ -7334,15 +7407,77 @@ adminRest.put('/shipping/zones/:id', async (req, res) => {
   }
   catch (e: any) { res.status(400).json({ ok: false, code: 'zone_update_failed', error: e.message || 'zone_update_failed' }); }
 });
+
 adminRest.delete('/shipping/zones/:id', async (req, res) => {
   const { id } = req.params; try { await db.shippingZone.delete({ where: { id } }); res.json({ ok: true }); } catch (e: any) { res.status(400).json({ ok: false, code: 'zone_delete_failed', error: e.message || 'zone_delete_failed' }); }
 });
 
-// Delivery Rates CRUD
 adminRest.get('/shipping/rates', async (req, res) => {
   const { zoneId } = req.query as any;
   try { const where: any = zoneId ? { zoneId } : {}; const rates = await db.deliveryRate.findMany({ where, orderBy: { createdAt: 'desc' } }); res.json({ ok: true, rates }); }
   catch (e: any) { res.status(500).json({ ok: false, code: 'rates_list_failed', error: e.message || 'rates_list_failed' }); }
+});
+
+adminRest.post('/shipping/rates', async (req, res) => {
+  const schema = z.object({
+    zoneId: z.string().min(1),
+    carrier: z.string().optional(),
+    baseFee: z.coerce.number().min(0),
+    perKgFee: z.coerce.number().optional(),
+    minWeightKg: z.coerce.number().optional(),
+    maxWeightKg: z.coerce.number().optional(),
+    minSubtotal: z.coerce.number().optional(),
+    freeOverSubtotal: z.coerce.number().optional(),
+    etaMinHours: z.coerce.number().int().optional(),
+    etaMaxHours: z.coerce.number().int().optional(),
+    offerTitle: z.string().optional(),
+    activeFrom: z.string().optional(),
+    activeUntil: z.string().optional(),
+    isActive: z.coerce.boolean().default(true),
+    excludedZoneIds: z.array(z.string()).optional()
+  });
+  try {
+    const data = schema.parse(req.body || {});
+    const createData: any = { ...data };
+    if (data.carrier) createData.carrierId = data.carrier;
+    const rate = await db.deliveryRate.create({ data: createData });
+    res.json({ ok: true, rate });
+  }
+  catch (e: any) { res.status(400).json({ ok: false, code: 'rate_create_failed', error: e.message || 'rate_create_failed' }); }
+});
+
+adminRest.put('/shipping/rates/:id', async (req, res) => {
+  const { id } = req.params;
+  const schema = z.object({
+    carrier: z.string().optional(),
+    baseFee: z.coerce.number().min(0).optional(),
+    perKgFee: z.coerce.number().optional(),
+    minWeightKg: z.coerce.number().optional(),
+    maxWeightKg: z.coerce.number().optional(),
+    minSubtotal: z.coerce.number().optional(),
+    freeOverSubtotal: z.coerce.number().optional(),
+    etaMinHours: z.coerce.number().int().optional(),
+    etaMaxHours: z.coerce.number().int().optional(),
+    offerTitle: z.string().optional(),
+    activeFrom: z.string().optional(),
+    activeUntil: z.string().optional(),
+    isActive: z.coerce.boolean().optional(),
+    excludedZoneIds: z.array(z.string()).optional()
+  });
+  try {
+    const data = schema.parse(req.body || {});
+    const updateData: any = { ...data };
+    if (data.carrier !== undefined) updateData.carrierId = data.carrier;
+    const rate = await db.deliveryRate.update({ where: { id }, data: updateData });
+    res.json({ ok: true, rate });
+  }
+  catch (e: any) { res.status(400).json({ ok: false, code: 'rate_update_failed', error: e.message || 'rate_update_failed' }); }
+});
+
+adminRest.delete('/shipping/rates/:id', async (req, res) => {
+  const { id } = req.params;
+  try { await db.deliveryRate.delete({ where: { id } }); res.json({ ok: true }); }
+  catch (e: any) { res.status(400).json({ ok: false, code: 'rate_delete_failed', error: e.message || 'rate_delete_failed' }); }
 });
 
 // Payment Gateways CRUD
@@ -7545,27 +7680,6 @@ adminRest.delete('/geo/areas/:id', async (req, res) => {
   } catch (e: any) { res.status(400).json({ ok: false, error: e.message || 'area_delete_failed' }); }
 });
 
-// Sync zones from geo (rebuild non-destructively)
-adminRest.post('/shipping/zones/sync-from-geo', async (_req, res) => {
-  try {
-    const countries = await db.country.findMany({ orderBy: { name: 'asc' } });
-    for (const c of countries) {
-      const code = toCode(c.code) || toCode(c.name); if (!code) continue;
-      const zone = await getOrCreateZoneForCountryCode(code, c.name);
-      const cities = await db.city.findMany({ where: { countryId: c.id }, orderBy: { name: 'asc' } });
-      const areas = await db.area.findMany({ where: { city: { countryId: c.id } }, orderBy: { name: 'asc' } });
-      await db.shippingZone.update({
-        where: { id: zone.id }, data: {
-          countryCodes: pushUnique(zone.countryCodes || [], code),
-          cities: Array.from(new Set(cities.map((x) => x.name))).sort(),
-          areas: Array.from(new Set(areas.map((x) => x.name))).sort(),
-          isActive: c.isActive ?? true,
-        }
-      });
-    }
-    res.json({ ok: true, countries: countries.length });
-  } catch (e: any) { res.status(500).json({ ok: false, error: e.message || 'sync_failed' }); }
-});
 adminRest.post('/currencies', async (req, res) => {
   const schema = z.object({ code: z.string().min(2).max(6), name: z.string().min(2), symbol: z.string().min(1), precision: z.coerce.number().int().min(0).max(6).default(2), rateToBase: z.coerce.number().positive().default(1), isBase: z.coerce.boolean().default(false), isActive: z.coerce.boolean().default(true) });
   try {

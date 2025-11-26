@@ -81,95 +81,165 @@ export default function ShippingRatesPage(): JSX.Element {
   async function remove(id: string) { if (!confirm('حذف السعر؟')) return; const r = await fetch(`/api/admin/shipping/rates/${id}`, { method: 'DELETE', credentials: 'include' }); if (r.ok) await load(); }
 
   return (
-    <div className="container">
-      <main className="panel" style={{ padding: 16 }}>
-        {toast && (<div className="toast ok" style={{ marginBottom: 8 }}>{toast}</div>)}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h1 style={{ margin: 0 }}>أسعار التوصيل</h1>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn danger" onClick={async () => {
-              const ids = Object.keys(selected).filter(id => selected[id]); if (!ids.length) return;
-              for (const id of ids) { try { await fetch(`/api/admin/shipping/rates/${id}`, { method: 'DELETE', credentials: 'include' }); } catch { } }
-              setSelected({}); setAllChecked(false); await load(); showToast('تم حذف المحدد');
-            }}>حذف المحدد</button>
-            <button onClick={() => router.push('/system/shipping-rates/new')} className="btn">إضافة سعر</button>
+    <div className="container mx-auto p-6">
+      <main className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        {toast && (
+          <div className="fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-lg z-50 animate-fade-in-down">
+            {toast}
+          </div>
+        )}
+        
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+          <h1 className="text-2xl font-bold text-gray-900">أسعار التوصيل</h1>
+          <div className="flex gap-3">
+            <button 
+              className="px-4 py-2 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={async () => {
+                const ids = Object.keys(selected).filter(id => selected[id]); if (!ids.length) return;
+                if (!confirm(`هل أنت متأكد من حذف ${ids.length} عنصر؟`)) return;
+                for (const id of ids) { try { await fetch(`/api/admin/shipping/rates/${id}`, { method: 'DELETE', credentials: 'include' }); } catch { } }
+                setSelected({}); setAllChecked(false); await load(); showToast('تم حذف المحدد');
+              }}
+              disabled={!Object.values(selected).some(Boolean)}
+            >
+              حذف المحدد
+            </button>
+            <button 
+              onClick={() => router.push('/system/shipping-rates/new')} 
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors shadow-sm"
+            >
+              إضافة سعر
+            </button>
           </div>
         </div>
 
         {/* Filter Bar */}
-        <div className="panel" style={{ padding: 12, marginBottom: 16, display: 'flex', gap: 12, background: '#f9f9f9', alignItems: 'center' }}>
-          <span style={{ fontSize: 13, fontWeight: 'bold', color: '#555' }}>تصفية حسب الموقع:</span>
-          <select value={countryId} onChange={(e) => setCountryId(e.target.value)} className="select" style={{ fontSize: 13 }}>
+        <div className="bg-gray-50 p-4 rounded-lg mb-6 flex flex-wrap gap-4 items-center border border-gray-100">
+          <span className="text-sm font-semibold text-gray-700">تصفية حسب الموقع:</span>
+          <select 
+            value={countryId} 
+            onChange={(e) => setCountryId(e.target.value)} 
+            className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-1.5"
+          >
             <option value="">كل الدول</option>
             {countriesOptions.map((c: any) => (<option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>))}
           </select>
-          <select value={cityId} onChange={(e) => setCityId(e.target.value)} className="select" style={{ fontSize: 13 }} disabled={!countryId}>
+          <select 
+            value={cityId} 
+            onChange={(e) => setCityId(e.target.value)} 
+            className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-1.5 disabled:bg-gray-100 disabled:text-gray-400" 
+            disabled={!countryId}
+          >
             <option value="">كل المدن</option>
             {citiesOptions.map((c: any) => (<option key={c.id} value={c.id}>{c.name}</option>))}
           </select>
-          <select value={areaId} onChange={(e) => setAreaId(e.target.value)} className="select" style={{ fontSize: 13 }} disabled={!cityId}>
+          <select 
+            value={areaId} 
+            onChange={(e) => setAreaId(e.target.value)} 
+            className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-1.5 disabled:bg-gray-100 disabled:text-gray-400" 
+            disabled={!cityId}
+          >
             <option value="">كل المناطق</option>
             {areasOptions.map((a: any) => (<option key={a.id} value={a.id}>{a.name}</option>))}
           </select>
         </div>
 
-        {loading ? <div role="status" aria-busy="true" className="skeleton" style={{ height: 200 }} /> : error ? <div className="error" aria-live="assertive">فشل: {error}</div> : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="table" role="table" aria-label="قائمة أسعار التوصيل">
-              <thead>
+        {loading ? (
+          <div className="animate-pulse space-y-4">
+            <div className="h-10 bg-gray-200 rounded w-full"></div>
+            <div className="h-40 bg-gray-100 rounded w-full"></div>
+          </div>
+        ) : error ? (
+          <div className="p-4 bg-red-50 text-red-700 rounded-md border border-red-200">فشل: {error}</div>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
                     <input
                       type="checkbox"
                       checked={allChecked}
                       onChange={(e) => { const v = e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(filteredRows.map(r => [r.id, v]))); }}
+                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
                     />
                   </th>
-                  <th>المنطقة</th>
-                  <th>استثناءات</th>
-                  <th>المشغل</th>
-                  <th>الرسوم الأساسية</th>
-                  <th>لكل كجم</th>
-                  <th>مجاني فوق</th>
-                  <th>ETA</th>
-                  <th>نشط</th>
-                  <th></th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">المنطقة</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">استثناءات</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">المشغل</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">الرسوم الأساسية</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">لكل كجم</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">مجاني فوق</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">ETA</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">نشط</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">إجراءات</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="bg-white divide-y divide-gray-200">
                 {filteredRows.map(r => {
                   const z = zones.find(z => z.id === r.zoneId)
                   const excludedCount = Array.isArray(r.excludedZoneIds) ? r.excludedZoneIds.length : 0;
                   return (
-                    <tr key={r.id}>
-                      <td><input type="checkbox" checked={!!selected[r.id]} onChange={() => setSelected(s => ({ ...s, [r.id]: !s[r.id] }))} /></td>
-                      <td>
-                        <div style={{ fontWeight: 'bold' }}>{z?.name || r.zoneId}</div>
-                        <div style={{ fontSize: 11, color: '#666' }}>
+                    <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <input 
+                          type="checkbox" 
+                          checked={!!selected[r.id]} 
+                          onChange={() => setSelected(s => ({ ...s, [r.id]: !s[r.id] }))} 
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                        />
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-gray-900">{z?.name || r.zoneId}</div>
+                        <div className="text-xs text-gray-500 mt-1">
                           {[
                             Array.isArray(z?.cities) && z.cities.length ? `${z.cities.length} مدن` : null,
                             Array.isArray(z?.areas) && z.areas.length ? `${z.areas.length} مناطق` : null
                           ].filter(Boolean).join('، ')}
                         </div>
                       </td>
-                      <td>
-                        {excludedCount > 0 ? <span className="badge" style={{ background: '#fdecea', color: '#d32f2f' }}>{excludedCount} مستثنى</span> : '—'}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {excludedCount > 0 ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            {excludedCount} مستثنى
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
                       </td>
-                      <td>{r.carrier || '—'}</td>
-                      <td>{r.baseFee}</td>
-                      <td>{r.perKgFee ?? '—'}</td>
-                      <td>{r.freeOverSubtotal ?? '—'}</td>
-                      <td>{r.etaMinHours ? `${r.etaMinHours}-${r.etaMaxHours || r.etaMinHours} ساعة` : '—'}</td>
-                      <td>{r.isActive ? 'نعم' : 'لا'}</td>
-                      <td>
-                        <button aria-label={`تعديل سعر ${zones.find(z => z.id === r.zoneId)?.name || ''}`} onClick={() => router.push(`/system/shipping-rates/${r.id}`)} className="btn btn-outline" style={{ marginInlineEnd: 6 }}>تعديل</button>
-                        <button aria-label={`حذف سعر ${zones.find(z => z.id === r.zoneId)?.name || ''}`} onClick={() => remove(r.id)} className="btn btn-danger">حذف</button>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{r.carrier || '—'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{r.baseFee}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{r.perKgFee ?? '—'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{r.freeOverSubtotal ?? '—'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {r.etaMinHours ? `${r.etaMinHours}-${r.etaMaxHours || r.etaMinHours} ساعة` : '—'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${r.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                          {r.isActive ? 'نعم' : 'لا'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => router.push(`/system/shipping-rates/${r.id}`)} 
+                            className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded transition-colors"
+                          >
+                            تعديل
+                          </button>
+                          <button 
+                            onClick={() => remove(r.id)} 
+                            className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1 rounded transition-colors"
+                          >
+                            حذف
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
                 })}
                 {filteredRows.length === 0 && (
-                  <tr><td colSpan={10} style={{ textAlign: 'center', padding: 20, color: '#666' }}>لا توجد أسعار مطابقة</td></tr>
+                  <tr><td colSpan={10} className="px-6 py-12 text-center text-gray-500 text-sm">لا توجد أسعار مطابقة</td></tr>
                 )}
               </tbody>
             </table>
