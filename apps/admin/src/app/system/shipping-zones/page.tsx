@@ -99,6 +99,7 @@ export default function ShippingZonesPage(): JSX.Element {
   async function syncFromGeo(){
     if(!confirm('سيتم مزامنة المناطق من قاعدة البيانات الجغرافية. هل أنت متأكد؟')) return;
     setLoading(true);
+    showToast('جاري المزامنة...', 'ok'); // Immediate feedback
     try {
       const r = await fetch('/api/admin/shipping/zones/sync-from-geo', { method:'POST', credentials:'include' });
       const j = await r.json();
@@ -118,7 +119,7 @@ export default function ShippingZonesPage(): JSX.Element {
   return (
     <div className="w-full space-y-6">
       {toast && (
-        <div className={`fixed bottom-4 left-4 z-50 px-4 py-2 rounded shadow-lg text-white ${toast.type === 'ok' ? 'bg-green-600' : 'bg-red-600'}`}>
+        <div className={`fixed bottom-4 right-4 z-[100] px-6 py-3 rounded shadow-xl text-white font-medium transition-all transform translate-y-0 ${toast.type === 'ok' ? 'bg-emerald-600' : 'bg-red-600'}`}>
           {toast.text}
         </div>
       )}

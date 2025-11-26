@@ -7288,15 +7288,22 @@ adminRest.get('/currencies', async (_req, res) => {
 // Shipping Zones CRUD
 adminRest.get('/shipping/zones', async (_req, res) => {
   try {
-  const schema = z.object({
-    name: z.string().min(2),
-    countryCodes: z.union([z.string(), z.array(z.string())]).transform(v => Array.isArray(v) ? v : String(v).split(',').map(s => s.trim()).filter(Boolean)).pipe(z.array(z.string()).min(1)),
-    regions: StrOrArray,
-    cities: StrOrArray,
-    areas: StrOrArray,
-    isActive: z.coerce.boolean().default(true)
-  });
+    const zones = await db.shippingZone.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json({ ok: true, zones });
+  } catch (e: any) { res.status(500).json({ ok: false, error: e.message || 'zones_list_failed' }); }
+});
+
+adminRest.post('/shipping/zones', async (req, res) => {
   try {
+    const StrOrArray = z.union([z.string(), z.array(z.string())]).optional();
+    const schema = z.object({
+      name: z.string().min(2),
+      countryCodes: z.union([z.string(), z.array(z.string())]).transform(v => Array.isArray(v) ? v : String(v).split(',').map(s => s.trim()).filter(Boolean)).pipe(z.array(z.string()).min(1)),
+      regions: StrOrArray,
+      cities: StrOrArray,
+      areas: StrOrArray,
+      isActive: z.coerce.boolean().default(true)
+    });
     const parsed = schema.parse(req.body || {});
     const data: any = {
       name: parsed.name,
@@ -7308,8 +7315,7 @@ adminRest.get('/shipping/zones', async (_req, res) => {
     if (parsed.areas) data.areas = Array.isArray(parsed.areas) ? parsed.areas : String(parsed.areas).split(',').map(s => s.trim()).filter(Boolean);
     const zone = await db.shippingZone.create({ data });
     res.json({ ok: true, zone });
-  }
-  catch (e: any) { res.status(400).json({ ok: false, code: 'zone_create_failed', error: e.message || 'zone_create_failed' }); }
+  } catch (e: any) { res.status(400).json({ ok: false, code: 'zone_create_failed', error: e.message || 'zone_create_failed' }); }
 });
 
 adminRest.put('/shipping/zones/:id', async (req, res) => {
@@ -7335,6 +7341,82 @@ adminRest.delete('/shipping/zones/:id', async (req, res) => {
   const { id } = req.params; try { await db.shippingZone.delete({ where: { id } }); res.json({ ok: true }); } catch (e: any) { res.status(400).json({ ok: false, code: 'zone_delete_failed', error: e.message || 'zone_delete_failed' }); }
 });
 
+adminRest.post('/shipping/zones/sync-from-geo', async (_req, res) => {
+  try {
+    const [countries, cities, areas] = await Promise.all([
+      db.country.findMany({ where: { isActive: true } }),
+      db.city.findMany({ where: { isActive: true }, include: { country: true } }),
+      db.area.findMany({ where: { isActive: true }, include: { city: { include: { country: true } } } }),
+    ]);
+
+    let createdCount = 0;
+    let updatedCount = 0;
+
+    // 1. Sync Countries
+    for (const c of countries) {
+      const name = `Zone - ${c.name}`;
+      const countryCities = cities.filter(city => city.countryId === c.id).map(city => city.name);
+      const countryAreas = areas.filter(area => area.city.countryId === c.id).map(area => area.name);
+      
+      const exists = await db.shippingZone.findFirst({ where: { name } });
+      if (!exists) {
+        await db.shippingZone.create({
+          data: {
+            name,
+            countryCodes: [c.code || c.name.slice(0, 2).toUpperCase()],
+            cities: countryCities,
+            areas: countryAreas,
+            isActive: true,
+          }
+        });
+        createdCount++;
+      } else {
+        await db.shippingZone.update({
+          where: { id: exists.id },
+          data: {
+            cities: countryCities,
+            areas: countryAreas,
+          }
+        });
+        updatedCount++;
+      }
+    }
+
+    // 2. Sync Cities
+    for (const c of cities) {
+      const countryCode = c.country?.code || c.country?.name.slice(0, 2).toUpperCase() || 'SA';
+      const name = `Zone - ${countryCode} - ${c.name}`;
+      const cityAreas = areas.filter(area => area.cityId === c.id).map(area => area.name);
+
+      const exists = await db.shippingZone.findFirst({ where: { name } });
+      if (!exists) {
+        await db.shippingZone.create({
+          data: {
+            name,
+            countryCodes: [countryCode],
+            cities: [c.name],
+            areas: cityAreas,
+            isActive: true,
+          }
+        });
+        createdCount++;
+      } else {
+        await db.shippingZone.update({
+          where: { id: exists.id },
+          data: {
+            areas: cityAreas,
+          }
+        });
+        updatedCount++;
+      }
+    }
+
+    res.json({ ok: true, message: `Synced successfully. Created: ${createdCount}, Updated: ${updatedCount}` });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: e.message || 'sync_failed' });
+  }
+});
+
 adminRest.get('/shipping/rates', async (req, res) => {
   const { zoneId } = req.query as any;
   try { const where: any = zoneId ? { zoneId } : {}; const rates = await db.deliveryRate.findMany({ where, orderBy: { createdAt: 'desc' } }); res.json({ ok: true, rates }); }
@@ -7343,7 +7425,6 @@ adminRest.get('/shipping/rates', async (req, res) => {
 
 adminRest.post('/shipping/rates', async (req, res) => {
   const schema = z.object({
-    zoneId: z.string().min(1),
     carrier: z.string().optional(),
     baseFee: z.coerce.number().min(0),
     perKgFee: z.coerce.number().optional(),
