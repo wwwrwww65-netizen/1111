@@ -4213,11 +4213,22 @@ async function mergeGuestIntoUserIfPresent(req: any, res: any, userId: string): 
     const cartId = ucart.id;
     for (const it of guest.items) {
       const pid = String(it.productId);
-      const existing = await db.cartItem.findFirst({ where: { cartId, productId: pid }, select: { id: true, quantity: true } });
+      const attributes = (it as any).attributes || undefined;
+
+      const existingItems = await db.cartItem.findMany({ where: { cartId, productId: pid } });
+      const existing = existingItems.find(item => {
+        const itemAttrs = (item.attributes as Record<string, any>) || {};
+        const inputAttrs = attributes || {};
+        const k1 = Object.keys(itemAttrs).sort();
+        const k2 = Object.keys(inputAttrs).sort();
+        if (k1.length !== k2.length) return false;
+        return k1.every(k => itemAttrs[k] === inputAttrs[k]);
+      });
+
       if (existing) {
         await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + Number(it.quantity || 1) } });
       } else {
-        await db.cartItem.create({ data: { cartId, productId: pid, quantity: Number(it.quantity || 1), attributes: (it as any).attributes || undefined } });
+        await db.cartItem.create({ data: { cartId, productId: pid, quantity: Number(it.quantity || 1), attributes } });
       }
     }
     await db.guestCartItem.deleteMany({ where: { cartId: guest.id } } as any);
@@ -4343,9 +4354,18 @@ shop.post('/cart/add', async (req: any, res) => {
     }
     const { cartId } = await getOrCreateGuestCartId(req, res);
     // Use Prisma instead of raw SQL to avoid schema drift issues
-    const existing = await db.guestCartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true, quantity: true } } as any);
+    const existingItems = await db.guestCartItem.findMany({ where: { cartId, productId: String(productId) } } as any);
+    const existing = existingItems.find((item: any) => {
+      const itemAttrs = (item.attributes as Record<string, any>) || {};
+      const inputAttrs = attributes || {};
+      const k1 = Object.keys(itemAttrs).sort();
+      const k2 = Object.keys(inputAttrs).sort();
+      if (k1.length !== k2.length) return false;
+      return k1.every(k => itemAttrs[k] === inputAttrs[k]);
+    });
+
     if (existing) {
-      await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + qty, ...(attributes ? { attributes: attributes as any } : {}) } } as any);
+      await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + qty } } as any);
     } else {
       await db.guestCartItem.create({ data: { cartId, productId: String(productId), quantity: qty, attributes: attributes ? (attributes as any) : undefined } } as any);
     }
@@ -4397,10 +4417,19 @@ shop.post('/cart/update', async (req: any, res) => {
     const g = sid ? await db.guestCart.findUnique({ where: { sessionId: sid }, select: { id: true } } as any) : null;
     if (!g) return res.json({ ok: true });
     const cartId = g.id;
-    const existing = await db.guestCartItem.findFirst({ where: { cartId, productId: String(productId) }, select: { id: true, quantity: true } } as any);
+    const existingItems = await db.guestCartItem.findMany({ where: { cartId, productId: String(productId) } } as any);
+    const existing = existingItems.find((item: any) => {
+      const itemAttrs = (item.attributes as Record<string, any>) || {};
+      const inputAttrs = attributes || {};
+      const k1 = Object.keys(itemAttrs).sort();
+      const k2 = Object.keys(inputAttrs).sort();
+      if (k1.length !== k2.length) return false;
+      return k1.every(k => itemAttrs[k] === inputAttrs[k]);
+    });
+
     if (qty === 0) { if (existing) await db.guestCartItem.delete({ where: { id: existing.id } } as any); }
     else {
-      if (existing) await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: qty, ...(attributes ? { attributes: attributes as any } : {}) } } as any);
+      if (existing) await db.guestCartItem.update({ where: { id: existing.id }, data: { quantity: qty } } as any);
       else await db.guestCartItem.create({ data: { cartId, productId: String(productId), quantity: qty, attributes: attributes ? (attributes as any) : undefined } } as any);
     }
     try { await db.guestCart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any) } catch { }
@@ -4449,19 +4478,26 @@ shop.post('/cart/remove', async (req: any, res) => {
       if (g) {
         try {
           if (attributes) {
-            const affected: any = await db.$executeRawUnsafe(
-              'DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2 AND COALESCE("attributes"::jsonb, \'null\') = $3::jsonb',
-              g.id, String(productId), JSON.stringify(attributes)
-            );
-            if (!affected || Number(affected) === 0) {
-              await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', g.id, String(productId));
+            // Find specific item to delete
+            const items = await db.guestCartItem.findMany({ where: { cartId: g.id, productId: String(productId) } } as any);
+            const target = items.find((item: any) => {
+              const itemAttrs = (item.attributes as Record<string, any>) || {};
+              const inputAttrs = attributes || {};
+              const k1 = Object.keys(itemAttrs).sort();
+              const k2 = Object.keys(inputAttrs).sort();
+              if (k1.length !== k2.length) return false;
+              return k1.every(k => itemAttrs[k] === inputAttrs[k]);
+            });
+
+            if (target) {
+              await db.guestCartItem.delete({ where: { id: target.id } } as any);
             }
           } else {
-            await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', g.id, String(productId));
+            await db.guestCartItem.deleteMany({ where: { cartId: g.id, productId: String(productId) } } as any);
           }
         } catch {
           // Last resort: delete by productId
-          try { await db.$executeRawUnsafe('DELETE FROM "GuestCartItem" WHERE "cartId"=$1 AND "productId"=$2', g.id, String(productId)); } catch { }
+          try { await db.guestCartItem.deleteMany({ where: { cartId: g.id, productId: String(productId) } } as any); } catch { }
         }
         try { await db.guestCart.update({ where: { id: g.id }, data: { updatedAt: new Date() } } as any) } catch { }
       }

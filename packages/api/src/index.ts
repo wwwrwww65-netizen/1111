@@ -107,6 +107,8 @@ app.use((_req, res, next) => {
 // Behind NGINX, trust only loopback to satisfy express-rate-limit without being overly permissive
 app.set('trust proxy', 'loopback');
 // Ensure cookies are parsed early so /api/me and auth flows can read tokens
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 // Ensure critical DB schema tweaks are applied (idempotent)
 async function ensureSchema(): Promise<void> {
@@ -729,8 +731,13 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
     // Ensure modern columns and indexes for guest cart items (cartId-based)
     try { await db.$executeRawUnsafe('ALTER TABLE "GuestCartItem" ADD COLUMN IF NOT EXISTS "cartId" TEXT'); } catch { }
     try { await db.$executeRawUnsafe('UPDATE "GuestCartItem" SET "cartId"="guestCartId" WHERE "cartId" IS NULL AND "guestCartId" IS NOT NULL'); } catch { }
-    await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "GuestCartItem_cartId_productId_key" ON "GuestCartItem"("cartId","productId")');
-    await db.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "GuestCartItem_guestCartId_productId_key" ON "GuestCartItem"("guestCartId","productId")');
+    // Remove unique constraint to allow variants
+    try { await db.$executeRawUnsafe('DROP INDEX IF EXISTS "GuestCartItem_cartId_productId_key"'); } catch { }
+    try { await db.$executeRawUnsafe('DROP INDEX IF EXISTS "GuestCartItem_guestCartId_productId_key"'); } catch { }
+    try { await db.$executeRawUnsafe('ALTER TABLE "GuestCartItem" DROP CONSTRAINT IF EXISTS "GuestCartItem_cartId_productId_key"'); } catch { }
+    try { await db.$executeRawUnsafe('ALTER TABLE "GuestCartItem" DROP CONSTRAINT IF EXISTS "GuestCartItem_guestCartId_productId_key"'); } catch { }
+    // Add non-unique index for performance
+    await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "GuestCartItem_cartId_productId_idx" ON "GuestCartItem"("cartId","productId")');
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "GuestCartItem_productId_idx" ON "GuestCartItem"("productId")');
     // Seed default accounts
     try { await db.$executeRawUnsafe("INSERT INTO \"Account\" (id, code, name, type) VALUES ($1,'CASH','Cash','ASSET') ON CONFLICT (code) DO NOTHING", (require('crypto').randomUUID as () => string)()); } catch { }
