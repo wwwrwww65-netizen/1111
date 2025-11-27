@@ -1,5 +1,5 @@
 <template>
-  <router-view />
+  <router-view :key="$route.fullPath" />
   <div id="gsap-root" style="position:fixed;inset:0;pointer-events:none"></div>
   <ConsentBanner />
   <PromoHost />
@@ -8,6 +8,7 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import gsap from 'gsap';
 import ConsentBanner from '@/components/ConsentBanner.vue'
 import PromoHost from '@/components/PromoHost.vue'

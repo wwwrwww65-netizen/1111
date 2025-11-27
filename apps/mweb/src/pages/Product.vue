@@ -1068,7 +1068,7 @@ import { getTrendingIdSet } from '@/lib/trending'
 // ==================== ROUTE & ROUTER ====================
 const route = useRoute()
 const router = useRouter()
-const id = route.query.id as string || 'p1'
+const id = computed(() => (route.query.id as string) || 'p1')
 const descOpen = ref(false)
 
 // ==================== PRODUCT DATA ====================
@@ -1534,7 +1534,7 @@ async function loadMoreRecommended() {
       list = Array.isArray(j?.items)? j.items : []
     } else {
       // Prefer similar; if backend supports offset/limit they'll be used, else we slice locally
-      const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}?limit=10&offset=${offset}`).catch(()=>null)
+      const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id.value)}?limit=10&offset=${offset}`).catch(()=>null)
       list = Array.isArray(sim?.items) ? sim!.items : []
       if (!list.length){
         const ex = Array.from(new Set(recommendedProducts.value.map(p=> String(p.id)))).slice(0,200)
@@ -1552,7 +1552,7 @@ async function loadMoreRecommended() {
     const mapped = list
       .map((it:any)=> toRecItem(it))
       // exclude current product id to avoid "reload same page" effect
-      .filter((p:any)=> String(p.id) !== String(id))
+      .filter((p:any)=> String(p.id) !== String(id.value))
       .filter((p:any)=> !existing.has(String(p.id)))
     if (mapped.length){
       await Promise.all(mapped.map(p=> probeRatioPromise(p)))
@@ -1693,7 +1693,7 @@ async function addToCart(){
 async function addToCartInternal(){
   const chosenSize = sizeGroups.value.length ? Object.entries(selectedGroupValues.value).map(([label,val])=> `${label}:${val}`).join('|') : size.value
   // cart.add handles the API call internally
-  cart.add({ id, title: title.value, price: Number(price.value)||0, img: activeImg.value, variantColor: currentColorName.value || undefined, variantSize: chosenSize || undefined }, 1)
+  cart.add({ id: id.value, title: title.value, price: Number(price.value)||0, img: activeImg.value, variantColor: currentColorName.value || undefined, variantSize: chosenSize || undefined }, 1)
   showToast()
 }
 const hasWish = ref(false)
@@ -1701,7 +1701,7 @@ const hasWish = ref(false)
 const pdpMeta = ref<{ badges?: Array<{ title:string; subtitle?:string; bgColor?:string }>; bestRank?: number|null; fitPercent?: number|null; fitText?: string|null; model?: { size?: string; height?: number; bust?: number; waist?: number; hips?: number }|null; shippingDestinationOverride?: string|null; sellerBlurb?: string|null; clubBanner?: { enabled:boolean; amount:number; discountType:'percent'|'fixed'; discountValue:number; text:string; joinUrl?:string; style?: { theme?: string; rounded?: boolean }; placement?: { pdp?: { enabled:boolean; position?: string } } }|null }>({ badges: [] })
 async function loadPdpMeta(pid?: string){
   try{
-    const p = String(pid || id)
+    const p = String(pid || id.value)
     const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/meta`)
     const meta = (j && j.meta) ? j.meta : j
     if (meta && typeof meta==='object') pdpMeta.value = Object.assign({ badges: [] }, meta)
@@ -1712,13 +1712,13 @@ async function loadWishlist(){
     if (!isAuthenticated()) { hasWish.value = false; return }
     const j = await apiGet<any>('/api/wishlist')
     const items: any[] = Array.isArray(j) ? j : Array.isArray(j?.items) ? j!.items : []
-    const found = items.find((w:any)=> String(w.id||w.productId||'') === String(id))
+    const found = items.find((w:any)=> String(w.id||w.productId||'') === String(id.value))
     hasWish.value = !!found
   }catch{ hasWish.value = false }
 }
 async function toggleWish(){
   try{
-    const r = await apiPost<any>('/api/wishlist/toggle', { productId: id })
+    const r = await apiPost<any>('/api/wishlist/toggle', { productId: id.value })
     if (r && (r.added || r.removed)) hasWish.value = !!r.added
     else hasWish.value = !hasWish.value
   }catch{ hasWish.value = !hasWish.value }
@@ -1740,7 +1740,7 @@ const sellerFollowText = computed(()=>{
   }catch{ return '' }
 })
 async function loadSeller(pid?: string){
-  try{ const p = String(pid || id); const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/seller`); seller.value = j?.vendor || null }catch{}
+  try{ const p = String(pid || id.value); const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/seller`); seller.value = j?.vendor || null }catch{}
 }
 
 // Size Guide Modal
@@ -1946,7 +1946,7 @@ onMounted(async ()=>{
   computeGalleryHeight()
   window.addEventListener('resize', computeGalleryHeight, { passive:true })
   // حاول استعادة حالة الصفحة (التوصيات + موضع التمرير) أولاً
-  try{ restorePdpCache() }catch{}
+
   loadProductData()
   await loadAddresses()
   loadShipping()
@@ -2007,7 +2007,7 @@ watch(() => route.query.id, async (nv, ov)=>{
 onBeforeUnmount(()=> {
   window.removeEventListener('scroll', onScroll)
   window.removeEventListener('resize', computeGalleryHeight)
-  try{ savePdpCache() }catch{}
+
 })
 
 // ==================== DATA LOADING ====================
@@ -2015,7 +2015,7 @@ async function loadProductData(pid?: string) {
   // Load product details
   try{
     isLoadingPdp.value = true
-    const p = String(pid || id)
+    const p = String(pid || id.value)
     
     // ✨ NEW: Check for prefetched data and use it immediately
     const pref = consumePrefetchPayload(String(p))
@@ -2140,7 +2140,7 @@ async function loadProductData(pid?: string) {
   try{
     const host = typeof window !== 'undefined' ? window.location.hostname : ''
     if (!product.value && (host === 'localhost' || host === '127.0.0.1')){
-      product.value = { id, name: title.value, price: price.value, images: [] }
+      product.value = { id: id.value, name: title.value, price: price.value, images: [] }
       if (images.value.length === 0){
         images.value = [
           '/images/placeholder-product.jpg',
@@ -2165,7 +2165,7 @@ async function loadProductData(pid?: string) {
   
   // Load reviews
   try{
-    const list = await apiGet<any>(`/api/reviews?productId=${encodeURIComponent(id)}`)
+    const list = await apiGet<any>(`/api/reviews?productId=${encodeURIComponent(id.value)}`)
     if (list && Array.isArray(list.items)){
       reviews.value = list.items
       const sum = list.items.reduce((s:any,r:any)=>s+(r.stars||0),0)
@@ -2186,7 +2186,7 @@ async function loadProductData(pid?: string) {
 const attrsLoaded = ref(false)
 async function loadNormalizedVariants(pid?: string){
   // 1) Fetch normalized variants list
-  const p = String(pid || route.query.id || id)
+  const p = String(pid || route.query.id || id.value)
   // Optimization: if product already has attributes/variants loaded, use them
   let list: any[] = []
   let pd: any = null
@@ -2408,36 +2408,7 @@ function thumbSrcRec(p:any, _w:number): string {
 // تقسيم تناوبي بين عمودين
 // (grid-cols-2 يضبط العرض بدقة؛ لا حاجة لتقسيم يدوي)
 // ===== Cache helpers for PDP (per product) =====
-function pCacheKeyBase(pid?: string){ const p = String(pid || id); return `p:${p}:v1` }
-function savePdpCache(){
-  try{
-    const base = pCacheKeyBase()
-    sessionStorage.setItem(`${base}:rec`, JSON.stringify({
-      recommended: recommendedProducts.value,
-      activeRecTab: activeRecTab.value,
-      hasMore: hasMoreRecommended.value
-    }))
-    sessionStorage.setItem(`${base}:scrollY`, String(window.scrollY||0))
-  }catch{}
-}
-function restorePdpCache(): boolean{
-  try{
-    const base = pCacheKeyBase()
-    const raw = sessionStorage.getItem(`${base}:rec`)
-    if (raw){
-      const j = JSON.parse(raw)||{}
-      if (Array.isArray(j.recommended)){
-        recommendedProducts.value = j.recommended
-        if (j.activeRecTab) activeRecTab.value = String(j.activeRecTab)
-        if (typeof j.hasMore==='boolean') hasMoreRecommended.value = j.hasMore
-        restoredRec.value = true
-      }
-    }
-    const sy = Number(sessionStorage.getItem(`${base}:scrollY`)||'0')
-    if (sy>0) setTimeout(()=>{ try{ window.scrollTo(0, sy) }catch{} }, 0)
-    return true
-  }catch{ return false }
-}
+
 function probeRatioPromise(p:any): Promise<void>{
   return new Promise((resolve)=>{
     try{
@@ -2474,7 +2445,7 @@ async function fetchRecommendations(pid?: string){
       return
     }
     // Default: similar by current product's category, then recent
-    const p = String(pid || id)
+    const p = String(pid || id.value)
     const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(p)}`, undefined, signal).catch(()=>null)
     let list: any[] = Array.isArray(sim?.items) ? sim!.items : []
     if (!list.length){
@@ -2492,7 +2463,7 @@ async function fetchRecommendations(pid?: string){
     const mapped = list
       .map((it:any)=> toRecItem(it))
       // exclude current product id to avoid "reload same page" effect
-      .filter((p:any)=> String(p.id) !== String(id))
+      .filter((p:any)=> String(p.id) !== String(id.value))
       .filter((p:any)=> !existing.has(String(p.id)))
     if (mapped.length){
       await Promise.all(mapped.map(p=> probeRatioPromise(p)))
@@ -2570,7 +2541,7 @@ async function hydrateCouponsForPdp(){
     const base = Number(price.value||0)
     if (!base || !cups.length){ afterCouponPriceText.value = ''; pdpCoupons.value = []; return }
     // build product token object
-    const prod = { id, categoryId: (product.value?.categoryId||product.value?.category?.id||product.value?.category||null), brand: product.value?.brand, sku: product.value?.sku }
+    const prod = { id: id.value, categoryId: (product.value?.categoryId||product.value?.category?.id||product.value?.category||null), brand: product.value?.brand, sku: product.value?.sku }
     // collect matches with resulting prices
     const items: Array<{ code?:string; title?:string; kindLabel?:string; priceAfter?:number; discountText?:string; discountLabel?:string; percentLabel?:string; minLabel?:string; validUntil?:string|number|null; schedule?:any; expiresAt?:any }>=[]
     const site = cups.find(isCouponSitewideRec)
@@ -2829,25 +2800,25 @@ async function loadAddresses(){
 async function trackViewItem(){
   try{
     ;(window as any).dataLayer = (window as any).dataLayer || []
-    ;(window as any).dataLayer.push({ event:'view_item', ecommerce:{ items:[{ item_id:id, item_name:title.value, price:Number(price.value||0), currency:getCurrency() }] } })
+    ;(window as any).dataLayer.push({ event:'view_item', ecommerce:{ items:[{ item_id:id.value, item_name:title.value, price:Number(price.value||0), currency:getCurrency() }] } })
   }catch{}
   try{
     const { trackEvent } = await import('@/lib/track')
-    trackEvent('ViewContent', { value: Number(price.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids:[id], content_type:'product_group', contents:[{ id, item_price: Number(price.value||0), quantity: 1 }] })
+    trackEvent('ViewContent', { value: Number(price.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids:[id.value], content_type:'product_group', contents:[{ id: id.value, item_price: Number(price.value||0), quantity: 1 }] })
   }catch{}
 }
 async function trackPageViewProduct(){
   try{
     const { trackEvent } = await import('@/lib/track')
-    trackEvent('PageView', { content_ids:[id], content_type:'product' })
+    trackEvent('PageView', { content_ids:[id.value], content_type:'product' })
   }catch{}
 }
 async function trackAddToCart(){
-  try{ (window as any).dataLayer?.push({ event:'add_to_cart', ecommerce:{ items:[{ item_id:selectedVariantId.value||id, item_name:title.value, price:Number(price.value||0), quantity:1, currency:getCurrency() }] } }) }catch{}
+  try{ (window as any).dataLayer?.push({ event:'add_to_cart', ecommerce:{ items:[{ item_id:selectedVariantId.value||id.value, item_name:title.value, price:Number(price.value||0), quantity:1, currency:getCurrency() }] } }) }catch{}
   try{
     const { trackEvent } = await import('@/lib/track')
     // مهم: نستخدم معرف المنتج الأساسي المطابق للكاتالوج (g:id) وليس معرف المتغير
-    const pid = id
+    const pid = id.value
     trackEvent('AddToCart', { value: Number(price.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids:[pid], content_type:'product_group', contents:[{ id: pid, item_price: Number(price.value||0), quantity: 1 }] })
   }catch{}
 }
@@ -2863,7 +2834,7 @@ function injectProductJsonLd(){
     const data: any = {
       '@context': 'https://schema.org/',
       '@type': 'Product',
-      '@id': (typeof window!=='undefined'? href.split('#')[0]+'#product' : ('/p?id='+id+'#product')),
+      '@id': (typeof window!=='undefined'? href.split('#')[0]+'#product' : ('/p?id='+id.value+'#product')),
       name: title.value,
       image: images.value && images.value.length ? images.value : undefined,
       brand: brand.value ? { '@type':'Brand', name: brand.value } : undefined,
@@ -2912,7 +2883,7 @@ function injectHeadMeta(){
     setMeta('product:price:amount', String(Number(price.value||0)))
     setMeta('product:price:currency', getCurrency())
     setMeta('og:description', (safeDescription.value||'').replace(/\s+/g,' ').slice(0,300))
-    setMeta('product:retailer_item_id', String(id))
+    setMeta('product:retailer_item_id', String(id.value))
     setMeta('product:availability', 'in stock')
     if (brand.value) setMeta('product:brand', brand.value)
     setMeta('product:condition', 'new')
