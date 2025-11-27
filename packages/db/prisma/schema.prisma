@@ -300,7 +300,7 @@ model CartItem {
   cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
   product   Product @relation(fields: [productId], references: [id])
 
-  @@unique([cartId, productId])
+  @@index([cartId, productId])
 }
 
 // Guest carts (for visitors without accounts)

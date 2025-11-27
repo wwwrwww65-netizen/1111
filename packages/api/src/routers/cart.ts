@@ -68,18 +68,31 @@ export const cartRouter = router({
     }),
 
   addItem: protectedProcedure
-    .input(z.object({ productId: z.string(), quantity: z.number().min(1).default(1) }))
+    .input(z.object({
+      productId: z.string(),
+      quantity: z.number().min(1).default(1),
+      attributes: z.record(z.any()).optional()
+    }))
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user!.userId;
-      const { productId, quantity } = input;
+      const { productId, quantity, attributes } = input;
 
       let cart = await db.cart.findUnique({ where: { userId } });
       if (!cart) {
         cart = await db.cart.create({ data: { userId } });
       }
 
-      const existing = await db.cartItem.findUnique({
-        where: { cartId_productId: { cartId: cart.id, productId } },
+      const existingItems = await db.cartItem.findMany({
+        where: { cartId: cart.id, productId },
+      });
+
+      const existing = existingItems.find(item => {
+        const itemAttrs = (item.attributes as Record<string, any>) || {};
+        const inputAttrs = attributes || {};
+        const k1 = Object.keys(itemAttrs).sort();
+        const k2 = Object.keys(inputAttrs).sort();
+        if (k1.length !== k2.length) return false;
+        return k1.every(k => itemAttrs[k] === inputAttrs[k]);
       });
 
       if (existing) {
@@ -88,23 +101,43 @@ export const cartRouter = router({
           data: { quantity: existing.quantity + quantity },
         });
       } else {
-        await db.cartItem.create({ data: { cartId: cart.id, productId, quantity } });
+        await db.cartItem.create({
+          data: {
+            cartId: cart.id,
+            productId,
+            quantity,
+            attributes: attributes || {}
+          }
+        });
       }
 
       return { success: true };
     }),
 
   updateItem: protectedProcedure
-    .input(z.object({ productId: z.string(), quantity: z.number().min(0) }))
+    .input(z.object({
+      productId: z.string(),
+      quantity: z.number().min(0),
+      attributes: z.record(z.any()).optional()
+    }))
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user!.userId;
-      const { productId, quantity } = input;
+      const { productId, quantity, attributes } = input;
 
       const cart = await db.cart.findUnique({ where: { userId } });
       if (!cart) return { success: true };
 
-      const existing = await db.cartItem.findUnique({
-        where: { cartId_productId: { cartId: cart.id, productId } },
+      const existingItems = await db.cartItem.findMany({
+        where: { cartId: cart.id, productId },
+      });
+
+      const existing = existingItems.find(item => {
+        const itemAttrs = (item.attributes as Record<string, any>) || {};
+        const inputAttrs = attributes || {};
+        const k1 = Object.keys(itemAttrs).sort();
+        const k2 = Object.keys(inputAttrs).sort();
+        if (k1.length !== k2.length) return false;
+        return k1.every(k => itemAttrs[k] === inputAttrs[k]);
       });
 
       if (!existing) return { success: true };
@@ -119,17 +152,30 @@ export const cartRouter = router({
     }),
 
   removeItem: protectedProcedure
-    .input(z.object({ productId: z.string() }))
+    .input(z.object({
+      productId: z.string(),
+      attributes: z.record(z.any()).optional()
+    }))
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user!.userId;
-      const { productId } = input;
+      const { productId, attributes } = input;
 
       const cart = await db.cart.findUnique({ where: { userId } });
       if (!cart) return { success: true };
 
-      const existing = await db.cartItem.findUnique({
-        where: { cartId_productId: { cartId: cart.id, productId } },
+      const existingItems = await db.cartItem.findMany({
+        where: { cartId: cart.id, productId },
       });
+
+      const existing = existingItems.find(item => {
+        const itemAttrs = (item.attributes as Record<string, any>) || {};
+        const inputAttrs = attributes || {};
+        const k1 = Object.keys(itemAttrs).sort();
+        const k2 = Object.keys(inputAttrs).sort();
+        if (k1.length !== k2.length) return false;
+        return k1.every(k => itemAttrs[k] === inputAttrs[k]);
+      });
+
       if (existing) {
         await db.cartItem.delete({ where: { id: existing.id } });
       }

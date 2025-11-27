@@ -112,6 +112,15 @@ app.use(cookieParser());
 async function ensureSchema(): Promise<void> {
   try {
     // Ensure Vendor table exists for admin vendor operations
+    try {
+      await db.$executeRawUnsafe('ALTER TABLE "CartItem" DROP CONSTRAINT IF EXISTS "CartItem_cartId_productId_key"');
+    } catch { }
+    try {
+      await db.$executeRawUnsafe('DROP INDEX IF EXISTS "CartItem_cartId_productId_key"');
+    } catch { }
+    try {
+      await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "CartItem_cartId_productId_idx" ON "CartItem"("cartId", "productId")');
+    } catch { }
     await db.$executeRawUnsafe(
       'CREATE TABLE IF NOT EXISTS "Vendor" (' +
       '"id" TEXT PRIMARY KEY,' +
