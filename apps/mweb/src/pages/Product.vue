@@ -158,9 +158,9 @@
     <!-- Price Section -->
     <div ref="priceRef" class="px-4">
       <div class="flex items-center gap-2">
-        <div class="font-extrabold text-black" :class="isLoadingPdp || price==null ? '' : 'text-[20px]'">
-          <template v-if="!isLoadingPdp && price!=null">{{ displayPrice }}</template>
-          <div v-else class="h-6 w-28 bg-gray-200 animate-pulse rounded" />
+        <div class="font-extrabold text-black" :class="price!=null ? 'text-[20px]' : ''">
+          <template v-if="price!=null">{{ displayPrice }}</template>
+          <div v-else-if="isLoadingPdp" class="h-6 w-28 bg-gray-200 animate-pulse rounded" />
         </div>
         <div v-if="afterCouponPriceText" class="inline-flex items-center gap-1 cursor-pointer" @click="couponsSheetOpen = true">
           <div class="h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]">
@@ -206,8 +206,8 @@
         <!-- remove small price duplicate -->
       </div>
       <h1 class="text-[13px] leading-relaxed text-gray-800 text-right">
-        <template v-if="!isLoadingPdp && title">{{ title }}</template>
-        <div v-else class="h-4 w-3/4 bg-gray-200 animate-pulse rounded" />
+        <template v-if="title">{{ title }}</template>
+        <div v-else-if="isLoadingPdp" class="h-4 w-3/4 bg-gray-200 animate-pulse rounded" />
       </h1>
 
       <div class="mb-1">
@@ -233,16 +233,16 @@
       </div>
 
       <!-- Color Selector -->
-      <div class="mb-4" v-if="(!isLoadingPdp && colorVariants.length) || (isLoadingPdp)">
+      <div class="mb-4" v-if="colorVariants.length || isLoadingVariants">
         <div class="flex items-center gap-1 mb-2">
           <span class="font-semibold text-[14px]">
-            <template v-if="!isLoadingPdp">لون: {{ currentColorName || '—' }}</template>
-            <span v-else class="inline-block h-4 w-20 bg-gray-200 animate-pulse rounded" />
+            <template v-if="colorVariants.length">لون: {{ currentColorName || '—' }}</template>
+            <span v-else-if="isLoadingPdp" class="inline-block h-4 w-20 bg-gray-200 animate-pulse rounded" />
           </span>
           <ChevronLeft :size="16" class="text-gray-600" />
         </div>
         <div class="flex gap-1 overflow-x-auto no-scrollbar pb-2">
-          <template v-if="!isLoadingPdp">
+          <template v-if="colorVariants.length">
             <div v-for="(c,i) in colorVariants" :key="'color-'+i" class="flex-shrink-0 relative" data-testid="color-swatch" :data-color="c.name">
               <div class="w-[50px] h-[70px] rounded-lg border-2 overflow-hidden cursor-pointer transition-all hover:scale-105" :class="i===colorIdx ? '' : 'border-gray-200'" :style="i===colorIdx ? 'border-color: #8a1538' : ''" @click="colorIdx=i" :aria-selected="i===colorIdx">
                 <img :src="buildThumbUrl(c.image, 128)" class="w-full h-full object-cover" :alt="c.name" />
@@ -251,24 +251,24 @@
               <div v-if="i===colorIdx" class="absolute bottom-0 left-0 right-0 h-0.5" style="background-color: #8a1538"></div>
             </div>
           </template>
-          <template v-else>
+          <template v-else-if="isLoadingVariants">
             <div v-for="i in 4" :key="'skc-'+i" class="w-[50px] h-[70px] rounded-lg border overflow-hidden bg-gray-200 animate-pulse" />
           </template>
         </div>
       </div>
 
       <!-- Size Selector (single list) - hidden until attributes loaded to avoid flicker, and hidden when multi size-groups exist) -->
-      <div ref="sizeSelectorRef" class="mb-4" v-if="(attrsLoaded && sizeOptions.length && !sizeGroups.length) || isLoadingPdp">
+      <div ref="sizeSelectorRef" class="mb-4" v-if="(sizeOptions.length && !sizeGroups.length) || isLoadingVariants">
         <div class="flex items-center justify-between mb-2">
           <span class="font-semibold text-[14px]">
-            <template v-if="!isLoadingPdp">مقاس - {{ size || 'اختر المقاس' }}</template>
-            <span v-else class="inline-block h-4 w-28 bg-gray-200 animate-pulse rounded" />
+            <template v-if="sizeOptions.length">مقاس - {{ size || 'اختر المقاس' }}</template>
+            <span v-else-if="isLoadingVariants" class="inline-block h-4 w-28 bg-gray-200 animate-pulse rounded" />
           </span>
-          <span class="text-[13px] text-gray-600 cursor-pointer" @click="openSizeGuide" v-if="!isLoadingPdp">مرجع المقاس ◀</span>
-          <span v-else class="inline-block h-4 w-20 bg-gray-100 rounded" />
+          <span class="text-[13px] text-gray-600 cursor-pointer" @click="openSizeGuide" v-if="sizeOptions.length">مرجع المقاس ◀</span>
+          <span v-else-if="isLoadingVariants" class="inline-block h-4 w-20 bg-gray-100 rounded" />
         </div>
         <div class="flex flex-wrap gap-2">
-          <template v-if="!isLoadingPdp">
+          <template v-if="sizeOptions.length">
             <button 
               v-for="s in sizeOptions" 
               :key="s" 
@@ -281,7 +281,7 @@
               {{ s }}
             </button>
           </template>
-          <template v-else>
+          <template v-else-if="isLoadingVariants">
             <div v-for="i in 6" :key="'sks-'+i" class="w-12 h-8 bg-gray-200 animate-pulse rounded-full" />
           </template>
         </div>
@@ -968,7 +968,7 @@
     :showWishlist="false"
   />
   <!-- Shipping details full-screen sheet -->
-  <Transition enter-active-class="transition-transform duration-300" enter-from-class="-translate-x-full" enter-to-class="translate-x-0" leave-active-class="transition-transform duration-300" leave-from-class="translate-x-0" leave-to-class="-translate-x-full">
+  <Transition enter-active-class="transition-transform duration-300" enter-from-class="-translate-x-full" enter-to-class="translate-x-0" leave-active-class="transition-transform duration-300" leave-from-class="translate-y-0" leave-to-class="-translate-x-full">
   <div v-if="shippingDetailsOpen" class="fixed inset-0 z-50">
     <div class="absolute inset-0 bg-black/50" @click="closeShippingDetails"></div>
     <div class="absolute inset-0 bg-[#fafafa] flex flex-col transform">
@@ -1068,12 +1068,17 @@ import { getTrendingIdSet } from '@/lib/trending'
 // ==================== ROUTE & ROUTER ====================
 const route = useRoute()
 const router = useRouter()
+const cart = useCart()
+const recent = useRecent()
+const wishlist = useWishlist()
 const id = computed(() => (route.query.id as string) || 'p1')
 const descOpen = ref(false)
+function isAuthenticated(){ return typeof document!=='undefined' && (document.cookie.includes('shop_auth_token=') || document.cookie.includes('auth_token=')) }
 
 // ==================== PRODUCT DATA ====================
 const product = ref<any>(null)
 const isLoadingPdp = ref(true)
+const isLoadingVariants = ref(true)
 const title = ref('')
 const price = ref<number|null>(null)
 const original = ref('')
@@ -1084,7 +1089,7 @@ const activeImg = computed(()=> images.value[activeIdx.value] || '')
 const displayPrice = computed(()=> price.value==null ? '' : fmtPrice(Number(price.value)||0))
 const afterCouponPriceText = ref('')
 const themeCouponColor = '#fa6338'
-const pdpCoupons = ref<Array<{ code?:string; title?:string; priceAfter?:number; priceAfterText?:string; discountText?:string; discountLabel?:string; minLabel?:string }>>([])
+const pdpCoupons = ref<any[]>([])
 const pdpCouponsLimited = computed(()=> pdpCoupons.value.slice(0,2))
 
 // Bottom sheet for coupons details
@@ -1658,7 +1663,7 @@ function barStyle(pct: number): string {
 }
 
 // Cart & Wishlist
-const cart = useCart()
+
 const toast = ref(false)
 const toastText = ref('تمت الإضافة إلى السلة')
 function showToast(msg?: string){
@@ -1704,7 +1709,13 @@ async function loadPdpMeta(pid?: string){
     const p = String(pid || id.value)
     const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/meta`)
     const meta = (j && j.meta) ? j.meta : j
-    if (meta && typeof meta==='object') pdpMeta.value = Object.assign({ badges: [] }, meta)
+    if (meta && typeof meta==='object') {
+      // Filter model image
+      if (meta.model && meta.model.imageUrl && !isValidImageUrl(meta.model.imageUrl)) {
+        meta.model.imageUrl = ''
+      }
+      pdpMeta.value = Object.assign({ badges: [] }, meta)
+    }
   }catch{}
 }
 async function loadWishlist(){
@@ -1740,7 +1751,16 @@ const sellerFollowText = computed(()=>{
   }catch{ return '' }
 })
 async function loadSeller(pid?: string){
-  try{ const p = String(pid || id.value); const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/seller`); seller.value = j?.vendor || null }catch{}
+  try{ 
+    const p = String(pid || id.value); 
+    const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/seller`); 
+    const v = j?.vendor || null
+    if (v && v.meta) {
+      if (v.meta.logoUrl && !isValidImageUrl(v.meta.logoUrl)) v.meta.logoUrl = ''
+      if (v.meta.bannerUrl && !isValidImageUrl(v.meta.bannerUrl)) v.meta.bannerUrl = ''
+    }
+    seller.value = v
+  }catch{}
 }
 
 // Size Guide Modal
@@ -2023,8 +2043,9 @@ async function loadProductData(pid?: string) {
       const pd = pref.productData
       // Instantly populate images from prefetched data
       if (Array.isArray(pd.images) && pd.images.length > 0) {
-        allImages.value = pd.images
-        images.value = pd.images
+        const validImgs = pd.images.filter(isValidImageUrl)
+        allImages.value = validImgs
+        images.value = validImgs
         try { await nextTick(); await computeGalleryHeight() } catch {}
       }
       // Instantly show title and price if available
@@ -2035,16 +2056,19 @@ async function loadProductData(pid?: string) {
       }
     }
     
+
     const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(p)}`, { 
       credentials:'omit', 
       headers:{ 'Accept':'application/json' } 
     })
+
     if(res.ok){
       const d = await res.json()
+
       product.value = d
       title.value = d.name || title.value
       price.value = Number(d.price||129)
-      const imgs = Array.isArray(d.images)? d.images : []
+      const imgs = (Array.isArray(d.images)? d.images : []).filter(isValidImageUrl)
       try{
         recent.add({
           id: d.id,
@@ -2056,7 +2080,7 @@ async function loadProductData(pid?: string) {
       }catch{}
       try{
         // If we have a prefetched hero, place it first and animate from its rect
-        if (pref?.imgUrl){
+        if (pref?.imgUrl && isValidImageUrl(pref.imgUrl)){
           const list = [pref.imgUrl, ...imgs.filter((u:string)=> u!==pref.imgUrl)]
           allImages.value = list
           images.value = list
@@ -2082,7 +2106,13 @@ async function loadProductData(pid?: string) {
       }catch{ allImages.value = imgs; images.value = imgs }
       if (images.value.length) { try { await nextTick(); await computeGalleryHeight() } catch {} }
       // Load color galleries if present
-      if (Array.isArray(d.colorGalleries)) colorGalleries.value = d.colorGalleries
+      if (Array.isArray(d.colorGalleries)) {
+        colorGalleries.value = d.colorGalleries.map((g:any) => ({
+          ...g,
+          images: Array.isArray(g.images) ? g.images.filter(isValidImageUrl) : [],
+          primaryImageUrl: isValidImageUrl(g.primaryImageUrl) ? g.primaryImageUrl : ''
+        }))
+      }
       // defer color/size mapping to normalized loader
       original.value = ''
       categorySlug.value = String(d?.category?.slug||'')
@@ -2101,39 +2131,30 @@ async function loadProductData(pid?: string) {
           size.value = ''
         }
       }
-      try { await loadNormalizedVariants(p) } catch {}
-      // Ensure default color and size after variants load
-      try {
-        if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) colorIdx.value = 0
-        if (!currentColorName.value && colorVariants.value[0]?.name) colorIdx.value = 0
-      } catch {}
-      try { await nextTick(); await updateImagesForColor() } catch {}
-      // Fire Facebook Pixel ViewContent with catalog-friendly content_ids
-      try{
-        const fbq = (window as any).fbq
-        if (typeof fbq === 'function'){
-          const pidStr = String(d.id || p)
-          const val = Number(price.value||0)
-          const cur = (window as any).__CURRENCY_CODE__ || 'YER'
-          fbq('track','ViewContent', {
-            content_ids: [pidStr],
-            content_type: 'product',
-            contents: [{ id: pidStr, quantity: 1, item_price: val }],
-            value: val,
-            currency: cur
-          })
-        }
-      }catch{}
-      
-      // After primary data is ready, fire dependent loads (non-blocking)
-      try { await buildRecTabsFromCategory() } catch {}
-      try { if (!restoredRec.value) fetchRecommendations() } catch {}
-      try { fetchSizeGuide() } catch {}
-      try { loadWishlist() } catch {}
-      try { injectProductJsonLd() } catch {}
-      try { injectHeadMeta() } catch {}
+      // After primary data is ready, stop loading spinner for main info immediately
       isLoadingPdp.value = false
-      try { await hydrateCouponsForPdp() } catch {}
+
+
+      // Determine if we should show skeleton for variants
+      const hasVars = (Array.isArray(d.variants) && d.variants.length > 0) || (Array.isArray(d.colorGalleries) && d.colorGalleries.length > 0) || (Array.isArray(d.attributes) && d.attributes.some((a:any)=> a.key==='color' || a.key==='size'))
+      isLoadingVariants.value = !!hasVars
+
+      try { 
+
+        await loadNormalizedVariants(p) 
+
+      } catch {}
+      isLoadingVariants.value = false
+
+      // Fire dependent loads (non-blocking)
+
+      buildRecTabsFromCategory().catch(()=>{})
+      if (!restoredRec.value) fetchRecommendations().catch(()=>{})
+      fetchSizeGuide().catch(()=>{})
+      loadWishlist().catch(()=>{})
+      injectProductJsonLd()
+      injectHeadMeta()
+      hydrateCouponsForPdp().catch(()=>{})
     }
   }catch{}
   // Fallback (local preview/dev): synthesize minimal product and variants so UI renders swatches/sizes without API
@@ -2189,23 +2210,30 @@ async function loadNormalizedVariants(pid?: string){
   const p = String(pid || route.query.id || id.value)
   // Optimization: if product already has attributes/variants loaded, use them
   let list: any[] = []
-  let pd: any = null
+  let pd: any = product.value || null
   
-  if (product.value && Array.isArray(product.value.variants) && product.value.variants.length > 0 && Array.isArray(product.value.attributes)) {
-    list = product.value.variants as any[]
-    pd = product.value
+  if (pd && Array.isArray(pd.variants) && pd.variants.length > 0) {
+    list = pd.variants as any[]
   } else {
     const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/variants`).catch(()=>null)
     list = Array.isArray(j?.items) ? j!.items : []
-    if (!list.length && Array.isArray(product.value?.variants)) list = product.value.variants as any[]
+    // If we fetched variants but still have no pd (unlikely if called from loadProductData), try to use product.value again
+    if (!pd) pd = product.value
   }
 
   // 2) Prefer grouped attributes from product endpoint to render buttons per group
   try {
+    // Only fetch product if absolutely missing (should not happen if called from loadProductData)
     if (!pd) pd = await apiGet<any>(`/api/product/${encodeURIComponent(p)}`).catch(()=>null)
     const attrs: Array<{ key:string; label:string; values:string[] }> = Array.isArray(pd?.attributes) ? pd!.attributes : []
     // Ingest server color galleries
-    if (Array.isArray(pd?.colorGalleries)) colorGalleries.value = pd!.colorGalleries
+    if (Array.isArray(pd?.colorGalleries)) {
+      colorGalleries.value = pd!.colorGalleries.map((g:any) => ({
+        ...g,
+        images: Array.isArray(g.images) ? g.images.filter(isValidImageUrl) : [],
+        primaryImageUrl: isValidImageUrl(g.primaryImageUrl) ? g.primaryImageUrl : ''
+      }))
+    }
     // Colors group
     const col = attrs.find(a=> a.key==='color')
     let colVals: string[] = Array.isArray(col?.values) ? col!.values : []
@@ -2397,6 +2425,13 @@ watch(colorIdx, ()=>{
     updateImagesForColor()
   }catch{}
 })
+
+// ==================== HELPERS ====================
+function isValidImageUrl(u: string): boolean {
+  if (!u || typeof u !== 'string') return false
+  if (u.startsWith('blob:')) return false
+  return true
+}
 
 // ==================== RECOMMENDATIONS FETCH ====================
 const defaultRatio = 1.3
@@ -2878,7 +2913,7 @@ function injectHeadMeta(){
     const setMeta = (p:string,c:string)=>{ let m = document.querySelector(`meta[property="${p}"]`) as HTMLMetaElement|null; if(!m){ m = document.createElement('meta'); m.setAttribute('property', p); document.head.appendChild(m) } m.content = c }
     setMeta('og:title', title.value)
     setMeta('og:type', 'product')
-    if (images.value[0]) setMeta('og:image', images.value[0])
+    if (images.value[0] && isValidImageUrl(images.value[0])) setMeta('og:image', images.value[0])
     setMeta('og:url', url.href)
     setMeta('product:price:amount', String(Number(price.value||0)))
     setMeta('product:price:currency', getCurrency())
