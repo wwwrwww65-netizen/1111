@@ -278,7 +278,7 @@
               </div>
               <div class="flex-1 overflow-y-auto">
                 <ul class="divide-y">
-                  <li v-for="gov in governorates" :key="gov.name" class="px-4 py-3 text-sm cursor-pointer hover:bg-gray-50" @click="selectGovernorate(gov.name)">
+                  <li v-for="gov in governorates" :key="gov.name" class="px-4 py-3 text-sm cursor-pointer hover:bg-gray-50" @click="selectGovernorate(gov)">
                     {{ gov.name }}
                   </li>
                 </ul>
@@ -361,7 +361,7 @@ const openGovPicker = ref(false)
 const openCityPicker = ref(false)
 const openAreaPicker = ref(false)
 
-const governorates = ref<Array<{ id?: string; name: string }>>([])
+const governorates = ref<Array<{ id: string; name: string }>>([])
 const cities = ref<Array<{ id: string; name: string }>>([])
 const areas = ref<Array<{ id: string; name: string }>>([])
 const adminCountryId = ref<string|null>(null)
@@ -419,10 +419,10 @@ function onSave(){
     altPhone: form.value.altPhone,
     country: form.value.country,
     province: selectedGovernorate.value,
-    // المدينة مخفية حسب الطلب
-    city: '',
+    // Store Area in 'city' column (backend) to keep it distinct from landmarks
+    city: selectedArea.value,
     street: form.value.street,
-    details: [selectedArea.value, form.value.landmarks].filter(Boolean).join(' - '),
+    details: form.value.landmarks,
     postalCode: '',
     lat: mapSelection.value?.lat,
     lng: mapSelection.value?.lng,
@@ -461,7 +461,8 @@ function editAddress(idx: number){
   form.value.altPhone = a.altPhone
   form.value.country = a.country
   selectedGovernorate.value = a.governorate
-  selectedCityName.value = a.city
+  // Since we treat Governorate as City, selectedCityName should reflect the governorate name
+  selectedCityName.value = a.governorate
   selectedCityId.value = a.cityId || null
   selectedArea.value = a.area || null
   form.value.street = a.street
@@ -490,14 +491,12 @@ async function confirmMapLocation(){
   })
 }
 
-function selectGovernorate(gov: string){
-  selectedGovernorate.value = gov
-  // حاول ضبط selectedCityId إذا كانت المحافظات قادمة من ADMIN (cities)
-  try{
-    const found = (governorates.value||[]).find(g=> String(g.name).trim()===String(gov).trim())
-    selectedCityId.value = found?.id ? String(found.id) : null
-    selectedCityName.value = gov
-  }catch{ selectedCityId.value = null; selectedCityName.value = null }
+function selectGovernorate(gov: { id: string; name: string }){
+  selectedGovernorate.value = gov.name
+  // Use the ID from the selected governorate (City) to ensure correct area filtering
+  selectedCityId.value = gov.id
+  selectedCityName.value = gov.name
+  
   selectedArea.value = null
   openGovPicker.value = false
   validateField('governorate')
@@ -558,20 +557,33 @@ async function loadAddresses(){
   // واجهة API تُعيد مصفوفة عناوين (متعددة لكل مستخدم)
   const r = await apiGet<any[]>('/api/addresses')
   const list = Array.isArray(r) ? r : []
-  addresses.value = list.map((a:any)=> ({
-    id: a.id,
-    fullName: a.fullName || '',
-    phone: a.phone || '',
-    altPhone: a.altPhone || '',
-    country: a.country || 'اليمن',
-    governorate: a.state || a.province || '',
-    city: a.city || '',
-    cityId: a.cityId || null,
-    area: (a.details || '').split(' - ')[0] || '',
-    street: a.street || '',
-    landmarks: a.details || '',
-    isDefault: !!a.isDefault
-  }))
+  addresses.value = list.map((a:any)=> {
+    // New format: Area is stored in 'city' column. Old format: Area is in 'details' (Area - Landmark)
+    // If a.city is present, we assume it's the Area (new format).
+    const isNewFormat = !!a.city
+    const realArea = isNewFormat ? a.city : (a.details || '').split(' - ')[0]
+    let realLandmarks = isNewFormat ? a.details : (a.details || '').split(' - ').slice(1).join(' - ')
+
+    // Safety: Strip Area from Landmarks if it's duplicated (e.g. hybrid data state)
+    if (realArea && realLandmarks && String(realLandmarks).trim().startsWith(String(realArea).trim() + ' - ')) {
+      realLandmarks = String(realLandmarks).trim().substring((String(realArea).trim() + ' - ').length)
+    }
+
+    return {
+      id: a.id,
+      fullName: a.fullName || '',
+      phone: a.phone || '',
+      altPhone: a.altPhone || '',
+      country: a.country || 'اليمن',
+      governorate: a.state || a.province || '',
+      city: '', // Keep empty for frontend display to avoid duplicating Area (since we store Area in city column now)
+      cityId: a.cityId || null,
+      area: realArea || '',
+      street: a.street || '',
+      landmarks: realLandmarks || '',
+      isDefault: !!a.isDefault
+    }
+  })
 }
 
 function prefillFromMap(){

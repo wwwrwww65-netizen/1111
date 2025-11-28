@@ -340,7 +340,7 @@ const showRewards = ref(false)
 const addr = ref<any>(null)
 const addrNameDisplay = computed(()=> addr?.value?.fullName || addr?.value?.name || '—')
 const addrPhoneDisplay = computed(()=> addr?.value?.phone || '—')
-const addrLineDisplay = computed(()=> [addr.value?.state||addr.value?.province, addr.value?.city, addr.value?.street].filter(Boolean).join('، '))
+const addrLineDisplay = computed(()=> [addr.value?.state||addr.value?.province, addr.value?.area, addr.value?.street, addr.value?.landmarks].filter(Boolean).join('، '))
 const shippingPrice = computed(()=> {
   const m = (shippingOptions.value||[]).find(x=> x.id===selectedShipping.value)
   return m ? Number(m.price||0) : 0
@@ -374,7 +374,22 @@ async function loadAddress(){
     const sel = sessionStorage.getItem('checkout_selected_address_id')
     if (sel && Array.isArray(list)) chosen = list.find((x:any)=> String(x.id)===String(sel)) || null
   }catch{}
-  addr.value = chosen || (Array.isArray(list) ? (list.find((x:any)=>x.isDefault) || list[0] || null) : null)
+  const raw = chosen || (Array.isArray(list) ? (list.find((x:any)=>x.isDefault) || list[0] || null) : null)
+  if (raw) {
+    // Normalize address to extract Area and Landmarks correctly
+    const isNewFormat = !!raw.city
+    const realArea = isNewFormat ? raw.city : (raw.details || '').split(' - ')[0]
+    
+    let realLandmarks = isNewFormat ? raw.details : (raw.details || '').split(' - ').slice(1).join(' - ')
+    // Safety: Strip Area from Landmarks if it's duplicated
+    if (realArea && realLandmarks && String(realLandmarks).trim().startsWith(String(realArea).trim() + ' - ')) {
+      realLandmarks = String(realLandmarks).trim().substring((String(realArea).trim() + ' - ').length)
+    }
+
+    addr.value = { ...raw, area: realArea, landmarks: realLandmarks }
+  } else {
+    addr.value = null
+  }
 }
 async function loadShipping(){
   const city = String(addr.value?.city||'').trim()
@@ -395,6 +410,23 @@ async function loadPayments(){
 
 // Re-evaluate shipping when subtotal changes (affects free-over thresholds)
 watch(subtotalAfterCoupons, ()=>{ void loadShipping() })
+
+watch(shippingOptions, (opts) => {
+  if (!opts || !opts.length) return
+  // If only 1 option, select it automatically
+  if (opts.length === 1) {
+    selectedShipping.value = opts[0].id
+    return
+  }
+  // If multiple options, ensure selected is valid; otherwise fallback to first
+  if (selectedShipping.value && !opts.find(x => x.id === selectedShipping.value)) {
+    selectedShipping.value = opts[0].id
+  }
+  // If nothing selected, select first
+  if (!selectedShipping.value) {
+    selectedShipping.value = opts[0].id
+  }
+})
 
 function openAddressPicker(){ const ret = encodeURIComponent('/checkout'); router.push(`/address?return=${ret}`) }
 async function placeOrder(){
@@ -567,6 +599,7 @@ async function applyGift(){
   const r = await apiPost('/api/giftcards/apply', { code: giftCode.value })
   if (r && (r as any).ok) { discountFromPromo.value += Number((r as any).giftcard?.value || 0); giftOpen.value = false }
 }
+function onApplyGift(){ applyGift() }
 async function loadBalances(){
   try{ const w = await apiGet<{ balance:number }>('/api/wallet/balance'); walletBalance.value = Number(w?.balance||0) }catch{}
   try{ const p = await apiGet<{ points:number }>('/api/points/balance'); points.value = Number(p?.points||0) }catch{}

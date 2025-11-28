@@ -2081,6 +2081,11 @@ adminRest.get('/orders/:id', async (req, res) => {
     if (!o) return res.status(404).json({ error: 'not_found' });
     // Attach sequential code if exists
     try { const row: any[] = await db.$queryRaw`SELECT code FROM "Order" WHERE id=${id}` as any[]; if (row && row[0] && row[0].code) { (o as any).code = String(row[0].code) } } catch { }
+    // Attach shippingAddressSnapshot if exists (for name/phone display)
+    try {
+      const row: any[] = await db.$queryRaw`SELECT "shippingAddressSnapshot" FROM "Order" WHERE id=${id}` as any[];
+      if (row && row[0] && row[0].shippingAddressSnapshot) { (o as any).shippingAddressSnapshot = row[0].shippingAddressSnapshot; }
+    } catch { }
     // Attach OrderItemMeta (color/size/uid/attributes) if exists
     try {
       await db.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "OrderItemMeta" (id TEXT PRIMARY KEY, "orderId" TEXT, "orderItemId" TEXT, "productId" TEXT, color TEXT, size TEXT, uid TEXT, attributes JSONB, "createdAt" TIMESTAMP DEFAULT NOW())');
@@ -7358,7 +7363,7 @@ adminRest.post('/shipping/zones/sync-from-geo', async (_req, res) => {
       const name = `Zone - ${c.name}`;
       const countryCities = cities.filter(city => city.countryId === c.id).map(city => city.name);
       const countryAreas = areas.filter(area => area.city.countryId === c.id).map(area => area.name);
-      
+
       const exists = await db.shippingZone.findFirst({ where: { name } });
       if (!exists) {
         await db.shippingZone.create({

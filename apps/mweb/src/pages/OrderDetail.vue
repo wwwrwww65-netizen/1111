@@ -141,7 +141,28 @@ const shipPhone = computed(()=>{
 const shipLine = computed(()=>{
   try{
     const a = ship.value||{}
-    const parts = [a.country, a.state||a.province, a.city, a.area, a.street, a.details||a.landmarks].filter((x:any)=> !!x && String(x).trim())
+    // Smart normalization similar to Address.vue/Checkout.vue
+    // Check if 'city' contains data (New format where City=Area)
+    const isNewFormat = !!a.city
+    // If we have explicit 'area' field (from snapshot), prefer it. 
+    // Otherwise use 'city' (if new format) or extract from 'details' (old format)
+    const realArea = a.area || (isNewFormat ? a.city : (a.details || '').split(' - ')[0])
+    
+    // If new format, details is just landmarks. If old, details is Area - Landmarks.
+    // We want just Landmarks.
+    let realLandmarks = a.landmarks
+    if (!realLandmarks) {
+        realLandmarks = isNewFormat ? a.details : (a.details || '').split(' - ').slice(1).join(' - ')
+    }
+
+    const parts = [
+        a.country, 
+        a.state||a.province, 
+        realArea, 
+        a.street, 
+        realLandmarks
+    ].filter((x:any)=> !!x && String(x).trim())
+    
     return parts.join('، ')
   }catch{ return '' }
 })

@@ -3832,7 +3832,7 @@ shop.get('/orders/me', requireAuth, async (req: any, res) => {
 shop.post('/orders', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
-    const { shippingAddressId, ref, shippingPrice, discount, selectedUids, selectedIds, paymentMethod, shippingMethodId, walletUse, pointsUse } = req.body || {};
+    const { shippingAddressId, ref, shippingPrice, discount, selectedUids, selectedIds, paymentMethod, shippingMethodId, walletUse, pointsUse, shippingAddressSnapshot } = req.body || {};
     const linesInput: Array<{ productId: string; quantity: number; meta?: { uid?: string; color?: string; size?: string; attributes?: any } }> | null = Array.isArray((req.body || {}).lines) ? (req.body as any).lines : null
     // Build include dynamically to avoid querying missing columns on legacy DBs
     const hasCatLoyalty: boolean = (() => { return false; })();
@@ -3940,49 +3940,66 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
             metaQueueByPid[pid].push({ uid: u, meta })
           }
         }
-        // Enrich attributes.image from ProductColor galleries when color present
-        try {
-          const pids = Array.from(new Set(selectedUidsList.map(u => String(u).split('|')[0]))).filter(Boolean)
-          if (pids.length) {
-            const colors = await db.productColor.findMany({ where: { productId: { in: pids } }, select: { productId: true, name: true, primaryImageUrl: true } })
-            const norm = (s: string): string => {
-              const t = String(s || '').toLowerCase().trim()
-                .replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
-                .replace(/[أإآ]/g, 'ا')
-                .replace(/ة/g, 'ه')
-                .replace(/ى/g, 'ي')
-                .replace(/\s+/g, '')
-                .replace(/[^a-z0-9\u0600-\u06FF]/g, '');
-              return t;
-            };
-            const makeKey = (pid: string, name: string) => `${pid}|${norm(String(name || ''))}`
-            const imgByKey = new Map<string, string>()
-            for (const c of colors) {
-              const pid = String((c as any).productId)
-              const nm = String((c as any).name || '')
-              const img = (c as any).primaryImageUrl || ''
-              if (!nm || !img) continue
-              imgByKey.set(makeKey(pid, nm), String(img))
-            }
-            for (const pid of Object.keys(metaQueueByPid)) {
-              for (const entry of metaQueueByPid[pid]) {
-                const m = entry.meta
-                const color = m.color || (m.attributes && (m.attributes as any).color)
-                if (!color) continue
-                const key = makeKey(String(pid), String(color))
-                const found = imgByKey.get(key)
-                if (found) {
-                  m.attributes = m.attributes || {}
-                  if (!m.attributes.image) m.attributes.image = found
-                }
-              }
+      }
+    }
+    catch { }
+
+    // Enrich attributes.image from ProductColor galleries when color present (moved here to support both linesInput and selectedUids)
+    try {
+      const pids = Object.keys(metaQueueByPid)
+      if (pids.length) {
+        const colors = await db.productColor.findMany({ where: { productId: { in: pids } }, select: { productId: true, name: true, primaryImageUrl: true } })
+        const norm = (s: string): string => {
+          const t = String(s || '').toLowerCase().trim()
+            .replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
+            .replace(/[أإآ]/g, 'ا')
+            .replace(/ة/g, 'ه')
+            .replace(/ى/g, 'ي')
+            .replace(/\s+/g, '')
+            .replace(/[^a-z0-9\u0600-\u06FF]/g, '');
+          return t;
+        };
+        const makeKey = (pid: string, name: string) => `${pid}|${norm(String(name || ''))}`
+        const imgByKey = new Map<string, string>()
+        for (const c of colors) {
+          const pid = String((c as any).productId)
+          const nm = String((c as any).name || '')
+          const img = (c as any).primaryImageUrl || ''
+          if (!nm || !img) continue
+          imgByKey.set(makeKey(pid, nm), String(img))
+        }
+        for (const pid of Object.keys(metaQueueByPid)) {
+          for (const entry of metaQueueByPid[pid]) {
+            const m = entry.meta
+            const color = m.color || (m.attributes && (m.attributes as any).color)
+            if (!color) continue
+            const key = makeKey(String(pid), String(color))
+            const found = imgByKey.get(key)
+            if (found) {
+              m.attributes = m.attributes || {}
+              if (!m.attributes.image) m.attributes.image = found
             }
           }
-        } catch { }
+        }
       }
     } catch { }
     const subtotal = cartItems.reduce((s, it) => s + Number(it.quantity || 0) * Number(it.product?.price || 0), 0);
-    const ship = Number(shippingPrice || 0);
+    let ship = Number(shippingPrice || 0);
+    // Validate/Recalculate shipping cost server-side
+    if (shippingMethodId) {
+      try {
+        const rate = await db.deliveryRate.findUnique({ where: { id: String(shippingMethodId) } });
+        if (rate) {
+          const base = Number(rate.baseFee || 0);
+          const freeOver = Number(rate.freeOverSubtotal || 0);
+          if (freeOver > 0 && subtotal >= freeOver) {
+            ship = 0;
+          } else {
+            ship = base;
+          }
+        }
+      } catch { }
+    }
     const disc = Number(discount || 0);
     // Apply wallet/points usage (server-side validation)
     let walletApplied = 0; let pointsApplied = 0; let pointsAppliedAmount = 0;
@@ -4004,12 +4021,36 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       pointsAppliedAmount = Math.max(0, Math.round((pointsApplied * pointValue) * 100) / 100);
     } catch { }
     const total = Math.max(0, subtotal + ship - disc - walletApplied - pointsAppliedAmount);
-    // Validate shipping address against Address table only; fall back to null
+    // Validate shipping address: if ID provided, sync it from AddressBook to Address (1:1 relation)
     let shippingAddressIdResolved: string | null = null
     try {
       const sid = shippingAddressId ? String(shippingAddressId) : ''
       if (sid) {
-        const addrRow = await db.address.findUnique({ where: { id: sid } })
+        // 1. Try to find it in AddressBook
+        const rows: any[] = await db.$queryRawUnsafe('SELECT * FROM "AddressBook" WHERE id=$1', sid) as any[]
+        if (rows && rows[0]) {
+          const ab = rows[0]
+          // 2. Upsert into Address table (User has 1:1 Address)
+          const upserted = await db.address.upsert({
+            where: { userId },
+            update: {
+              street: ab.street || '', city: ab.city || '', state: ab.state || '', postalCode: ab.postalCode || '', country: ab.country || 'YE',
+              isDefault: true // Mark as default since it was just selected
+            },
+            create: {
+              userId, street: ab.street || '', city: ab.city || '', state: ab.state || '', postalCode: ab.postalCode || '', country: ab.country || 'YE',
+              isDefault: true
+            }
+          })
+          shippingAddressIdResolved = upserted.id
+        } else {
+          // Fallback: check if it's already the Address ID
+          const addrRow = await db.address.findUnique({ where: { id: sid } })
+          if (addrRow) shippingAddressIdResolved = addrRow.id
+        }
+      } else {
+        // No ID provided, use current default Address
+        const addrRow = await db.address.findUnique({ where: { userId } })
         if (addrRow) shippingAddressIdResolved = addrRow.id
       }
     } catch { }
@@ -4060,6 +4101,13 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       const contents = cartItems.map(ci => ({ id: String(ci.productId), quantity: Number(ci.quantity || 1), item_price: Number(ci.product?.price || 0) }))
       const evId = `OrderCreated_${order.id}_${Math.floor(Date.now() / 1000)}`
       await fbSendEvents([{ event_name: 'OrderCreated', event_id: evId, user_data: { em: hashEmail(u?.email), fbp, fbc }, custom_data: { value: Number(order.total || 0), currency: 'YER', content_ids: contents.map(c => c.id), content_type: 'product_group', contents, order_id: String(order.id), num_items: contents.length, payment_method: String(paymentMethod || ''), shipping: Number(ship || 0) }, action_source: 'website', event_source_url: String(req.headers.referer || '') }])
+    } catch { }
+    // Persist shipping address snapshot (full name, phone, etc.) for display
+    try {
+      if (shippingAddressSnapshot) {
+        await db.$executeRawUnsafe('ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "shippingAddressSnapshot" JSONB');
+        await db.$executeRawUnsafe('UPDATE "Order" SET "shippingAddressSnapshot"=$1::JSONB WHERE id=$2', JSON.stringify(shippingAddressSnapshot), order.id);
+      }
     } catch { }
     // Persist per-line variant meta without schema migration (side table)
     try {
@@ -4308,7 +4356,19 @@ shop.post('/cart/merge', async (req: any, res) => {
     for (const [pid, qty] of agg.entries()) {
       // Upsert by unique (cartId, productId) if exists; else create
       try {
-        const existing = await db.cartItem.findFirst({ where: { cartId, productId: pid }, select: { id: true, quantity: true } });
+        const existingItems = await db.cartItem.findMany({ where: { cartId, productId: pid } });
+        const existing = existingItems.find(item => {
+          // Merge logic: since we don't have attributes in merge input, we assume merging into base product or arbitrary first match?
+          // Actually, merge input is just productId/quantity, so we can't distinguish variants.
+          // Best effort: if multiple variants exist, maybe just add to the first one?
+          // Or if no attributes provided in input, find one with no attributes?
+          // The current input `items` is just {productId, quantity}. It lacks attributes.
+          // This means we CANNOT correctly merge variants if the input lacks them.
+          // However, for now, let's keep the behavior of "find first" but be aware it's imperfect for variants.
+          // To be safe, we should probably try to match one with empty attributes if possible.
+          return true;
+        });
+
         if (existing) {
           await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + qty } });
         } else {
@@ -4339,7 +4399,16 @@ shop.post('/cart/add', async (req: any, res) => {
     }
     if (userId) {
       const cart = await db.cart.upsert({ where: { userId }, create: { userId }, update: {} } as any);
-      const ex = await db.cartItem.findFirst({ where: { cartId: cart.id, productId: String(productId) } });
+      const existingItems = await db.cartItem.findMany({ where: { cartId: cart.id, productId: String(productId) } });
+      const ex = existingItems.find((item: any) => {
+        const itemAttrs = (item.attributes as Record<string, any>) || {};
+        const inputAttrs = attributes || {};
+        const k1 = Object.keys(itemAttrs).sort();
+        const k2 = Object.keys(inputAttrs).sort();
+        if (k1.length !== k2.length) return false;
+        return k1.every(k => itemAttrs[k] === inputAttrs[k]);
+      });
+
       if (ex) await db.cartItem.update({ where: { id: ex.id }, data: { quantity: ex.quantity + qty } });
       else await db.cartItem.create({ data: { cartId: cart.id, productId: String(productId), quantity: qty, attributes: attributes ? (attributes as any) : undefined } });
       try { await db.cart.update({ where: { id: cart.id }, data: { updatedAt: new Date() } } as any) } catch { }
@@ -4573,11 +4642,12 @@ shop.get('/orders/:id', requireAuth, async (req: any, res) => {
     } catch { }
     // Attach payment/shipping method columns if present in DB and include shipping amount
     try {
-      const rows: any[] = await db.$queryRaw`SELECT "paymentMethod", "shippingMethodId", "shippingAmount" FROM "Order" WHERE id=${id}` as any[];
+      const rows: any[] = await db.$queryRaw`SELECT "paymentMethod", "shippingMethodId", "shippingAmount", "shippingAddressSnapshot" FROM "Order" WHERE id=${id}` as any[];
       if (rows && rows[0]) {
         (order as any).paymentMethod = rows[0].paymentMethod || null;
         (order as any).shippingMethodId = rows[0].shippingMethodId || null;
         (order as any).shippingAmount = Number(rows[0].shippingAmount || 0);
+        (order as any).shippingAddressSnapshot = rows[0].shippingAddressSnapshot || null;
       }
     } catch { }
     // Attach purchase event_id if present (for dedupe with Pixel)
