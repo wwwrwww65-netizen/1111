@@ -4851,13 +4851,36 @@ shop.get('/geo/areas', async (req, res) => {
 shop.post('/addresses', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
-    const { fullName, phone, altPhone, country, province, city, street, details, postalCode, lat, lng, isDefault } = req.body || {};
-    const id = Math.random().toString(36).slice(2)
+    const { id: existingId, fullName, phone, altPhone, country, province, city, street, details, postalCode, lat, lng, isDefault } = req.body || {};
+
+    let id = existingId;
+    let isUpdate = false;
+
+    if (id) {
+      // Check if address exists and belongs to user
+      const rows = await db.$queryRawUnsafe('SELECT id FROM "AddressBook" WHERE id=$1 AND "userId"=$2', id, userId) as any[];
+      if (rows && rows.length > 0) {
+        isUpdate = true;
+      } else {
+        // If ID provided but not found/owned, treat as new (or could error, but safe fallback is new ID)
+        id = Math.random().toString(36).slice(2);
+      }
+    } else {
+      id = Math.random().toString(36).slice(2);
+    }
+
     if (isDefault === true) {
       try { await db.$executeRawUnsafe('UPDATE "AddressBook" SET "isDefault"=FALSE WHERE "userId"=$1', userId) } catch { }
     }
-    await db.$executeRawUnsafe('INSERT INTO "AddressBook" (id, "userId", "fullName", phone, "altPhone", country, state, city, street, details, "postalCode", lat, lng, "isDefault") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',
-      id, userId, fullName || null, phone || null, altPhone || null, String(country || 'YE'), String(province || ''), String(city || ''), String(street || ''), details ? String(details) : null, String(postalCode || ''), (lat == null ? null : Number(lat)), (lng == null ? null : Number(lng)), isDefault === true)
+
+    if (isUpdate) {
+      await db.$executeRawUnsafe('UPDATE "AddressBook" SET "fullName"=$1, phone=$2, "altPhone"=$3, country=$4, state=$5, city=$6, street=$7, details=$8, "postalCode"=$9, lat=$10, lng=$11, "isDefault"=$12, "updatedAt"=NOW() WHERE id=$13',
+        fullName || null, phone || null, altPhone || null, String(country || 'YE'), String(province || ''), String(city || ''), String(street || ''), details ? String(details) : null, String(postalCode || ''), (lat == null ? null : Number(lat)), (lng == null ? null : Number(lng)), isDefault === true, id)
+    } else {
+      await db.$executeRawUnsafe('INSERT INTO "AddressBook" (id, "userId", "fullName", phone, "altPhone", country, state, city, street, details, "postalCode", lat, lng, "isDefault") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',
+        id, userId, fullName || null, phone || null, altPhone || null, String(country || 'YE'), String(province || ''), String(city || ''), String(street || ''), details ? String(details) : null, String(postalCode || ''), (lat == null ? null : Number(lat)), (lng == null ? null : Number(lng)), isDefault === true)
+    }
+
     const row = await db.$queryRawUnsafe('SELECT id, "fullName", phone, "altPhone", country, state, city, street, details, "postalCode", lat, lng, "isDefault" FROM "AddressBook" WHERE id=$1', id) as any[]
     return res.json({ address: row?.[0] || null })
   } catch {

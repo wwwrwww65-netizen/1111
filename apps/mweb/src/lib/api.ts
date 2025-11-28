@@ -113,6 +113,17 @@ export async function apiPost<T = any>(path: string, body?: any, init?: RequestI
   } catch { return null }
 }
 
+export async function apiDelete<T = any>(path: string, body?: any, init?: RequestInit): Promise<T | null> {
+  try {
+    const url = path.startsWith('http')
+      ? path
+      : (path.startsWith('/api/') ? path : `${API_BASE}${path}`)
+    const res = await fetch(url, { method: 'DELETE', headers: { 'content-type': 'application/json', ...getAuthHeader(), ...(init?.headers || {}) }, credentials: 'include', body: body == null ? undefined : JSON.stringify(body) })
+    if (!res.ok) return null
+    return await res.json()
+  } catch { return null }
+}
+
 export function isAuthenticated(): boolean {
   try {
     if (typeof window !== 'undefined') {

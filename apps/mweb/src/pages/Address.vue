@@ -58,9 +58,9 @@
             </button>
             <div class="flex items-center gap-3">
               <button v-if="returnTo" class="px-3 py-1 text-[12px] border border-[#8a1538] text-[#8a1538]" @click.stop="selectAndReturn(idx)">اختيار</button>
-              <button class="text-gray-700" @click.stop="removeAddress(idx)" aria-label="حذف">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M6 7h12v2H6zM9 10h2v7H9zM13 10h2v7h-2zM10 4h4v2h5v2H5V6h5z"/>
+              <button class="text-gray-700 hover:text-red-600" @click.stop="removeAddress(idx)" aria-label="حذف">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
               </button>
             </div>
@@ -311,13 +311,39 @@
         </transition>
       </div>
     </transition>
+
+    <!-- نافذة تأكيد الحذف -->
+    <transition name="fade">
+      <div v-if="showDeleteModal" class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50" @click="cancelDelete"></div>
+        <div class="relative bg-white rounded-lg shadow-xl w-full max-w-sm p-6 text-center">
+          <div class="mb-4">
+            <div class="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">حذف العنوان</h3>
+            <p class="text-sm text-gray-600">هل أنت متأكد أنك تريد حذف هذا العنوان؟ لا يمكن التراجع عن هذا الإجراء.</p>
+          </div>
+          <div class="flex gap-3">
+            <button @click="cancelDelete" class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+              إلغاء
+            </button>
+            <button @click="confirmDelete" class="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">
+              حذف
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { apiGet, apiPost } from '@/lib/api'
+import { apiGet, apiPost, apiDelete } from '@/lib/api'
 
 const router = useRouter()
 const route = useRoute()
@@ -340,6 +366,9 @@ const disableGoogleMaps = false
 const gmapsKey = ref<string>('')
 const gmapsLoading = ref<boolean>(false)
 const gmapsError = ref<string>('')
+
+const showDeleteModal = ref(false)
+const addressToDelete = ref<string|null>(null)
 
 const form = ref({
   fullName: '',
@@ -410,10 +439,13 @@ const canSave = computed(()=>{
   )
 })
 
+const editingId = ref<string|null>(null)
+
 function onSave(){
   if (!canSave.value) return
   // حفظ على الخادم
   apiPost('/api/addresses', {
+    id: editingId.value,
     fullName: form.value.fullName,
     phone: form.value.phone,
     altPhone: form.value.altPhone,
@@ -436,6 +468,7 @@ function onSave(){
     selectedCityName.value = null
     selectedArea.value = null
     isDefault.value = false
+    editingId.value = null
     errors.value = {}
     // العودة للصفحة السابقة إذا كانت مطلوبة
     if (returnTo.value) router.push(returnTo.value)
@@ -449,13 +482,28 @@ function togglePrimary(idx: number){
 }
 
 function removeAddress(idx: number){
-  // حذف من الخادم ثم التحديث محلياً
   const id = addresses.value[idx]?.id
-  apiPost('/api/addresses/delete', id? { id } : {}).finally(()=>{ loadAddresses() })
+  if (!id) return
+  addressToDelete.value = id
+  showDeleteModal.value = true
+}
+
+function confirmDelete(){
+  if (!addressToDelete.value) return
+  apiDelete(`/api/addresses/${addressToDelete.value}`).finally(()=>{
+    loadAddresses()
+    cancelDelete()
+  })
+}
+
+function cancelDelete(){
+  showDeleteModal.value = false
+  addressToDelete.value = null
 }
 
 function editAddress(idx: number){
   const a = addresses.value[idx]
+  editingId.value = a.id || null
   form.value.fullName = a.fullName
   form.value.phone = a.phone
   form.value.altPhone = a.altPhone
@@ -894,4 +942,8 @@ function pinCenter(){
 .drawer-left-leave-active { transition: transform 0.28s ease; }
 .drawer-left-enter-from,
 .drawer-left-leave-to { transform: translateX(-100%); }
+.fade-enter-active,
+.fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from,
+.fade-leave-to { opacity: 0; }
 </style>
