@@ -2094,3 +2094,27 @@ This section documents critical fixes applied to ensure data integrity, correct 
 - `apps/mweb/src/pages/Checkout.vue` (Display)
 - `apps/mweb/src/pages/OrderDetail.vue` (Display)
 - `apps/admin/src/app/orders/[id]/page.tsx` (Admin Display)
+
+### 10. ✏️ Address Management Improvements (Nov 2025) — تحسينات إدارة العناوين
+
+**Problem:**
+1.  **Duplicate on Edit:** Editing an address was creating a new record instead of updating the existing one.
+2.  **Missing Delete Button:** Users could not delete addresses because the delete button was missing/invisible.
+3.  **Delete Failure:** Even when invoked, the delete action failed because the backend endpoint was incorrect.
+4.  **Poor UX:** The delete confirmation was a native browser alert, and the icon was outdated.
+
+**Fix:**
+- **Update Logic (Upsert):**
+    - **Backend (`shop.ts`):** Updated `POST /addresses` to accept an `id`. If provided and valid, it performs an `UPDATE` instead of `INSERT`.
+    - **Frontend (`Address.vue`):** Updated `onSave` to send the `editingId` when modifying an address.
+- **Delete Functionality:**
+    - **Backend (`shop.ts`):** Fixed `DELETE /addresses/:id` to correctly target the `AddressBook` table using the address ID and User ID.
+    - **Frontend (`Address.vue`):** Added `apiDelete` helper and updated `removeAddress` to call the correct endpoint.
+- **UI/UX Enhancements:**
+    - **Modern Icon:** Replaced the old SVG with a modern, outlined "Trash Can" icon (Lucide style).
+    - **Custom Modal:** Replaced the native `confirm()` dialog with a custom, styled Vue modal for delete confirmation.
+
+**Affected Files:**
+- `packages/api/src/routers/shop.ts` (API Logic)
+- `apps/mweb/src/pages/Address.vue` (UI & Logic)
+- `apps/mweb/src/lib/api.ts` (Added apiDelete helper)

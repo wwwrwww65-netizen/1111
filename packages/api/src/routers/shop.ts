@@ -4891,8 +4891,9 @@ shop.post('/addresses', requireAuth, async (req: any, res) => {
 shop.delete('/addresses/:id', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
-    const exists = await db.address.findUnique({ where: { userId } });
-    if (exists) await db.address.delete({ where: { userId } });
+    const id = String(req.params.id);
+    // Delete only if ID matches and belongs to user
+    await db.$executeRawUnsafe('DELETE FROM "AddressBook" WHERE id=$1 AND "userId"=$2', id, userId);
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'failed' });
