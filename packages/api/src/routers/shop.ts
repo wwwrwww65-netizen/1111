@@ -3824,7 +3824,34 @@ shop.get('/orders/me', requireAuth, async (req: any, res) => {
       include: { items: { include: { product: { select: { id: true, name: true, images: true } } } }, payment: true },
       orderBy: { createdAt: 'desc' },
     });
-    res.json(orders.map((o) => ({ id: o.id, code: (o as any).code || undefined, status: (o.status || 'PENDING').toLowerCase(), total: Number(o.total || 0), date: o.createdAt })));
+
+    // Fetch codes via raw SQL since 'code' is not in Prisma schema
+    const codes = await db.$queryRawUnsafe('SELECT id, code FROM "Order" WHERE "userId"=$1', userId) as any[];
+    const codeMap = new Map<string, string>();
+    if (Array.isArray(codes)) {
+      for (const c of codes) {
+        if (c.id && c.code) codeMap.set(c.id, c.code);
+      }
+    }
+
+    res.json(orders.map((o) => ({
+      id: o.id,
+      code: codeMap.get(o.id) || undefined,
+      status: (o.status || 'PENDING').toLowerCase(),
+      total: Number(o.total || 0),
+      date: o.createdAt,
+      paymentStatus: o.payment?.status,
+      paymentMethod: (o as any).paymentMethod,
+      items: o.items.map(i => ({
+        id: i.id,
+        quantity: i.quantity,
+        price: Number(i.price || 0),
+        product: {
+          name: i.product?.name,
+          image: i.product?.images?.[0] || null
+        }
+      }))
+    })));
   } catch {
     res.status(500).json({ error: 'failed' });
   }

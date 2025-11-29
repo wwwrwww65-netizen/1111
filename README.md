@@ -2118,3 +2118,34 @@ This section documents critical fixes applied to ensure data integrity, correct 
 - `packages/api/src/routers/shop.ts` (API Logic)
 - `apps/mweb/src/pages/Address.vue` (UI & Logic)
 - `apps/mweb/src/lib/api.ts` (Added apiDelete helper)
+
+### 11. 📦 Orders Page Redesign & Fixes (Nov 2025) — إعادة تصميم صفحة الطلبات
+
+**Goal:**
+Redesign the "My Orders" page to match a specific "SHEIN-style" visual reference, improve data visibility, and fix display issues.
+
+**Changes & Fixes:**
+
+1.  **Frontend Redesign (`Orders.vue`):**
+    -   **Custom Header:** Replaced the generic header with a custom white header featuring a Back button, centered Title ("طلباتي"), and Cart icon.
+    -   **Tabbed Interface:** Added a sticky tab bar to filter orders by status (All, Unpaid, Processing, Shipped, Review).
+    -   **Card Layout:**
+        -   **Header:** Status label (with colored dot) on the Right, Order Code on the Left.
+        -   **Body:** Horizontal scrollable list of product thumbnails.
+        -   **Footer:** Total price and item count.
+    -   **"Pay Now" Logic:** The "Pay Now" button is now **conditional**:
+        -   **Visible:** Only for `PENDING` orders where the payment method is **NOT** "Cash on Delivery" (COD).
+        -   **Hidden:** For COD orders or paid orders.
+    -   **Navigation:** Clicking anywhere on the order card now navigates to the Order Details page.
+    -   **Styling:** Removed side margins for a full-width design and fixed header overlap issues.
+
+2.  **Backend Updates (`shop.ts`):**
+    -   **Data Enrichment:** Updated `GET /orders/me` to include:
+        -   `items` with product details (name, image, price).
+        -   `paymentMethod` (essential for the "Pay Now" button logic).
+    -   **Bug Fix (Order Code):** The `code` field (e.g., "013...") was missing from the Prisma schema, causing it to return `undefined`.
+        -   **Fix:** Implemented a `db.$queryRawUnsafe` call to manually fetch the `code` column from the database and map it to the response.
+
+**Affected Files:**
+-   `apps/mweb/src/pages/Orders.vue` (Complete Rewrite)
+-   `packages/api/src/routers/shop.ts` (`GET /orders/me` logic)
