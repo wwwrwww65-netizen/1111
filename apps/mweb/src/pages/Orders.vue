@@ -24,9 +24,10 @@
     <div class="sticky top-[50px] z-40 bg-white border-b border-gray-100 overflow-x-auto scrollbar-hide">
       <div class="flex whitespace-nowrap px-2">
         <button 
-          v-for="tab in tabs" 
+          v-for="(tab, index) in tabs" 
           :key="tab.id"
-          @click="activeTab = tab.id"
+          ref="tabRefs"
+          @click="selectTab(tab.id)"
           class="px-4 py-3 text-sm font-medium transition-colors relative"
           :class="activeTab === tab.id ? 'text-black font-bold border-b-2 border-black' : 'text-gray-500'"
         >
@@ -72,7 +73,7 @@
             <!-- Single Item -->
             <div v-if="order.items.length === 1" class="flex gap-3">
               <div class="w-20 h-24 bg-gray-100 rounded overflow-hidden flex-shrink-0">
-                <img :src="order.items[0].product.image || '/placeholder.png'" class="w-full h-full object-cover" />
+                <img :src="resolveItemImage(order.items[0])" class="w-full h-full object-cover" />
               </div>
               <div class="flex-1 min-w-0">
                 <h4 class="text-sm text-gray-800 line-clamp-2 mb-1">{{ order.items[0].product.name }}</h4>
@@ -84,7 +85,7 @@
             <div v-else class="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
               <div v-for="item in order.items" :key="item.id" class="w-20 flex-shrink-0">
                 <div class="w-20 h-24 bg-gray-100 rounded overflow-hidden mb-2 relative">
-                  <img :src="item.product.image || '/placeholder.png'" class="w-full h-full object-cover" />
+                  <img :src="resolveItemImage(item)" class="w-full h-full object-cover" />
                   <span v-if="item.quantity > 1" class="absolute bottom-0 right-0 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-tl">x{{ item.quantity }}</span>
                 </div>
               </div>
@@ -105,13 +106,16 @@
           <div class="flex gap-2 justify-end border-t pt-3">
              <!-- Pay Now: Only if pending AND NOT COD -->
             <button 
-              v-if="order.status === 'pending' && order.paymentMethod !== 'cod'" 
+              v-if="order.status === 'PENDING' && order.paymentMethod !== 'cod'" 
               class="px-6 py-2 bg-black text-white text-sm font-medium rounded"
             >
               دفع على الفور
             </button>
             
-            <button class="px-6 py-2 bg-white text-gray-900 text-sm font-medium rounded border border-gray-300">
+            <button 
+              v-if="['DELIVERED', 'CANCELLED'].includes(String(order.status||'').toUpperCase())"
+              class="px-6 py-2 bg-white text-gray-900 text-sm font-medium rounded border border-gray-300"
+            >
               إعادة الشراء
             </button>
           </div>
@@ -124,54 +128,101 @@
 
 <script setup lang="ts">
 import BottomNav from '@/components/BottomNav.vue'
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, nextTick, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { apiGet } from '@/lib/api'
 
+const route = useRoute()
+
 const tabs = [
-  { id: 'all', label: 'جميع الطلبات' },
-  { id: 'pending', label: 'غير مدفوع' },
-  { id: 'processing', label: 'قيد التجهيز' },
-  { id: 'shipped', label: 'تم الشحن' },
-  { id: 'review', label: 'تعليق' }
+  { id: 'ALL', label: 'جميع الطلبات' },
+  { id: 'PENDING', label: 'قيد المراجعة' },
+  { id: 'PROCESSING', label: 'قيد التجهيز' },
+  { id: 'OUT_FOR_DELIVERY', label: 'في الطريق' },
+  { id: 'DELIVERED', label: 'تم الشحن' },
+  { id: 'REVIEW', label: 'تعليق' },
+  { id: 'RETURNS', label: 'المنتجات المسترجعة' }
 ]
 
-const activeTab = ref('all')
+const activeTab = ref('ALL')
 const loading = ref(true)
 const orders = ref<any[]>([])
+const tabRefs = ref<HTMLElement[]>([])
 
 const filteredOrders = computed(() => {
-  if (activeTab.value === 'all') return orders.value
-  if (activeTab.value === 'pending') return orders.value.filter(o => o.status === 'pending' && o.paymentStatus !== 'paid')
-  if (activeTab.value === 'processing') return orders.value.filter(o => o.status === 'paid' || o.status === 'processing')
-  if (activeTab.value === 'shipped') return orders.value.filter(o => o.status === 'shipped')
-  return []
+  if (activeTab.value === 'ALL') return orders.value
+  if (activeTab.value === 'REVIEW') return orders.value.filter(o => o.hasUnreviewedItems)
+  if (activeTab.value === 'RETURNS') return orders.value.filter(o => !!o.returnRequest)
+  return orders.value.filter(o => String(o.status || '').toUpperCase() === activeTab.value)
 })
 
 function getStatusLabel(status: string) {
+  const s = String(status || '').toUpperCase()
   const map: Record<string, string> = {
-    pending: 'انتظار الدفع',
-    paid: 'مدفوع',
-    processing: 'قيد التجهيز',
-    shipped: 'تم الشحن',
-    delivered: 'تم التوصيل',
-    cancelled: 'ملغي'
+    PENDING: 'قيد المراجعة',
+    PROCESSING: 'قيد التجهيز',
+    OUT_FOR_DELIVERY: 'في الطريق إليك',
+    DELIVERED: 'تم الشحن',
+    CANCELLED: 'ملغي'
   }
-  return map[status] || status
+  return map[s] || status
 }
 
 function getStatusColor(status: string) {
-  if (status === 'pending') return 'text-orange-500'
-  if (status === 'cancelled') return 'text-gray-500'
+  const s = String(status || '').toUpperCase()
+  if (s === 'PENDING') return 'text-orange-500'
+  if (s === 'PROCESSING') return 'text-blue-600'
+  if (s === 'OUT_FOR_DELIVERY') return 'text-purple-600'
+  if (s === 'CANCELLED') return 'text-gray-500'
   return 'text-green-600'
 }
 
 function getStatusDotColor(status: string) {
-  if (status === 'pending') return 'bg-orange-500'
-  if (status === 'cancelled') return 'bg-gray-500'
+  const s = String(status || '').toUpperCase()
+  if (s === 'PENDING') return 'bg-orange-500'
+  if (s === 'PROCESSING') return 'bg-blue-600'
+  if (s === 'OUT_FOR_DELIVERY') return 'bg-purple-600'
+  if (s === 'CANCELLED') return 'bg-gray-500'
   return 'bg-green-600'
 }
 
+function resolveItemImage(it: any): string {
+  try{
+    const attrs = (it && (it as any).attributes) || {}
+    let raw = attrs.image || attrs.img || attrs.imageUrl || attrs.variantImage || attrs.picture || attrs.photo || attrs.thumbnail || attrs.variantImageUrl || (it?.product?.images?.[0]) || ''
+    const s = String(raw||'').trim()
+    if (!s) return it?.product?.image || '/placeholder.png'
+    if (/^https?:\/\//i.test(s)) return s
+    const base = (window as any).API_BASE || ''
+    if (s.startsWith('/uploads')) return `${base}${s}`
+    if (s.startsWith('uploads/')) return `${base}/${s}`
+    return s
+  }catch{ return it?.product?.image || '/placeholder.png' }
+}
+
+function scrollToActiveTab() {
+  nextTick(() => {
+    const index = tabs.findIndex(t => t.id === activeTab.value)
+    if (index !== -1 && tabRefs.value[index]) {
+      tabRefs.value[index].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    }
+  })
+}
+
+function selectTab(id: string) {
+  activeTab.value = id
+  scrollToActiveTab()
+}
+
 onMounted(async () => {
+  if (route.query.status) {
+    const s = String(route.query.status).toUpperCase()
+    if (tabs.some(t => t.id === s)) {
+      activeTab.value = s
+      scrollToActiveTab()
+    }
+  }
+
   try {
     const data = await apiGet<any>('/api/orders/me')
     if (Array.isArray(data)) {

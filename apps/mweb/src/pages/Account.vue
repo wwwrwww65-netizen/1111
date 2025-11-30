@@ -100,23 +100,23 @@
           </div>
         </div>
         <div class="orders-grid">
-          <div class="order-item" @click="go('/orders?status=unpaid')">
+          <div class="order-item" @click="go('/orders?status=PENDING')">
             <CreditCard class="w-6 h-6 text-[#8a1538] mb-2" />
             <span>غير مدفوع</span>
           </div>
-          <div class="order-item" @click="go('/orders?status=processing')">
+          <div class="order-item" @click="go('/orders?status=PROCESSING')">
             <Package class="w-6 h-6 text-[#8a1538] mb-2" />
             <span>قيد التجهيز</span>
           </div>
-          <div class="order-item" @click="go('/orders?status=shipped')">
+          <div class="order-item" @click="go('/orders?status=DELIVERED')">
             <Truck class="w-6 h-6 text-[#8a1538] mb-2" />
             <span>تم الشحن</span>
           </div>
-          <div class="order-item" @click="go('/orders?status=review')">
+          <div class="order-item" @click="go('/orders?status=REVIEW')">
             <MessageSquare class="w-6 h-6 text-[#8a1538] mb-2" />
             <span>تعليق</span>
           </div>
-          <div class="order-item" @click="go('/orders/returns')">
+          <div class="order-item" @click="go('/orders?status=RETURNS')">
             <RotateCcw class="w-6 h-6 text-[#8a1538] mb-2" />
             <span>المنتجات<br>المسترجعة</span>
           </div>

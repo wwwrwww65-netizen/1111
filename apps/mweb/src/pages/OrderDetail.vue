@@ -7,7 +7,7 @@
       <div class="card row" style="justify-content:space-between;align-items:center">
         <div>
           <div class="muted">الحالة</div>
-          <div class="chip" :class="order.status">{{ t(order.status) }}</div>
+          <div class="chip" :class="order.status">{{ displayStatus }}</div>
         </div>
         <div style="text-align:end">
           <div class="muted">الإجمالي</div>
@@ -123,9 +123,26 @@ function displaySize(it: any): string {
 }
 
 function t(s:string){
-  const m: any = { PENDING:'قيد المراجعة', PAID:'تم الدفع', SHIPPED:'قيد الشحن', DELIVERED:'مكتمل', CANCELLED:'ملغي' }
-  return m[s] || s
+  const key = String(s||'').toUpperCase()
+  const m: any = { 
+    PENDING:'قيد المراجعة', 
+    PROCESSING:'قيد التجهيز', 
+    OUT_FOR_DELIVERY:'في الطريق إليك',
+    DELIVERED:'تم الشحن', 
+    CANCELLED:'ملغي' 
+  }
+  return m[key] || s
 }
+
+const displayStatus = computed(()=>{
+  const s = String(order.value?.status || '').toUpperCase()
+  if (s === 'PENDING') {
+    if (isCod.value) return 'قيد المراجعة'
+    if (order.value?.payment?.status === 'COMPLETED') return 'مدفوع وهو الان قيد المراجعه'
+    return 'بانتظار الدفع'
+  }
+  return t(s)
+})
 
 // عنوان الشحن الملتقط من الطلب (السنبشوت المختار أثناء الدفع إن وُجد)
 const ship = computed<any>(()=>{

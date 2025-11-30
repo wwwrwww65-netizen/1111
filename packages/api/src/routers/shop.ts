@@ -723,7 +723,7 @@ shop.get('/product/:id/meta', async (req: any, res) => {
                  join "Product" pr on pr.id = oi."productId"
                  where pr."categoryId" = $1
                    and oi."createdAt" > now() - interval '90 days'
-                   and o.status in ('PAID','SHIPPED','DELIVERED')
+                   and o.status in ('PROCESSING','OUT_FOR_DELIVERY','DELIVERED')
                  group by oi."productId"
                  order by qty desc
                  limit 50`, p.categoryId);
@@ -1897,7 +1897,7 @@ shop.get('/products', async (req, res) => {
         const ranks: any[] = await db.$queryRawUnsafe(`
         SELECT oi."productId" as pid, SUM(oi.quantity) as qty
         FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
-        WHERE o.status IN ('PAID','SHIPPED','DELIVERED')
+        WHERE o.status IN ('PROCESSING','OUT_FOR_DELIVERY','DELIVERED')
         GROUP BY 1 ORDER BY qty DESC LIMIT 200
       `);
         const rankMap = new Map<string, { rank: number; qty: number }>();
@@ -1942,7 +1942,7 @@ shop.get('/product/:id', async (req, res) => {
           rows = await db.$queryRawUnsafe(`
           SELECT oi."productId" as pid, SUM(oi.quantity) as qty
           FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId" JOIN "Product" pr ON pr.id=oi."productId"
-          WHERE o.status IN ('PAID','SHIPPED','DELIVERED') AND pr."categoryId"=$1
+          WHERE o.status IN ('PROCESSING','OUT_FOR_DELIVERY','DELIVERED') AND pr."categoryId"=$1
           GROUP BY 1 ORDER BY qty DESC LIMIT 100
         `, p.categoryId);
           categoryRanksCache.set(String(p.categoryId), { ts: now, rows: rows as any[] });
@@ -2364,7 +2364,7 @@ shop.get('/recommendations/recent', async (_req, res) => {
       const ranks: any[] = await db.$queryRawUnsafe(`
         SELECT oi."productId" as pid, SUM(oi.quantity) as qty
         FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
-        WHERE o.status IN ('PAID','SHIPPED','DELIVERED')
+        WHERE o.status IN ('PROCESSING','OUT_FOR_DELIVERY','DELIVERED')
         GROUP BY 1 ORDER BY qty DESC LIMIT 200
       `);
       const rankMap = new Map<string, { rank: number; qty: number }>(); let r = 1;
@@ -2418,7 +2418,7 @@ shop.get('/recommendations/similar/:productId', async (req, res) => {
       const rows: any[] = await db.$queryRawUnsafe(`
         SELECT oi."productId" as pid, SUM(oi.quantity) as qty
         FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId" JOIN "Product" pr ON pr.id=oi."productId"
-        WHERE o.status IN ('PAID','SHIPPED','DELIVERED') AND pr."categoryId"=$1
+        WHERE o.status IN ('PROCESSING','OUT_FOR_DELIVERY','DELIVERED') AND pr."categoryId"=$1
         GROUP BY 1 ORDER BY qty DESC LIMIT 200
       `, p.categoryId);
       const rankMap = new Map<string, { rank: number; qty: number }>(); let r = 1;
@@ -3378,7 +3378,7 @@ shop.get('/catalog/:slug', async (req, res) => {
         FROM "OrderItem" oi
         JOIN "Order" o ON o.id=oi."orderId"
         JOIN "Product" p ON p.id=oi."productId"
-        WHERE o.status IN ('PAID','SHIPPED','DELIVERED')
+        WHERE o.status IN ('PROCESSING','OUT_FOR_DELIVERY','DELIVERED')
           AND (
             p."categoryId" = ANY($1::text[])
             OR EXISTS (SELECT 1 FROM "ProductCategory" pc WHERE pc."productId"=p.id AND pc."categoryId" = ANY($1::text[]))
@@ -3834,24 +3834,70 @@ shop.get('/orders/me', requireAuth, async (req: any, res) => {
       }
     }
 
-    res.json(orders.map((o) => ({
-      id: o.id,
-      code: codeMap.get(o.id) || undefined,
-      status: (o.status || 'PENDING').toLowerCase(),
-      total: Number(o.total || 0),
-      date: o.createdAt,
-      paymentStatus: o.payment?.status,
-      paymentMethod: (o as any).paymentMethod,
-      items: o.items.map(i => ({
-        id: i.id,
-        quantity: i.quantity,
-        price: Number(i.price || 0),
-        product: {
-          name: i.product?.name,
-          image: i.product?.images?.[0] || null
-        }
-      }))
-    })));
+    // Fetch ReturnRequests
+    const orderIds = orders.map(o => o.id);
+    const returnRequests = await db.returnRequest.findMany({
+      where: { orderId: { in: orderIds } }
+    });
+    const returnMap = new Map<string, any>();
+    for (const r of returnRequests) {
+      returnMap.set(r.orderId, r);
+    }
+
+    // Fetch Reviews to check if items are reviewed
+    // We check if ANY item in the order has been reviewed by the user
+    const productIds = Array.from(new Set(orders.flatMap(o => o.items.map(i => i.productId))));
+    const reviews = await db.review.findMany({
+      where: { userId, productId: { in: productIds } },
+      select: { productId: true }
+    });
+    const reviewedProductIds = new Set(reviews.map(r => r.productId));
+
+    res.json(orders.map((o) => {
+      const isReviewed = o.items.some(i => reviewedProductIds.has(i.productId));
+      // An order is "fully reviewed" if all items are reviewed? Or just "has reviews"?
+      // For the "Review" tab, we usually want to show orders that have UNREVIEWED items.
+      // So let's return `hasUnreviewedItems`.
+      const hasUnreviewedItems = o.items.some(i => !reviewedProductIds.has(i.productId));
+
+      return {
+        id: o.id,
+        code: codeMap.get(o.id) || undefined,
+        status: (o.status || 'PENDING').toLowerCase(),
+        total: Number(o.total || 0),
+        date: o.createdAt,
+        paymentStatus: o.payment?.status,
+        paymentMethod: (o as any).paymentMethod,
+        returnRequest: returnMap.get(o.id) || null,
+        hasUnreviewedItems,
+        items: o.items.map(i => {
+          const attrs = (i as any).attributes || {};
+          // Fallback: if image missing in attributes but color present, try to find in product images
+          if (!attrs.image && attrs.color && i.product?.images) {
+            const norm = (s: string) => String(s || '').toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]/g, '');
+            const col = norm(attrs.color);
+            const match = (i.product.images as string[]).find(u => {
+              const filename = u.split('/').pop() || '';
+              return norm(filename).includes(col);
+            });
+            if (match) attrs.image = match;
+          }
+
+          return {
+            id: i.id,
+            quantity: i.quantity,
+            price: Number(i.price || 0),
+            attributes: attrs,
+            productId: i.productId,
+            isReviewed: reviewedProductIds.has(i.productId),
+            product: {
+              name: i.product?.name,
+              image: i.product?.images?.[0] || null
+            }
+          }
+        })
+      };
+    }));
   } catch {
     res.status(500).json({ error: 'failed' });
   }
@@ -4005,6 +4051,20 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
             if (found) {
               m.attributes = m.attributes || {}
               if (!m.attributes.image) m.attributes.image = found
+            } else {
+              // Fallback: try to find image in product images that matches color name
+              const ci = cartItems.find(x => String(x.productId) === String(pid))
+              if (ci && ci.product && Array.isArray(ci.product.images)) {
+                const normColor = norm(color)
+                const match = (ci.product.images as string[]).find(u => {
+                  const filename = u.split('/').pop() || ''
+                  return norm(filename).includes(normColor)
+                })
+                if (match) {
+                  m.attributes = m.attributes || {}
+                  if (!m.attributes.image) m.attributes.image = match
+                }
+              }
             }
           }
         }
@@ -4705,7 +4765,7 @@ shop.post('/orders/:id/pay', requireAuth, async (req: any, res) => {
     } else {
       await db.payment.create({ data: { orderId: order.id, amount, currency: 'SAR', method: method as any, status: 'COMPLETED' } as any });
     }
-    await db.order.update({ where: { id: order.id }, data: { status: 'PAID' } });
+    await db.order.update({ where: { id: order.id }, data: { status: 'PENDING' } });
     // Prepare unified event_id for dedupe
     const evId = `Purchase_${order.id}_${Math.floor(Date.now() / 1000)}`
     // Fire FB CAPI Purchase (best-effort) with fbp/fbc from cookies

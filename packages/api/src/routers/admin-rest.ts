@@ -1319,7 +1319,7 @@ adminRest.post('/marketing/flows/run', async (req, res) => {
       }
     } else if (flow === 'post_purchase') {
       // send thank you for recent orders in last day
-      const orders = await db.order.findMany({ where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, status: 'PAID' as any }, include: { user: true } });
+      const orders = await db.order.findMany({ where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, status: 'PROCESSING' as any }, include: { user: true } });
       for (const o of orders) {
         const exists: Array<{ count: bigint }> = await db.$queryRawUnsafe('SELECT COUNT(1)::bigint as count FROM "MarketingEvent" WHERE type=\'post_purchase\' AND "userId"=$1 AND "targetId"=$2', o.userId, o.id);
         if (Number(exists?.[0]?.count || 0) > 0) continue;
@@ -2338,7 +2338,7 @@ adminRest.post('/orders/ship', async (req, res) => {
     if (!(await can(user.userId, 'orders.manage'))) return res.status(403).json({ error: 'forbidden' });
     const { orderId, trackingNumber } = req.body || {};
     if (!orderId) return res.status(400).json({ error: 'orderId_required' });
-    const order = await db.order.update({ where: { id: orderId }, data: { status: 'SHIPPED', trackingNumber } });
+    const order = await db.order.update({ where: { id: orderId }, data: { status: 'OUT_FOR_DELIVERY', trackingNumber } });
     try { await db.$executeRawUnsafe('INSERT INTO "OrderTimeline" (id, "orderId", type, message, meta) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as () => string)(), orderId, 'SHIPPED', 'تم شحن الطلب', { trackingNumber }); } catch { }
     await audit(req, 'orders', 'ship', { orderId, trackingNumber });
     res.json({ success: true, order });
@@ -2559,7 +2559,7 @@ adminRest.get('/finance/pnl', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error: 'forbidden' });
     const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const to = req.query.to ? new Date(String(req.query.to)) : new Date();
-    const revenueAgg = await db.order.aggregate({ _sum: { total: true }, where: { status: { in: ['PAID', 'SHIPPED', 'DELIVERED'] }, createdAt: { gte: from, lte: to } } });
+    const revenueAgg = await db.order.aggregate({ _sum: { total: true }, where: { status: { in: ['PROCESSING', 'OUT_FOR_DELIVERY', 'DELIVERED'] }, createdAt: { gte: from, lte: to } } });
     const expensesAgg = await db.expense.aggregate({ _sum: { amount: true }, where: { date: { gte: from, lte: to } } });
     const revenues = revenueAgg._sum.total || 0;
     const expenses = expensesAgg._sum.amount || 0;
@@ -2570,7 +2570,7 @@ adminRest.get('/finance/pnl', async (req, res) => {
 adminRest.get('/finance/pnl/export/csv', async (req, res) => {
   const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const to = req.query.to ? new Date(String(req.query.to)) : new Date();
-  const revenueAgg = await db.order.aggregate({ _sum: { total: true }, where: { status: { in: ['PAID', 'SHIPPED', 'DELIVERED'] }, createdAt: { gte: from, lte: to } } });
+  const revenueAgg = await db.order.aggregate({ _sum: { total: true }, where: { status: { in: ['PROCESSING', 'OUT_FOR_DELIVERY', 'DELIVERED'] }, createdAt: { gte: from, lte: to } } });
   const expensesAgg = await db.expense.aggregate({ _sum: { amount: true }, where: { date: { gte: from, lte: to } } });
   const rows = [{ from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10), revenues: revenueAgg._sum.total || 0, expenses: expensesAgg._sum.amount || 0, profit: (revenueAgg._sum.total || 0) - (expensesAgg._sum.amount || 0) }];
   const parser = new CsvParser({ fields: ['from', 'to', 'revenues', 'expenses', 'profit'] });
@@ -2732,7 +2732,7 @@ adminRest.get('/analytics', async (req, res) => {
     const u = (req as any).user; if (!(await can(u.userId, 'users.read'))) return res.status(403).json({ error: 'forbidden' });
     const usersRows: any[] = await db.$queryRawUnsafe(`SELECT COUNT(1) as c FROM "User"`);
     const ordersRows: any[] = await db.$queryRawUnsafe(`SELECT COUNT(1) as c FROM "Order"`);
-    const revRows: any[] = await db.$queryRawUnsafe(`SELECT COALESCE(SUM(total),0) as s FROM "Order" WHERE status IN ('PAID','SHIPPED','DELIVERED')`);
+    const revRows: any[] = await db.$queryRawUnsafe(`SELECT COALESCE(SUM(total),0) as s FROM "Order" WHERE status IN ('PROCESSING','OUT_FOR_DELIVERY','DELIVERED')`);
     const users = Number((usersRows[0] as any)?.c || 0);
     const orders = Number((ordersRows[0] as any)?.c || 0);
     const revenue = Number((revRows[0] as any)?.s || 0);
@@ -3073,7 +3073,7 @@ adminRest.post('/logistics/delivery/assign', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'logistics.dispatch'))) return res.status(403).json({ error: 'forbidden' });
     const { orderId, driverId } = req.body || {}; if (!orderId || !driverId) return res.status(400).json({ error: 'orderId_and_driverId_required' });
-    await db.order.update({ where: { id: orderId }, data: { assignedDriverId: driverId, status: 'SHIPPED' } });
+    await db.order.update({ where: { id: orderId }, data: { assignedDriverId: driverId, status: 'OUT_FOR_DELIVERY' } });
     return res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message || 'delivery_assign_failed' }); }
 });
@@ -3579,8 +3579,8 @@ adminRest.post('/status/change', async (req, res) => {
     const now = new Date() as any;
     // Map actions to DB mutations
     if (ent === 'order') {
-      if (act === 'approve') {
-        await db.order.update({ where: { id }, data: { status: 'PAID' } });
+      if (act === 'approve' || act === 'process') {
+        await db.order.update({ where: { id }, data: { status: 'PROCESSING' } });
         try {
           const items = await db.orderItem.findMany({ where: { orderId: id as any }, include: { product: { select: { vendorId: true } } } });
           const vendorToItems = new Map<string, typeof items>();
@@ -3597,9 +3597,9 @@ adminRest.post('/status/change', async (req, res) => {
           await db.shipmentLeg.create({ data: { orderId: id as any, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(() => { });
         } catch { }
       }
+      else if (act === 'out_for_delivery') await db.order.update({ where: { id }, data: { status: 'OUT_FOR_DELIVERY' } });
       else if (act === 'reject') await db.order.update({ where: { id }, data: { status: 'CANCELLED' } });
       else if (act === 'complete') await db.order.update({ where: { id }, data: { status: 'DELIVERED' } });
-      else if (act === 'ship') await db.order.update({ where: { id }, data: { status: 'SHIPPED' } });
       else if (act === 'pending') await db.order.update({ where: { id }, data: { status: 'PENDING' } });
     } else if (ent === 'pickup') {
       // id may be poId; try both id and poId
@@ -3621,7 +3621,7 @@ adminRest.post('/status/change', async (req, res) => {
     } else if (ent === 'delivery') {
       if (act === 'assign') {
         const driverId = extra?.driverId; if (!driverId) return res.status(400).json({ error: 'driverId_required' });
-        await db.order.update({ where: { id }, data: { assignedDriverId: driverId, status: 'SHIPPED' } });
+        await db.order.update({ where: { id }, data: { assignedDriverId: driverId, status: 'OUT_FOR_DELIVERY' } });
       } else if (act === 'complete') {
         await db.order.update({ where: { id }, data: { status: 'DELIVERED' } });
         await db.shipmentLeg.updateMany({ where: { orderId: id, legType: 'DELIVERY' as any }, data: { status: 'COMPLETED' as any, completedAt: now } as any });
@@ -3840,11 +3840,11 @@ adminRest.get('/drivers/:id/overview', async (req, res) => {
     const d = await db.driver.findUnique({ where: { id } });
     if (!d) return res.status(404).json({ error: 'driver_not_found' });
     const [assigned, delivered, pending, totalEarned, totalDue, assignedOrders, pickupLegs] = await Promise.all([
-      db.order.count({ where: { assignedDriverId: id, status: { in: ['PENDING', 'PAID', 'SHIPPED'] } } }),
+      db.order.count({ where: { assignedDriverId: id, status: { in: ['PENDING', 'PROCESSING', 'OUT_FOR_DELIVERY'] } } }),
       db.order.count({ where: { assignedDriverId: id, status: 'DELIVERED' } }),
       db.order.count({ where: { assignedDriverId: id, status: 'PENDING' } }),
-      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['DELIVERED', 'PAID'] } } } }).then(r => Number(r._sum.amount || 0)),
-      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['PENDING', 'SHIPPED'] } } } }).then(r => Number(r._sum.amount || 0)),
+      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['DELIVERED'] } } } }).then(r => Number(r._sum.amount || 0)),
+      db.payment.aggregate({ _sum: { amount: true }, where: { order: { assignedDriverId: id, status: { in: ['PENDING', 'PROCESSING', 'OUT_FOR_DELIVERY'] } } } }).then(r => Number(r._sum.amount || 0)),
       db.order.findMany({ where: { assignedDriverId: id }, orderBy: { createdAt: 'desc' }, take: 10, select: { id: true, status: true, total: true, createdAt: true } }),
       db.$queryRawUnsafe('SELECT "poId", "orderId", status, "updatedAt", "createdAt" FROM "ShipmentLeg" WHERE "driverId"=$1 AND "legType"=\'PICKUP\'::"ShipmentLegType" ORDER BY "createdAt" DESC LIMIT 10', id)
     ]);
@@ -4466,7 +4466,7 @@ adminRest.get('/analytics', async (req, res) => {
     const [users, orders, revenue, ev] = await Promise.all([
       db.user.count(),
       db.order.count(),
-      db.order.aggregate({ _sum: { total: true }, where: { status: { in: ['PAID', 'SHIPPED', 'DELIVERED'] } } }),
+      db.order.aggregate({ _sum: { total: true }, where: { status: { in: ['PROCESSING', 'OUT_FOR_DELIVERY', 'DELIVERED'] } } }),
       db.$queryRawUnsafe(`SELECT COUNT(*)::bigint AS c FROM "Event" WHERE name IN ('page_view','viewcontent')`)
     ]);
     await audit(req, 'analytics', 'kpis');
@@ -8142,7 +8142,7 @@ adminRest.get('/analytics/products/table', async (req, res) => {
     const purchases: any[] = await db.$queryRawUnsafe(`
       SELECT oi."productId" as "productId", SUM(oi.quantity) as purchases
       FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
-      WHERE o."createdAt" BETWEEN $1 AND $2 AND oi."productId" = ANY($3) AND o.status IN ('PAID','SHIPPED','DELIVERED')
+      WHERE o."createdAt" BETWEEN $1 AND $2 AND oi."productId" = ANY($3) AND o.status IN ('PROCESSING','OUT_FOR_DELIVERY','DELIVERED')
       GROUP BY 1
     `, from, to, ids);
 
@@ -9409,7 +9409,7 @@ adminRest.get('/analytics/sales/summary', async (req, res) => {
     if (typeof req.query.to === 'string' && req.query.to.length <= 10) { to.setHours(23, 59, 59, 999); }
     // Aggregates
     const [ordersAgg, ordersCount, cancelsCount, refundsAgg] = await Promise.all([
-      db.order.aggregate({ _sum: { total: true }, where: { createdAt: { gte: from, lte: to }, status: { in: ['PAID', 'SHIPPED', 'DELIVERED'] } } }),
+      db.order.aggregate({ _sum: { total: true }, where: { createdAt: { gte: from, lte: to }, status: { in: ['PROCESSING', 'OUT_FOR_DELIVERY', 'DELIVERED'] } } }),
       db.order.count({ where: { createdAt: { gte: from, lte: to } } }),
       db.order.count({ where: { createdAt: { gte: from, lte: to }, status: 'CANCELLED' as any } }),
       db.returnRequest.aggregate({ _sum: { refundAmount: true }, where: { createdAt: { gte: from, lte: to } } } as any)
@@ -9420,7 +9420,7 @@ adminRest.get('/analytics/sales/summary', async (req, res) => {
     const items: any[] = await db.$queryRawUnsafe(`
       SELECT oi."productId" as pid, SUM(oi.quantity) as qty, SUM(oi.price*oi.quantity) as rev
       FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
-      WHERE o."createdAt" BETWEEN $1 AND $2 AND o.status IN ('PAID','SHIPPED','DELIVERED')
+      WHERE o."createdAt" BETWEEN $1 AND $2 AND o.status IN ('PROCESSING','OUT_FOR_DELIVERY','DELIVERED')
       GROUP BY 1
     `, from, to);
     const productIds = (items || []).map(r => String(r.pid));
@@ -9493,7 +9493,7 @@ adminRest.get('/analytics/vendors/top', async (req, res) => {
     const sales: any[] = await db.$queryRawUnsafe(`
       SELECT p."vendorId" as vid, SUM(oi.quantity) as qty, SUM(oi.price*oi.quantity) as revenue
       FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId" JOIN "Product" p ON p.id=oi."productId"
-      WHERE o."createdAt" BETWEEN $1 AND $2 AND p."vendorId" IS NOT NULL AND o.status IN ('PAID','SHIPPED','DELIVERED')
+      WHERE o."createdAt" BETWEEN $1 AND $2 AND p."vendorId" IS NOT NULL AND o.status IN ('PROCESSING','OUT_FOR_DELIVERY','DELIVERED')
       GROUP BY 1 ORDER BY revenue DESC LIMIT 50
     `, from, to);
     const vids = Array.from(new Set([...visits.map(v => String(v.vid)), ...sales.map(s => String(s.vid))]));
@@ -9649,7 +9649,7 @@ adminRest.get('/analytics/recommendations/potential', async (req, res) => {
     const buys: any[] = await db.$queryRawUnsafe(`
       SELECT oi."productId" as pid, SUM(oi.quantity) as qty
       FROM "OrderItem" oi JOIN "Order" o ON o.id=oi."orderId"
-      WHERE o."createdAt" BETWEEN $1 AND $2 AND o.status IN ('PAID','SHIPPED','DELIVERED')
+      WHERE o."createdAt" BETWEEN $1 AND $2 AND o.status IN ('PROCESSING','OUT_FOR_DELIVERY','DELIVERED')
       GROUP BY 1
     `, ...base);
     const vmap = new Map(views.map((r: any) => [String(r.pid), Number(r.views || 0)]));
