@@ -2637,10 +2637,12 @@ shop.get('/popups', async (req: any, res) => {
         const langs: string[] = Array.isArray(t.languages) ? t.languages : [];
         if (langs.length && lang && !langs.includes(lang)) return false;
         // path include/exclude
+        // path include/exclude
+        const normPath = (p: string) => { try { return new URL(p).pathname } catch { return p } }
         const includes: string[] = Array.isArray(t.includePaths) ? t.includePaths : [];
         const excludes: string[] = Array.isArray(t.excludePaths) ? t.excludePaths : [];
-        if (includes.length && !includes.some((p) => path.startsWith(p))) return false;
-        if (excludes.length && excludes.some((p) => path.startsWith(p))) return false;
+        if (includes.length && !includes.some((p) => path.startsWith(normPath(p)))) return false;
+        if (excludes.length && excludes.some((p) => path.startsWith(normPath(p)))) return false;
         // site targeting
         const sites: string[] = Array.isArray(t.sites) ? t.sites : [];
         if (sites.length && !sites.includes(site)) return false;

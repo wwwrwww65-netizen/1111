@@ -147,7 +147,7 @@ async function ctaClick(b:any){
       sessionStorage.setItem('pending_campaignId', String(props.campaign?.id||''))
       sessionStorage.setItem('pending_coupons', JSON.stringify(couponsList.value||[]))
     }catch{}
-    const next = '/coupons?claim=1'
+    const next = (b.href && b.href !== '#' && !b.href.startsWith('javascript')) ? b.href : '/coupons?claim=1'
     // اعتمد صفحة /login لتسجيل الدخول وإنشاء الحساب، مع تمرير return للرجوع بعد النجاح
     location.assign(`/login?return=${encodeURIComponent(next)}`)
     return
