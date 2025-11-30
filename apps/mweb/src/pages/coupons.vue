@@ -99,6 +99,9 @@
                   <p v-if="getExpiryTs(coupon)">
                     ينتهي في: <strong>{{ expiryDateText(coupon) }}</strong>
                   </p>
+                  <p class="code-display">
+                      الكود: <span class="code-text">{{ coupon.code }}</span>
+                  </p>
                   <p>شروط الاستخدام:</p>
                   <ul>
                     <li v-for="condition in coupon.conditions" :key="condition">
@@ -399,7 +402,18 @@ function mapToUiCoupon(c){
   const status = expired ? 'expired' : 'unused'
   const discountNum = Number(c?.discountValue||c?.discount||0)
   const minOrder = Number(c?.minOrderAmount||c?.min||0)
-  const categories = ['discount']
+  
+  // Parse categories/targeting from 'includes' or use resolved names
+  let categoryText = 'عام';
+  let categories = ['discount'];
+  
+  if (c.displayCategories && Array.isArray(c.displayCategories) && c.displayCategories.length > 0) {
+      categoryText = c.displayCategories.join(' - ');
+  } else if (c.includes && Array.isArray(c.includes) && c.includes.length > 0) {
+       // Fallback if displayCategories missing but includes exists
+       categoryText = 'محدد';
+  }
+
   return {
     id: String(c.id||c.code||Math.random().toString(36).slice(2)),
     code: String(c.code||''),
@@ -411,7 +425,7 @@ function mapToUiCoupon(c){
     validUntil: c.validUntil || null,
     // UI helpers
     status,
-    category: 'عام',
+    category: categoryText,
     categories,
     conditions: Array.isArray(c?.conditions)? c.conditions : []
   }
@@ -817,6 +831,21 @@ body {
 .shop-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.code-display {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--text);
+}
+
+.code-text {
+    font-family: monospace;
+    background: #eee;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+    letter-spacing: 1px;
 }
 
 .coupon-title {
