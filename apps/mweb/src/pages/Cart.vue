@@ -1188,33 +1188,19 @@ async function computeCouponPricesForSuggested(list:any[]){
     const base = Number(String(p.price||'0').replace(/[^0-9.]/g,''))||0
     if (!base) { p.couponPrice = undefined; continue }
     
-    let bestPrice = base
-    let found = false
+    // Ensure we have category/brand info for exclusion checks
+    await ensureProductMeta(p)
 
-    // 1. Sitewide
     const site = cups.find(isCouponSitewide)
     if (site){
       if (eligibleByTokens(p, site)){
-        const price = priceAfterCoupon(base, site)
-        if (price < bestPrice) { bestPrice = price; found = true }
+        p.couponPrice = priceAfterCoupon(base, site).toFixed(2)
       }
+      continue
     }
 
-    // 2. Targeted
-    await ensureProductMeta(p)
-    for (const c of cups){
-      if (site && c.code === site.code) continue
-      if (eligibleByTokens(p, c)){
-        const price = priceAfterCoupon(base, c)
-        if (price < bestPrice) { bestPrice = price; found = true }
-      }
-    }
-
-    if (found){
-      p.couponPrice = bestPrice.toFixed(2)
-    } else {
-      p.couponPrice = undefined
-    }
+    const match = cups.find(c=> eligibleByTokens(p, c))
+    if (match){ p.couponPrice = priceAfterCoupon(base, match).toFixed(2) }
   }
 }
 </script>
