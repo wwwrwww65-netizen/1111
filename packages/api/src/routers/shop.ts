@@ -1827,7 +1827,8 @@ shop.get('/products', async (req, res) => {
           items = await db.product.findMany({
             where: finalWhere,
             select: {
-              id: true, name: true, price: true, images: true,
+              id: true, name: true, price: true, images: true, categoryId: true,
+              categoryLinks: { select: { categoryId: true } },
               colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
             },
             orderBy,
@@ -1840,7 +1841,8 @@ shop.get('/products', async (req, res) => {
           items = await db.product.findMany({
             where: fallbackWhere,
             select: {
-              id: true, name: true, price: true, images: true,
+              id: true, name: true, price: true, images: true, categoryId: true,
+              categoryLinks: { select: { categoryId: true } },
               colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
             },
             orderBy,
@@ -1853,7 +1855,8 @@ shop.get('/products', async (req, res) => {
         items = await db.product.findMany({
           where,
           select: {
-            id: true, name: true, price: true, images: true,
+            id: true, name: true, price: true, images: true, categoryId: true,
+            categoryLinks: { select: { categoryId: true } },
             colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
           },
           orderBy,
@@ -1865,6 +1868,12 @@ shop.get('/products', async (req, res) => {
 
     // Post-process items to prioritize hero image and populate colorThumbs
     items.forEach((it: any) => {
+      // Map categoryIds from categoryLinks + categoryId
+      it.categoryIds = Array.from(new Set([
+        it.categoryId,
+        ...(it.categoryLinks || []).map((l: any) => l.categoryId)
+      ].filter(Boolean)));
+
       if (Array.isArray(it.colors) && it.colors.length > 0) {
         const colors = it.colors;
         // 1. Determine hero image
@@ -2336,7 +2345,8 @@ shop.get('/recommendations/recent', async (_req, res) => {
     const itemsRaw = await db.product.findMany({
       where: { isActive: true },
       select: {
-        id: true, name: true, price: true, images: true, brand: true,
+        id: true, name: true, price: true, images: true, brand: true, categoryId: true,
+        categoryLinks: { select: { categoryId: true } },
         colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
       },
       orderBy: { updatedAt: 'desc' },
@@ -2344,6 +2354,12 @@ shop.get('/recommendations/recent', async (_req, res) => {
     });
 
     const items = itemsRaw.map((it: any) => {
+      // Map categoryIds
+      it.categoryIds = Array.from(new Set([
+        it.categoryId,
+        ...(it.categoryLinks || []).map((l: any) => l.categoryId)
+      ].filter(Boolean)));
+
       if (Array.isArray(it.colors) && it.colors.length > 0) {
         const colors = it.colors;
         const defaultColor = colors.find((c: any) => c.isPrimary) || colors[0];
@@ -2391,7 +2407,8 @@ shop.get('/recommendations/similar/:productId', async (req, res) => {
     const itemsRaw = await db.product.findMany({
       where: { categoryId: p.categoryId, isActive: true, NOT: { id: productId } },
       select: {
-        id: true, name: true, price: true, images: true, brand: true,
+        id: true, name: true, price: true, images: true, brand: true, categoryId: true,
+        categoryLinks: { select: { categoryId: true } },
         colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
       },
       orderBy: { updatedAt: 'desc' },
@@ -2399,6 +2416,12 @@ shop.get('/recommendations/similar/:productId', async (req, res) => {
     });
 
     const items = itemsRaw.map((it: any) => {
+      // Map categoryIds
+      it.categoryIds = Array.from(new Set([
+        it.categoryId,
+        ...(it.categoryLinks || []).map((l: any) => l.categoryId)
+      ].filter(Boolean)));
+
       if (Array.isArray(it.colors) && it.colors.length > 0) {
         const colors = it.colors;
         const defaultColor = colors.find((c: any) => c.isPrimary) || colors[0];
@@ -3347,10 +3370,17 @@ shop.post('/pricing/effective', async (req: any, res) => {
     const ids = Array.from(new Set(items.map(i => String(i.id || '').trim()).filter(Boolean)));
     const prods = await db.product.findMany({
       where: { id: { in: ids } },
-      select: { id: true, price: true, categoryId: true, brand: true, sku: true }
+      select: { id: true, price: true, categoryId: true, brand: true, sku: true, categoryLinks: { select: { categoryId: true } } }
     });
     const prodMap = new Map<string, any>();
-    for (const p of prods) prodMap.set(p.id, p);
+    for (const p of prods) {
+      const pAny = p as any;
+      pAny.categoryIds = Array.from(new Set([
+        p.categoryId,
+        ...(p.categoryLinks || []).map((l: any) => l.categoryId)
+      ].filter(Boolean)));
+      prodMap.set(p.id, pAny);
+    }
 
     // Calculate initial subtotal
     let subtotal = 0;
@@ -3609,7 +3639,22 @@ shop.get('/catalog/:slug', async (req, res) => {
     if (min != null || max != null) andConds.push({ price: { gte: (min != null && isFinite(min)) ? Number(min) : undefined, lte: (max != null && isFinite(max)) ? Number(max) : undefined } as any });
     if (tagsAny.length) andConds.push({ tags: { hasSome: tagsAny } as any });
     const where: any = { AND: andConds } as any;
-    const items: any[] = await db.product.findMany({ where, select: { id: true, name: true, price: true, images: true, brand: true, tags: true }, orderBy, take: limit });
+    const itemsRaw: any[] = await db.product.findMany({
+      where,
+      select: {
+        id: true, name: true, price: true, images: true, brand: true, tags: true, categoryId: true,
+        categoryLinks: { select: { categoryId: true } }
+      },
+      orderBy,
+      take: limit
+    });
+    const items = itemsRaw.map((it: any) => {
+      it.categoryIds = Array.from(new Set([
+        it.categoryId,
+        ...(it.categoryLinks || []).map((l: any) => l.categoryId)
+      ].filter(Boolean)));
+      return it;
+    });
     // annotate category best sellers rank and sold counts
     try {
       const rows: any[] = await db.$queryRawUnsafe(`
@@ -4035,21 +4080,7 @@ shop.post('/addresses/delete', requireAuth, async (req: any, res) => {
 
 // Orders
 // Effective pricing for selected cart items (public; no auth required)
-shop.post('/pricing/effective', async (req: any, res) => {
-  try {
-    const items: Array<{ id: string; qty: number }> = Array.isArray(req.body?.items)
-      ? req.body.items.map((x: any) => ({ id: String(x.id), qty: Number(x.qty || 1) }))
-      : [];
-    if (!items.length) return res.json({ total: 0, discount: 0 });
-    const ids = Array.from(new Set(items.map(i => i.id)));
-    const prods = await db.product.findMany({ where: { id: { in: ids } }, select: { id: true, price: true } });
-    const priceById = new Map(prods.map(p => [String(p.id), Number(p.price || 0)]));
-    const subtotal = items.reduce((s, it) => s + (priceById.get(it.id) || 0) * Math.max(1, it.qty), 0);
-    // Simple placeholder promotions hook: currently zero
-    const discount = 0;
-    return res.json({ total: subtotal - discount, discount });
-  } catch { return res.status(500).json({ error: 'effective_failed' }); }
-});
+
 
 // Rewards settings (public read)
 shop.get('/policies/rewards/settings', async (_req, res) => {
@@ -4198,9 +4229,16 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
     let cartItems: Array<{ productId: string; quantity: number; product?: any; id?: string }> = []
     if (linesInput && linesInput.length) {
       const pids = Array.from(new Set(linesInput.map(l => String(l.productId)).filter(Boolean)))
-      const prods = pids.length ? await db.product.findMany({ where: { id: { in: pids } } }) : []
+      const prods = pids.length ? await db.product.findMany({ where: { id: { in: pids } }, include: { categoryLinks: { select: { categoryId: true } } } }) : []
       const byId = new Map<string, any>()
-      for (const p of prods) { byId.set(String((p as any).id), p) }
+      for (const p of prods) {
+        const pAny = p as any;
+        pAny.categoryIds = Array.from(new Set([
+          p.categoryId,
+          ...(p.categoryLinks || []).map((l: any) => l.categoryId)
+        ].filter(Boolean)));
+        byId.set(String(p.id), pAny)
+      }
       for (const l of linesInput) {
         const pid = String(l.productId)
         const qty = Math.max(1, Number(l.quantity || 1))
@@ -4650,8 +4688,17 @@ shop.get('/cart', async (req: any, res) => {
       const cart = await db.cart.findUnique({ where: { userId }, include: { items: true } });
       if (!cart) return res.json({ cart: { items: [] } });
       const productIds = Array.from(new Set(cart.items.map((it: any) => it.productId)));
-      const prods = await db.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true, price: true, images: true } });
-      const byId = new Map(prods.map((p: any) => [String(p.id), p]));
+      const prods = await db.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, name: true, price: true, images: true, categoryId: true, categoryLinks: { select: { categoryId: true } } }
+      });
+      const byId = new Map(prods.map((p: any) => {
+        p.categoryIds = Array.from(new Set([
+          p.categoryId,
+          ...(p.categoryLinks || []).map((l: any) => l.categoryId)
+        ].filter(Boolean)));
+        return [String(p.id), p];
+      }));
       const items = cart.items.map((ci: any) => ({ productId: ci.productId, quantity: ci.quantity, attributes: (ci as any).attributes || null, product: byId.get(String(ci.productId)) || { id: ci.productId, name: ci.productId, price: 0, images: [] } }));
       return res.json({ cart: { items } });
     }
@@ -4659,8 +4706,17 @@ shop.get('/cart', async (req: any, res) => {
     const { cartId } = await getOrCreateGuestCartId(req, res);
     const rows: any[] = await db.$queryRawUnsafe('SELECT "productId", "quantity" FROM "GuestCartItem" WHERE "cartId"=$1', cartId);
     const productIds = Array.from(new Set((rows || []).map(r => String(r.productId))));
-    const prods = productIds.length ? await db.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true, price: true, images: true } }) : [];
-    const byId = new Map(prods.map((p: any) => [String(p.id), p]));
+    const prods = productIds.length ? await db.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true, price: true, images: true, categoryId: true, categoryLinks: { select: { categoryId: true } } }
+    }) : [];
+    const byId = new Map(prods.map((p: any) => {
+      p.categoryIds = Array.from(new Set([
+        p.categoryId,
+        ...(p.categoryLinks || []).map((l: any) => l.categoryId)
+      ].filter(Boolean)));
+      return [String(p.id), p];
+    }));
     // Re-read with Prisma to include attributes for each line
     let gitems: any[] = [];
     try { gitems = await db.guestCartItem.findMany({ where: { cartId }, select: { productId: true, quantity: true, attributes: true } } as any); } catch { }
@@ -5972,7 +6028,8 @@ shop.get('/products/recent', async (req: any, res) => {
     const productRows: any[] = await db.product.findMany({
       where: { id: { in: pids }, isActive: true },
       select: {
-        id: true, name: true, price: true, images: true, brand: true,
+        id: true, name: true, price: true, images: true, brand: true, categoryId: true,
+        categoryLinks: { select: { categoryId: true } },
         colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
       }
     });
@@ -6006,7 +6063,12 @@ shop.get('/products/recent', async (req: any, res) => {
         images: it.images,
         colorThumbs: it.colorThumbs,
         colors: it.colors,
-        brand: it.brand
+        brand: it.brand,
+        categoryId: it.categoryId,
+        categoryIds: Array.from(new Set([
+          it.categoryId,
+          ...(it.categoryLinks || []).map((l: any) => l.categoryId)
+        ].filter(Boolean)))
       };
     });
 
