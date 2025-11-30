@@ -2487,7 +2487,7 @@ shop.get('/cms/page/:slug', async (req, res) => {
 shop.get('/categories', async (req, res) => {
   try {
     setPublicCache(res, 60, 300);
-    const limit = Math.min(parseInt(req.query.limit as string) || 100, 200);
+    const limit = Math.min(parseInt(req.query.limit as string) || 100, 2000);
     const search = String(req.query.search || '').trim();
 
     // Use robust raw SQL that tolerates missing columns in legacy DBs
