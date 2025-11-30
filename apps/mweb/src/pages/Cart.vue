@@ -1071,7 +1071,7 @@ async function fetchCouponsListCart(): Promise<CartCoupon[]> {
   return []
 }
 function normalizeCouponsCart(list:any[]): CartCoupon[] {
-  return (list||[]).map((c:any)=> ({ code:c.code, discountType: (String(c.discountType||'PERCENTAGE').toUpperCase()==='FIXED'?'FIXED':'PERCENTAGE'), discountValue:Number(c.discountValue||c.discount||0), audience:c.audience?.target||c.audience||undefined, kind:c.kind||undefined, rules:c.rules||undefined }))
+  return (list||[]).map((c:any)=> ({ code:c.code, discountType: (String(c.discountType||'PERCENTAGE').toUpperCase()==='FIXED'?'FIXED':'PERCENTAGE'), discountValue:Number(c.discountValue||c.discount||0), audience:c.audience?.target||c.audience||undefined, kind:c.kind||undefined, rules: { includes: c.includes || c.rules?.includes || [], excludes: c.excludes || c.rules?.excludes || [], min: c.minOrderAmount || c.rules?.min } }))
 }
 function priceAfterCouponCart(base:number, cup: CartCoupon): number { if(!Number.isFinite(base)||base<=0) return base; const v=Number(cup.discountValue||0); return cup.discountType==='FIXED'? Math.max(0, base-v) : Math.max(0, base*(1-v/100)) }
 function isCouponSitewideCart(c: CartCoupon): boolean { return String(c.kind||'').toLowerCase()==='sitewide' || !Array.isArray(c?.rules?.includes) }
@@ -1136,7 +1136,7 @@ function normalizeCoupons(list:any[]): SimpleCoupon[] {
     discountValue: Number(c.discountValue||c.discount||0),
     audience: c.audience?.target || c.audience || undefined,
     kind: c.kind || undefined,
-    rules: c.rules || undefined
+    rules: { includes: c.includes || c.rules?.includes || [], excludes: c.excludes || c.rules?.excludes || [], min: c.minOrderAmount || c.rules?.min }
   }))
 }
 

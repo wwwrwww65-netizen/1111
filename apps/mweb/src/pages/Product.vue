@@ -2618,7 +2618,7 @@ function normalizeCouponsRec(list:any[]): SimpleCoupon[] {
     discountValue: Number(c.discountValue||c.discount||0),
     audience: c.audience?.target || c.audience || undefined,
     kind: c.kind || undefined,
-    rules: c.rules || undefined
+    rules: { includes: c.includes || c.rules?.includes || [], excludes: c.excludes || c.rules?.excludes || [], min: c.minOrderAmount || c.rules?.min }
   }))
 }
 
