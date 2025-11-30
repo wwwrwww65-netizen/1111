@@ -588,7 +588,12 @@ async function computeCouponPrices(list:any[]){
     const base = Number(String(p.basePrice||'0').replace(/[^0-9.]/g,''))||0
     if (!base) { p.couponPrice = undefined; continue }
     const site = cups.find(isCouponSitewide)
-    if (site){ p.couponPrice = priceAfterCoupon(base, site).toFixed(2); continue }
+    if (site){
+      if (eligibleByTokens(p, site)){
+        p.couponPrice = priceAfterCoupon(base, site).toFixed(2)
+      }
+      continue
+    }
     await ensureProductMeta(p)
     const match = cups.find(c=> eligibleByTokens(p, c))
     if (match){ p.couponPrice = priceAfterCoupon(base, match).toFixed(2) }
