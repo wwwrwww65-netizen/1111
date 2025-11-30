@@ -145,6 +145,8 @@ function toGridP(p:any, i:number): GridP{
     basePrice: typeof p.basePrice==='string'? p.basePrice : (p.price!=null? String(p.price) : undefined),
     soldPlus: p.soldPlus,
     couponPrice: p.couponPrice,
+    categoryId: p.categoryId,
+    categoryIds: Array.isArray(p.categoryIds) ? p.categoryIds : undefined,
     isTrending: !!(
       p.isTrending===true ||
       p.trending===true ||
@@ -566,7 +568,7 @@ function eligibleByTokens(prod: any, c: SimpleCoupon): boolean {
 }
 
 async function ensureProductMeta(p:any): Promise<any> {
-  if (p.categoryId!=null) return p
+  if (p.categoryId!=null && Array.isArray(p.categoryIds)) return p
   try{
     const d = await apiGet<any>(`/api/product/${encodeURIComponent(p.id)}`)
     if (d){ 

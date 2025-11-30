@@ -800,7 +800,7 @@ function eligibleByTokens(prod: any, c: SimpleCoupon): boolean {
 }
 
 async function ensureProductMeta(p:any): Promise<any> {
-  if (p.categoryId!=null) return p
+  if (p.categoryId!=null && Array.isArray(p.categoryIds)) return p
   try{
     const d = await apiGet<any>(`/api/product/${encodeURIComponent(p.id)}`)
     if (d){ 

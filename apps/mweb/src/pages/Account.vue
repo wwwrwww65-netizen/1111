@@ -196,6 +196,8 @@
                       brand: p.brand,
                       soldPlus: p.soldPlus,
                       couponPrice: p.couponPrice,
+                      categoryId: (p as any).categoryId,
+                      categoryIds: Array.isArray((p as any).categoryIds) ? (p as any).categoryIds : undefined,
                       overlayBannerSrc: p.overlayBannerSrc,
                       overlayBannerAlt: p.overlayBannerAlt
                     }"
@@ -220,6 +222,8 @@
                       brand: p.brand,
                       soldPlus: p.soldPlus,
                       couponPrice: p.couponPrice,
+                      categoryId: (p as any).categoryId,
+                      categoryIds: Array.isArray((p as any).categoryIds) ? (p as any).categoryIds : undefined,
                       overlayBannerSrc: p.overlayBannerSrc,
                       overlayBannerAlt: p.overlayBannerAlt
                     }"
@@ -258,6 +262,8 @@
                       brand: p.brand,
                       soldPlus: p.soldPlus,
                       couponPrice: p.couponPrice,
+                      categoryId: (p as any).categoryId,
+                      categoryIds: Array.isArray((p as any).categoryIds) ? (p as any).categoryIds : undefined,
                       overlayBannerSrc: p.overlayBannerSrc,
                       overlayBannerAlt: p.overlayBannerAlt
                     }"
@@ -282,6 +288,8 @@
                       brand: p.brand,
                       soldPlus: p.soldPlus,
                       couponPrice: p.couponPrice,
+                      categoryId: (p as any).categoryId,
+                      categoryIds: Array.isArray((p as any).categoryIds) ? (p as any).categoryIds : undefined,
                       overlayBannerSrc: p.overlayBannerSrc,
                       overlayBannerAlt: p.overlayBannerAlt
                     }"
@@ -393,10 +401,12 @@ function probeRatioPromise(p: any): Promise<void>{
 // Watchers to calculate ratios when items change
 watch(() => wishlist.items, (items) => {
   items.forEach(p => probeRatioPromise(p))
+  hydrateCouponsAndPrices(items)
 }, { immediate: true, deep: true })
 
 watch(() => recent.list, (items) => {
   items.forEach(p => probeRatioPromise(p))
+  hydrateCouponsAndPrices(items)
 }, { immediate: true, deep: true })
 
 // Split logic for 2-column grid
@@ -605,6 +615,104 @@ function onOptionsSave(payload: { color: string; size: string }){
     showToast()
   }catch{}
   optionsModal.open = false
+}
+
+// ===== Coupon Hydration Logic =====
+type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
+const couponsCache = ref<SimpleCoupon[]>([])
+const couponsCacheTs = ref(0)
+
+async function fetchCouponsList(): Promise<SimpleCoupon[]> {
+  const { isAuthenticated } = await import('@/lib/api')
+  if (!isAuthenticated()) return []
+  try{
+    const res = await apiGet<any>('/api/me/coupons')
+    const items = Array.isArray(res?.items) ? res.items : []
+    const coupons = Array.isArray(res?.coupons) ? res.coupons : []
+    const list = [...items, ...coupons]
+    return normalizeCoupons(list)
+  }catch{ return [] }
+}
+
+function normalizeCoupons(list:any[]): SimpleCoupon[] {
+  return (list||[]).map((c:any)=> ({
+    code: c.code,
+    discountType: (String(c.discountType||'PERCENTAGE').toUpperCase()==='FIXED' ? 'FIXED' : 'PERCENTAGE'),
+    discountValue: Number(c.discountValue||c.discount||0),
+    audience: c.audience?.target || c.audience || undefined,
+    kind: c.kind || undefined,
+    rules: { includes: c.includes || c.rules?.includes || [], excludes: c.excludes || c.rules?.excludes || [], min: c.minOrderAmount || c.rules?.min }
+  }))
+}
+
+function priceAfterCoupon(base:number, cup: SimpleCoupon): number {
+  if (!Number.isFinite(base) || base<=0) return base
+  const v = Number(cup.discountValue||0)
+  if (cup.discountType==='FIXED') return Math.max(0, base - v)
+  return Math.max(0, base * (1 - v/100))
+}
+
+function isCouponSitewide(c: SimpleCoupon): boolean { return String(c.kind||'').toLowerCase()==='sitewide' || !Array.isArray(c?.rules?.includes) }
+
+function eligibleByTokens(prod: any, c: SimpleCoupon): boolean {
+  const inc = Array.isArray(c?.rules?.includes) ? c.rules!.includes! : []
+  const exc = Array.isArray(c?.rules?.excludes) ? c.rules!.excludes! : []
+  const tokens: string[] = []
+  if (prod?.categoryId) tokens.push(`category:${prod.categoryId}`)
+  if (Array.isArray(prod?.categoryIds)) {
+    prod.categoryIds.forEach((cid:string) => tokens.push(`category:${cid}`))
+  }
+  if (prod?.id) tokens.push(`product:${prod.id}`)
+  if (prod?.brand) tokens.push(`brand:${prod.brand}`)
+  if (prod?.sku) tokens.push(`sku:${prod.sku}`)
+  const hasInc = !inc.length || inc.some(t=> tokens.includes(t))
+  const hasExc = exc.length && exc.some(t=> tokens.includes(t))
+  return hasInc && !hasExc
+}
+
+async function ensureProductMeta(p:any): Promise<any> {
+  if (p.categoryId!=null && Array.isArray(p.categoryIds)) return p
+  try{
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(p.id)}`)
+    if (d){ 
+      p.categoryId = d.categoryId || d.category?.id || d.category || null; 
+      p.brand = p.brand || d.brand; 
+      p.sku = p.sku || d.sku;
+      if (Array.isArray(d.categoryIds)) p.categoryIds = d.categoryIds.map(String)
+      else if (p.categoryId) p.categoryIds = [String(p.categoryId)]
+    }
+  }catch{}
+  return p
+}
+
+async function hydrateCouponsAndPrices(list: any[]){
+  try{
+    const now = Date.now()
+    if (!couponsCache.value.length || (now - couponsCacheTs.value) > 60000){
+      couponsCache.value = await fetchCouponsList(); couponsCacheTs.value = now
+    }
+  }catch{}
+  
+  const cups = couponsCache.value||[]
+  if (!cups.length) return
+
+  for (const p of list){
+    const base = Number(String(p.price||'0').replace(/[^0-9.]/g,''))||0
+    if (!base) { p.couponPrice = undefined; continue }
+    
+    await ensureProductMeta(p)
+
+    const site = cups.find(isCouponSitewide)
+    if (site){
+      if (eligibleByTokens(p, site)){
+        p.couponPrice = priceAfterCoupon(base, site).toFixed(2)
+      }
+      continue
+    }
+
+    const match = cups.find(c=> eligibleByTokens(p, c))
+    if (match){ p.couponPrice = priceAfterCoupon(base, match).toFixed(2) }
+  }
 }
 
 onMounted(async () => {

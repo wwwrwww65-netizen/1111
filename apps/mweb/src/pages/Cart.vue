@@ -1077,8 +1077,8 @@ function normalizeCouponsCart(list:any[]): CartCoupon[] {
 }
 function priceAfterCouponCart(base:number, cup: CartCoupon): number { if(!Number.isFinite(base)||base<=0) return base; const v=Number(cup.discountValue||0); return cup.discountType==='FIXED'? Math.max(0, base-v) : Math.max(0, base*(1-v/100)) }
 function isCouponSitewideCart(c: CartCoupon): boolean { return String(c.kind||'').toLowerCase()==='sitewide' || !Array.isArray(c?.rules?.includes) }
-function eligibleByTokensCart(prod:any, c: CartCoupon): boolean { const inc=Array.isArray(c?.rules?.includes)?c.rules!.includes!:[]; const exc=Array.isArray(c?.rules?.excludes)?c.rules!.excludes!:[]; const tokens:string[]=[]; if(prod?.categoryId) tokens.push(`category:${prod.categoryId}`); if(prod?.id) tokens.push(`product:${prod.id}`); if(prod?.brand) tokens.push(`brand:${prod.brand}`); if(prod?.sku) tokens.push(`sku:${prod.sku}`); const hasInc=!inc.length||inc.some(t=>tokens.includes(t)); const hasExc=exc.length&&exc.some(t=>tokens.includes(t)); return hasInc&&!hasExc }
-async function ensureProductMetaCart(id:string, item:any){ try{ const { apiGet } = await import('@/lib/api'); const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`); if(!d) return { id, categoryId:null, brand:item?.brand, sku:item?.sku }; return { id, categoryId: d.categoryId||d.category?.id||d.category||null, brand: d.brand||item?.brand, sku: d.sku||item?.sku } }catch{ return { id, categoryId:null } }
+function eligibleByTokensCart(prod:any, c: CartCoupon): boolean { const inc=Array.isArray(c?.rules?.includes)?c.rules!.includes!:[]; const exc=Array.isArray(c?.rules?.excludes)?c.rules!.excludes!:[]; const tokens:string[]=[]; if(prod?.categoryId) tokens.push(`category:${prod.categoryId}`); if(Array.isArray(prod?.categoryIds)) { prod.categoryIds.forEach((cid:string) => tokens.push(`category:${cid}`)) } if(prod?.id) tokens.push(`product:${prod.id}`); if(prod?.brand) tokens.push(`brand:${prod.brand}`); if(prod?.sku) tokens.push(`sku:${prod.sku}`); const hasInc=!inc.length||inc.some(t=>tokens.includes(t)); const hasExc=exc.length&&exc.some(t=>tokens.includes(t)); return hasInc&&!hasExc }
+async function ensureProductMetaCart(id:string, item:any){ try{ const { apiGet } = await import('@/lib/api'); const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`); if(!d) return { id, categoryId:null, brand:item?.brand, sku:item?.sku }; return { id, categoryId: d.categoryId||d.category?.id||d.category||null, categoryIds: Array.isArray(d.categoryIds)?d.categoryIds.map(String):undefined, brand: d.brand||item?.brand, sku: d.sku||item?.sku } }catch{ return { id, categoryId:null } }
 }
 async function hydrateCartAfterCoupons(){
   try{
@@ -1168,7 +1168,7 @@ function eligibleByTokens(prod: any, c: SimpleCoupon): boolean {
 }
 
 async function ensureProductMeta(p:any): Promise<any> {
-  if (p.categoryId!=null) return p
+  if (p.categoryId!=null && Array.isArray(p.categoryIds)) return p
   try{
     const d = await (await import('@/lib/api')).apiGet<any>(`/api/product/${encodeURIComponent(p.id)}`)
     if (d){ 

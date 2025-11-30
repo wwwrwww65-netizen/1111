@@ -677,6 +677,8 @@ async function loadProducts(limit: number = 10){
       soldPlus: it.soldPlus || undefined,
       overlayBannerSrc: it.overlayBannerSrc || undefined,
       overlayBannerAlt: it.overlayBannerAlt || undefined,
+      categoryId: it.categoryId || it.category?.id,
+      categoryIds: Array.isArray(it.categoryIds) ? it.categoryIds : undefined,
       _ratio: undefined,
       _imgLoaded: false
     }))
@@ -738,6 +740,8 @@ async function loadMoreProducts() {
         soldPlus: it.soldPlus || undefined,
         overlayBannerSrc: it.overlayBannerSrc || undefined,
         overlayBannerAlt: it.overlayBannerAlt || undefined,
+        categoryId: it.categoryId || it.category?.id,
+        categoryIds: Array.isArray(it.categoryIds) ? it.categoryIds : undefined,
         _ratio: undefined,
         _imgLoaded: false
     }))
@@ -814,6 +818,9 @@ function eligibleByTokens(prod: any, c: SimpleCoupon): boolean {
   const exc = Array.isArray(c?.rules?.excludes) ? c.rules!.excludes! : []
   const tokens: string[] = []
   if (prod?.categoryId) tokens.push(`category:${prod.categoryId}`)
+  if (Array.isArray(prod?.categoryIds)) {
+    prod.categoryIds.forEach((cid:string) => tokens.push(`category:${cid}`))
+  }
   if (prod?.id) tokens.push(`product:${prod.id}`)
   if (prod?.brand) tokens.push(`brand:${prod.brand}`)
   if (prod?.sku) tokens.push(`sku:${prod.sku}`)
@@ -826,7 +833,13 @@ async function ensureProductMeta(p:any): Promise<any> {
   if (p.categoryId!=null) return p
   try{
     const d = await apiGet<any>(`/api/product/${encodeURIComponent(p.id)}`)
-    if (d){ p.categoryId = d.categoryId || d.category?.id || d.category || null; p.brand = p.brand || d.brand; p.sku = p.sku || d.sku }
+    if (d){ 
+      p.categoryId = d.categoryId || d.category?.id || d.category || null; 
+      p.brand = p.brand || d.brand; 
+      p.sku = p.sku || d.sku;
+      if (Array.isArray(d.categoryIds)) p.categoryIds = d.categoryIds.map(String)
+      else if (p.categoryId) p.categoryIds = [String(p.categoryId)]
+    }
   }catch{}
   return p
 }

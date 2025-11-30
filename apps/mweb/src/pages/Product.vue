@@ -2539,6 +2539,8 @@ function toRecItem(it:any): RecItem{
     bestRank: undefined,
     thumbs: thumbsArr.length? thumbsArr : undefined,
     href: `/p?id=${encodeURIComponent(String(it?.id||''))}`,
+    categoryId: it?.categoryId,
+    categoryIds: Array.isArray(it?.categoryIds) ? it.categoryIds : undefined,
     _ratio: undefined
   }
 }
@@ -2660,7 +2662,7 @@ function eligibleByTokensRec(prod: any, c: SimpleCoupon): boolean {
 }
 
 async function ensureProductMetaRec(p:any): Promise<any> {
-  if (p.categoryId!=null) return p
+  if (p.categoryId!=null && Array.isArray(p.categoryIds)) return p
   try{
     const d = await apiGet<any>(`/api/product/${encodeURIComponent(p.id)}`)
     if (d){ 
@@ -2709,8 +2711,14 @@ async function openSuggestOptions(pid: string){
     const variantsHasSize = Array.isArray(d?.variants) && d.variants.some((v:any)=> !!v?.size || /size|مقاس/i.test(String(v?.name||'')))
     const hasSizes = (new Set(sizesArr.map((s:string)=> s.trim().toLowerCase()))).size > 1 || (!!variantsHasSize && (sizesArr.length>1))
     if (!hasColors && !hasSizes){
-      try{ await apiPost('/api/cart/add', { productId: pid, quantity: 1 }) }catch{}
-      try{ cart.add({ id: pid, title: '', price: 0, img: '' }, 1) }catch{}
+      try{ 
+        cart.add({ 
+          id: d.id || pid, 
+          title: d.name || '', 
+          price: Number(d.price || 0), 
+          img: (Array.isArray(d.images) && d.images[0]) || '' 
+        }, 1) 
+      }catch{}
       try{ showToast() }catch{}
       return
     }
