@@ -710,6 +710,7 @@ const childCategoryIds = computed<string[]>(()=>{
 
 
 async function loadCategories(){
+  // Fix category navigation
   try{
     const data = await apiGet<any>('/api/categories?limit=1000')
     const list = Array.isArray(data?.categories)? data.categories : []
