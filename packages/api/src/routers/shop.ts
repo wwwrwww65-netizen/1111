@@ -3853,11 +3853,23 @@ shop.get('/orders/me', requireAuth, async (req: any, res) => {
     });
     const reviewedProductIds = new Set(reviews.map(r => r.productId));
 
+    // Fetch OrderItemMeta for all orders
+    const metas: any[] = await db.$queryRawUnsafe('SELECT "orderItemId", color, size, uid, attributes FROM "OrderItemMeta" WHERE "orderId" IN (' + orderIds.map(id => `'${id}'`).join(',') + ')') as any[];
+    const metaByItemId = new Map<string, any>();
+    for (const m of metas) {
+      let attrs: any = (m as any).attributes;
+      try { if (typeof attrs === 'string') attrs = JSON.parse(attrs) } catch { }
+      const obj: any = {
+        color: (m as any).color || undefined,
+        size: (m as any).size || undefined,
+        uid: (m as any).uid || undefined,
+        attributes: attrs || undefined,
+      };
+      metaByItemId.set(String((m as any).orderItemId || ''), obj);
+    }
+
     res.json(orders.map((o) => {
       const isReviewed = o.items.some(i => reviewedProductIds.has(i.productId));
-      // An order is "fully reviewed" if all items are reviewed? Or just "has reviews"?
-      // For the "Review" tab, we usually want to show orders that have UNREVIEWED items.
-      // So let's return `hasUnreviewedItems`.
       const hasUnreviewedItems = o.items.some(i => !reviewedProductIds.has(i.productId));
 
       return {
@@ -3871,7 +3883,15 @@ shop.get('/orders/me', requireAuth, async (req: any, res) => {
         returnRequest: returnMap.get(o.id) || null,
         hasUnreviewedItems,
         items: o.items.map(i => {
-          const attrs = (i as any).attributes || {};
+          // Merge attributes from OrderItemMeta if available
+          const meta = metaByItemId.get(String(i.id));
+          let attrs = (i as any).attributes || {};
+          if (meta) {
+            attrs = { ...attrs, ...meta.attributes };
+            if (meta.color && !attrs.color) attrs.color = meta.color;
+            if (meta.size && !attrs.size) attrs.size = meta.size;
+          }
+
           // Fallback: if image missing in attributes but color present, try to find in product images
           if (!attrs.image && attrs.color && i.product?.images) {
             const norm = (s: string) => String(s || '').toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]/g, '');
