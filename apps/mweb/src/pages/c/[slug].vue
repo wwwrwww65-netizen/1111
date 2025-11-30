@@ -627,7 +627,9 @@ function loadMoreProducts() {
         url.searchParams.set('limit', String(pageSize))
         url.searchParams.set('offset', String(offset))
         if (sort) url.searchParams.set('sort', sort)
-        url.searchParams.set('categoryIds', kids.join(','))
+        // Include parent category ID to ensure products directly assigned to parent are also shown
+        const allIds = [...kids, currentCategory.value?.id].filter(Boolean)
+        url.searchParams.set('categoryIds', allIds.join(','))
         const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
         if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
         if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
@@ -712,14 +714,15 @@ const childCategoryIds = computed<string[]>(()=>{
 
 async function loadCategories(){
   try{
-    const data = await apiGet<any>('/api/categories?limit=200')
+    const data = await apiGet<any>('/api/categories?limit=1000')
     const list = Array.isArray(data?.categories)? data.categories : []
     allCategories.value = list.map((c:any)=> ({ id:String(c.id), slug:c.slug||null, name:String(c.name||''), parentId: c.parentId? String(c.parentId) : null, image: c.image||null }))
     const slug = currentSlug()
-    const cur = allCategories.value.find(c=> c.id===slug || (c.slug && c.slug===slug)) || null
+    // Robust matching: check both ID and Slug
+    const cur = allCategories.value.find(c=> String(c.id)===slug || (c.slug && c.slug===slug)) || null
     currentCategory.value = cur ? { id: cur.id, slug: cur.slug||undefined, name: cur.name } : null
-    // Build child categories list
-    const children = cur ? allCategories.value.filter(c=> String(c.parentId||'')===cur.id) : []
+    // Build child categories list with robust parentId check
+    const children = cur ? allCategories.value.filter(c=> String(c.parentId||'').trim() === String(cur.id).trim()) : []
     const safeImg = (u?: string|null) => {
       const s = String(u||'').trim()
       if (!s || s.startsWith('blob:')) return '/images/placeholder-product.jpg'
@@ -752,7 +755,9 @@ async function loadProducts(limit: number = 10){
       url.searchParams.set('limit', String(limit))
       url.searchParams.set('offset', '0')
       if (sort) url.searchParams.set('sort', sort)
-      url.searchParams.set('categoryIds', kids.join(','))
+      // Include parent category ID to ensure products directly assigned to parent are also shown
+      const allIds = [...kids, currentCategory.value?.id].filter(Boolean)
+      url.searchParams.set('categoryIds', allIds.join(','))
       const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
       if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
       if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))

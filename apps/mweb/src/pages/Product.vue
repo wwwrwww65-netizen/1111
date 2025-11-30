@@ -1484,7 +1484,7 @@ const tabs = ref<Array<{ key:string; label:string }>>([
 const isLoadingRecommended = ref(false)
 const hasMoreRecommended = ref(true)
 const placeholderRatios = [1.2, 1.5, 1.35, 1.1, 1.4, 1.25, 1.6, 1.3]
-type RecItem = { id:string; title:string; img:string; brand?:string; priceText:string; originalText?:string; afterCoupon?:string; discountPercent?:number; soldCount?:number; fast?:boolean; bestRank?:number; thumbs?:string[]; href?:string; _ratio?:number }
+type RecItem = { id:string; title:string; img:string; brand?:string; priceText:string; originalText?:string; afterCoupon?:string; discountPercent?:number; soldCount?:number; fast?:boolean; bestRank?:number; thumbs?:string[]; href?:string; _ratio?:number; categoryId?: string; categoryIds?: string[] }
 const recommendedProducts = ref<RecItem[]>([])
 const restoredRec = ref(false)
 

@@ -99,6 +99,9 @@ type P = {
   soldPlus?: string
   couponPrice?: string
   isTrending?: boolean
+  colorThumbs?: string[]
+  categoryId?: string
+  categoryIds?: string[]
 }
 
 const props = defineProps<{ product: P; priority?: boolean; ratio?: number }>()

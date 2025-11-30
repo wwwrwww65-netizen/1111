@@ -97,7 +97,7 @@ import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
 import { useCart } from '@/store/cart'
 import { markTrending } from '@/lib/trending'
 
-type GridP = { id: string; title: string; image?: string; images?: string[]; overlayBannerSrc?: string; overlayBannerAlt?: string; brand?: string; discountPercent?: number; bestRank?: number; bestRankCategory?: string; basePrice?: string; soldPlus?: string; couponPrice?: string; isTrending?: boolean; _ratio?: number }
+type GridP = { id: string; title: string; image?: string; images?: string[]; overlayBannerSrc?: string; overlayBannerAlt?: string; brand?: string; discountPercent?: number; bestRank?: number; bestRankCategory?: string; basePrice?: string; soldPlus?: string; couponPrice?: string; isTrending?: boolean; _ratio?: number; categoryId?: string; categoryIds?: string[] }
 type Cfg = { columns?: number; products?: any[]; items?: any[] }
 const props = defineProps<{ cfg?: Cfg; device?: 'MOBILE'|'DESKTOP' }>()
 const fallbackCount = computed(()=> 10)

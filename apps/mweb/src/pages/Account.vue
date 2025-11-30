@@ -191,11 +191,11 @@
                       images: (p as any).images || [p.img],
                       colorThumbs: (p as any).colorThumbs,
                       colors: (p as any).colors,
-                      basePrice: p.price,
+                      basePrice: String(p.price||0),
                       discountPercent: p.discountPercent,
                       brand: p.brand,
-                      soldPlus: p.soldPlus,
-                      couponPrice: p.couponPrice,
+                      soldPlus: p.soldPlus ? String(p.soldPlus) : undefined,
+                      couponPrice: p.couponPrice ? String(p.couponPrice) : undefined,
                       categoryId: (p as any).categoryId,
                       categoryIds: Array.isArray((p as any).categoryIds) ? (p as any).categoryIds : undefined,
                       overlayBannerSrc: p.overlayBannerSrc,
@@ -217,11 +217,11 @@
                       images: (p as any).images || [p.img],
                       colorThumbs: (p as any).colorThumbs,
                       colors: (p as any).colors,
-                      basePrice: p.price,
+                      basePrice: String(p.price||0),
                       discountPercent: p.discountPercent,
                       brand: p.brand,
-                      soldPlus: p.soldPlus,
-                      couponPrice: p.couponPrice,
+                      soldPlus: p.soldPlus ? String(p.soldPlus) : undefined,
+                      couponPrice: p.couponPrice ? String(p.couponPrice) : undefined,
                       categoryId: (p as any).categoryId,
                       categoryIds: Array.isArray((p as any).categoryIds) ? (p as any).categoryIds : undefined,
                       overlayBannerSrc: p.overlayBannerSrc,
@@ -257,11 +257,11 @@
                       images: (p as any).images || [p.img],
                       colorThumbs: (p as any).colorThumbs,
                       colors: (p as any).colors,
-                      basePrice: p.price,
+                      basePrice: String(p.price||0),
                       discountPercent: p.discountPercent,
                       brand: p.brand,
-                      soldPlus: p.soldPlus,
-                      couponPrice: p.couponPrice,
+                      soldPlus: p.soldPlus ? String(p.soldPlus) : undefined,
+                      couponPrice: p.couponPrice ? String(p.couponPrice) : undefined,
                       categoryId: (p as any).categoryId,
                       categoryIds: Array.isArray((p as any).categoryIds) ? (p as any).categoryIds : undefined,
                       overlayBannerSrc: p.overlayBannerSrc,
@@ -283,11 +283,11 @@
                       images: (p as any).images || [p.img],
                       colorThumbs: (p as any).colorThumbs,
                       colors: (p as any).colors,
-                      basePrice: p.price,
+                      basePrice: String(p.price||0),
                       discountPercent: p.discountPercent,
                       brand: p.brand,
-                      soldPlus: p.soldPlus,
-                      couponPrice: p.couponPrice,
+                      soldPlus: p.soldPlus ? String(p.soldPlus) : undefined,
+                      couponPrice: p.couponPrice ? String(p.couponPrice) : undefined,
                       categoryId: (p as any).categoryId,
                       categoryIds: Array.isArray((p as any).categoryIds) ? (p as any).categoryIds : undefined,
                       overlayBannerSrc: p.overlayBannerSrc,
@@ -877,7 +877,7 @@ onMounted(async () => {
 .benefit-item {
   flex: 1;
   display: flex;
-  flex-col: column;
+  flex-direction: column;
   align-items: center;
   text-align: center;
   background: #FFFBF8;
@@ -1114,9 +1114,7 @@ onMounted(async () => {
   border-radius: 2px;
 }
 
-.tab-content {
-  /* padding: 0; Removed to allow px-1 to work */
-}
+
 
 .empty-state {
   display: flex;
