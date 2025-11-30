@@ -707,8 +707,7 @@ const childCategoryIds = computed<string[]>(()=>{
   }catch{ return [] }
 })
 
-  }catch{ allCategories.value = []; currentCategory.value = null; categories.value = [] }
-}
+
 
 async function loadCategories(){
   try{
