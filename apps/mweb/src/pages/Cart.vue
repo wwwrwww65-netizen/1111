@@ -497,7 +497,7 @@ async function goToCheckout() {
   try{
     const { trackEvent } = await import('@/lib/track')
     const contents = (validItems.value||[]).filter(it=> selectedItems.value.includes(it.uid)).map(it=> ({ id: String(it.id), quantity: Number(it.qty||1), item_price: Number(it.price||0) }))
-    await trackEvent('InitiateCheckout', { value: Number(effectiveTotal.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids: contents.map(c=> c.id), content_type:'product_group', contents, num_items: contents.length })
+    await trackEvent('InitiateCheckout', { value: Number(effectiveTotal.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids: contents.map(c=> c.id), content_type:'product_group', contents, num_items: contents.length } as any)
   }catch{}
   // في حال لم يسجل المستخدم الدخول، نوجّهه لتسجيل الدخول ثم نعود للسلة
   if (!isLoggedIn.value) { router.push({ path:'/login', query: { return: '/cart' } }); return }
@@ -1076,7 +1076,7 @@ function normalizeCouponsCart(list:any[]): CartCoupon[] {
 function priceAfterCouponCart(base:number, cup: CartCoupon): number { if(!Number.isFinite(base)||base<=0) return base; const v=Number(cup.discountValue||0); return cup.discountType==='FIXED'? Math.max(0, base-v) : Math.max(0, base*(1-v/100)) }
 function isCouponSitewideCart(c: CartCoupon): boolean { return String(c.kind||'').toLowerCase()==='sitewide' || !Array.isArray(c?.rules?.includes) }
 function eligibleByTokensCart(prod:any, c: CartCoupon): boolean { const inc=Array.isArray(c?.rules?.includes)?c.rules!.includes!:[]; const exc=Array.isArray(c?.rules?.excludes)?c.rules!.excludes!:[]; const tokens:string[]=[]; if(prod?.categoryId) tokens.push(`category:${prod.categoryId}`); if(prod?.id) tokens.push(`product:${prod.id}`); if(prod?.brand) tokens.push(`brand:${prod.brand}`); if(prod?.sku) tokens.push(`sku:${prod.sku}`); const hasInc=!inc.length||inc.some(t=>tokens.includes(t)); const hasExc=exc.length&&exc.some(t=>tokens.includes(t)); return hasInc&&!hasExc }
-async function ensureProductMetaCart(id:string, item:any){ try{ const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`); if(!d) return { id, categoryId:null, brand:item?.brand, sku:item?.sku }; return { id, categoryId: d.categoryId||d.category?.id||d.category||null, brand: d.brand||item?.brand, sku: d.sku||item?.sku } }catch{ return { id, categoryId:null } }
+async function ensureProductMetaCart(id:string, item:any){ try{ const { apiGet } = await import('@/lib/api'); const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`); if(!d) return { id, categoryId:null, brand:item?.brand, sku:item?.sku }; return { id, categoryId: d.categoryId||d.category?.id||d.category||null, brand: d.brand||item?.brand, sku: d.sku||item?.sku } }catch{ return { id, categoryId:null } }
 }
 async function hydrateCartAfterCoupons(){
   try{

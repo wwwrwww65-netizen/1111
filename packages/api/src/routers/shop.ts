@@ -3310,7 +3310,8 @@ shop.get('/me/coupons', async (req: any, res) => {
         minOrderAmount: c.minOrderAmount || 0,
         validUntil: c.validUntil || null,
         displayCategories,
-        includes: inc
+        includes: inc,
+        excludes: rule?.excludes || []
       };
     });
     // Prioritize new-user coupons for new users
@@ -3331,39 +3332,226 @@ shop.get('/me/coupons', async (req: any, res) => {
 });
 
 // Pricing: compute effective totals with active user rewards (MVP: single coupon)
+// Pricing: compute effective totals with active user rewards and global coupons
 shop.post('/pricing/effective', async (req: any, res) => {
   try {
     const items: Array<{ id: string; qty: number }> = Array.isArray(req.body?.items) ? req.body.items : [];
     if (!items.length) return res.json({ subtotal: 0, discount: 0, total: 0 });
+
+    // 1. Fetch product details needed for targeting (category, brand, sku)
     const ids = Array.from(new Set(items.map(i => String(i.id || '').trim()).filter(Boolean)));
-    const prods = await db.product.findMany({ where: { id: { in: ids } }, select: { id: true, price: true } });
-    const priceMap = new Map<string, number>(); for (const p of prods) priceMap.set(p.id, Number(p.price || 0));
-    const subtotal = items.reduce((s, it) => s + (priceMap.get(it.id) || 0) * Math.max(1, Number(it.qty || 1)), 0);
-    // Identify user similar to /me
+    const prods = await db.product.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, price: true, categoryId: true, brand: true, sku: true }
+    });
+    const prodMap = new Map<string, any>();
+    for (const p of prods) prodMap.set(p.id, p);
+
+    // Calculate initial subtotal
+    let subtotal = 0;
+    for (const it of items) {
+      const p = prodMap.get(it.id);
+      if (p) subtotal += Number(p.price || 0) * Math.max(1, Number(it.qty || 1));
+    }
+
+    // 2. Identify User & Audience
     const header = (req?.headers?.authorization as string | undefined) || '';
     let tokenAuth = '';
     if (header.startsWith('Bearer ')) tokenAuth = header.slice(7);
     const cookieTok = (req?.cookies?.shop_auth_token as string | undefined) || '';
     const jwt = require('jsonwebtoken');
     let userId: string | undefined;
-    for (const t of [tokenAuth, cookieTok]) { if (!t) continue; try { const pay: any = jwt.verify(t, process.env.JWT_SECRET || ''); if (pay?.userId) { userId = String(pay.userId); break; } } catch { } }
-    let discount = 0;
+    for (const t of [tokenAuth, cookieTok]) {
+      if (!t) continue;
+      try { const pay: any = jwt.verify(t, process.env.JWT_SECRET || ''); if (pay?.userId) { userId = String(pay.userId); break; } } catch { }
+    }
+
+    let isNewUser = false;
+    let userCreatedAt: Date | null = null;
     if (userId) {
-      // Load granted rewards for user
-      const urs = await db.userReward.findMany({ where: { userId, status: 'granted' as any }, include: { reward: true } } as any);
-      // MVP: apply first COUPON type
-      const rw = urs.find(u => (u as any).reward?.type === 'COUPON');
-      if (rw && (rw as any).reward?.config) {
-        const cfg = (rw as any).reward.config || {};
-        const percent = Number(cfg.percent || cfg.discountPercent || 0);
-        const amount = Number(cfg.amount || cfg.discountAmount || 0);
-        if (percent > 0) discount = Math.max(discount, Math.min(subtotal, (subtotal * percent) / 100));
-        else if (amount > 0) discount = Math.max(discount, Math.min(subtotal, amount));
+      try {
+        const u = await db.user.findUnique({ where: { id: userId }, select: { createdAt: true } } as any);
+        userCreatedAt = u?.createdAt ? new Date(u.createdAt) : null;
+        const orderCount = await db.order.count({ where: { userId } } as any);
+        const ageMs = userCreatedAt ? (Date.now() - userCreatedAt.getTime()) : Number.MAX_SAFE_INTEGER;
+        const NEW_WINDOW_DAYS = Number(process.env.COUPON_NEW_USER_WINDOW_DAYS || 30);
+        isNewUser = (orderCount === 0) || (ageMs <= NEW_WINDOW_DAYS * 86400000);
+      } catch { }
+    } else {
+      // Guest is considered new user for public coupons
+      isNewUser = true;
+    }
+
+    // 3. Fetch All Candidates (User Rewards + Active Global Coupons)
+    const candidates: any[] = [];
+
+    // A) User Rewards (Granted)
+    if (userId) {
+      const urs = await db.userReward.findMany({
+        where: { userId, status: 'granted' as any },
+        include: { reward: true }
+      } as any);
+      for (const ur of urs as any[]) {
+        if (!ur.reward) continue;
+        // Map reward to coupon-like structure
+        candidates.push({
+          id: ur.id, // distinct id
+          code: ur.reward.code || ur.rewardId,
+          discountType: ur.reward.config?.discountType || ur.reward.type || 'COUPON',
+          discountValue: Number(ur.reward.config?.discountValue || ur.reward.config?.amount || 0),
+          minOrderAmount: Number(ur.reward.config?.min || ur.reward.config?.minOrderAmount || 0),
+          rules: ur.reward.config || {}, // assumes config holds includes/excludes
+          isReward: true
+        });
       }
     }
-    const total = Math.max(0, subtotal - discount);
-    res.json({ subtotal, discount, total });
-  } catch (e: any) { res.status(500).json({ error: e?.message || 'pricing_failed' }); }
+
+    // B) Public/Global Coupons
+    const now = new Date();
+    const activeCoupons = await db.coupon.findMany({
+      where: {
+        isActive: true as any,
+        validFrom: { lte: now } as any,
+        validUntil: { gte: now } as any,
+      },
+      orderBy: { updatedAt: 'desc' }
+    } as any);
+
+    // Filter usage for public coupons
+    let usedCouponIds = new Set<string>();
+    if (userId) {
+      const used = await db.couponUsage.findMany({ where: { userId }, select: { couponId: true } } as any);
+      used.forEach((u: any) => usedCouponIds.add(String(u.couponId)));
+    }
+
+    // Load settings for rules
+    const codes = activeCoupons.map((c: any) => String(c.code || '').toUpperCase());
+    const settingsRows = await Promise.all(codes.map(async (code: string) => {
+      const row = await db.setting.findUnique({ where: { key: `coupon_rules:${code}` } } as any);
+      return [code, (row?.value as any) || null] as const;
+    }));
+    const rulesByCode = new Map<string, any>(settingsRows);
+
+    for (const c of activeCoupons) {
+      if (userId && usedCouponIds.has(String(c.id))) continue;
+      if (c.maxUses != null && c.currentUses >= c.maxUses) continue;
+
+      const rule = rulesByCode.get(String(c.code || '').toUpperCase());
+      // Audience Check
+      const audRaw = (rule?.audience?.target ?? rule?.audience ?? '');
+      const aud = String(audRaw || '').toLowerCase().trim();
+      const audNorm = (!aud || aud === '' || aud === '*') ? 'all' :
+        (aud.includes('new') || aud.includes('first') ? 'new' :
+          (aud.includes('user') || aud.includes('existing') ? 'users' : 'all'));
+
+      let allowed = (audNorm === 'all');
+      if (audNorm === 'new') allowed = isNewUser;
+      else if (audNorm === 'users') allowed = !!userId;
+
+      // "Registered" check (must be registered before coupon creation)
+      if (allowed && audNorm === 'users' && userCreatedAt && c.createdAt) {
+        if (userCreatedAt.getTime() > new Date(c.createdAt).getTime()) allowed = false;
+      }
+
+      if (!allowed) continue;
+      if (rule?.enabled === false) continue;
+
+      candidates.push({
+        id: c.id,
+        code: c.code,
+        discountType: c.discountType,
+        discountValue: Number(c.discountValue || 0),
+        minOrderAmount: Number(c.minOrderAmount || 0),
+        rules: {
+          includes: rule?.includes || rule?.rules?.includes || [],
+          excludes: rule?.excludes || rule?.rules?.excludes || [],
+          min: c.minOrderAmount
+        },
+        isReward: false
+      });
+    }
+
+    // 4. Apply Best Coupon Logic
+    // We need to find the coupon that gives the MAX discount for the current cart.
+    // Note: This logic assumes only ONE coupon can be applied at a time (standard behavior).
+    // If stacking is allowed, this would need to be a loop. For now, we pick the best single coupon.
+
+    let bestDiscount = 0;
+    // let bestCouponCode = '';
+
+    for (const cup of candidates) {
+      // Check min order amount on subtotal
+      if (cup.minOrderAmount > 0 && subtotal < cup.minOrderAmount) continue;
+
+      let currentDiscount = 0;
+      const isFixed = String(cup.discountType).toUpperCase() === 'FIXED';
+      const val = cup.discountValue;
+
+      // Check targeting
+      const inc = cup.rules?.includes || [];
+      const exc = cup.rules?.excludes || [];
+      const hasInc = Array.isArray(inc) && inc.length > 0;
+      const hasExc = Array.isArray(exc) && exc.length > 0;
+
+      // Helper: check if product matches tokens
+      const matches = (p: any) => {
+        const tokens: string[] = [];
+        if (p.categoryId) tokens.push(`category:${p.categoryId}`);
+        if (p.id) tokens.push(`product:${p.id}`);
+        if (p.brand) tokens.push(`brand:${p.brand}`);
+        if (p.sku) tokens.push(`sku:${p.sku}`);
+
+        const isIncluded = !hasInc || inc.some((t: string) => tokens.includes(t));
+        const isExcluded = hasExc && exc.some((t: string) => tokens.includes(t));
+        return isIncluded && !isExcluded;
+      };
+
+      // Calculate discount
+      if (isFixed) {
+        // Fixed discount usually applies to the whole cart OR specific items?
+        // Standard behavior: Fixed amount off the *eligible* total, capped at eligible total.
+        // If sitewide (no includes), it's off subtotal.
+
+        let eligibleTotal = 0;
+        for (const it of items) {
+          const p = prodMap.get(it.id);
+          if (p && matches(p)) {
+            eligibleTotal += Number(p.price || 0) * Math.max(1, Number(it.qty || 1));
+          }
+        }
+
+        if (eligibleTotal > 0) {
+          // Discount is the fixed value, but cannot exceed eligible total
+          currentDiscount = Math.min(val, eligibleTotal);
+        }
+
+      } else {
+        // Percentage discount
+        // Applies to each eligible item
+        for (const it of items) {
+          const p = prodMap.get(it.id);
+          if (p && matches(p)) {
+            const itemTotal = Number(p.price || 0) * Math.max(1, Number(it.qty || 1));
+            currentDiscount += (itemTotal * val) / 100;
+          }
+        }
+      }
+
+      if (currentDiscount > bestDiscount) {
+        bestDiscount = currentDiscount;
+        // bestCouponCode = cup.code;
+      }
+    }
+
+    // Cap discount at subtotal
+    bestDiscount = Math.min(bestDiscount, subtotal);
+    const total = Math.max(0, subtotal - bestDiscount);
+
+    res.json({ subtotal, discount: bestDiscount, total });
+  } catch (e: any) {
+    console.error('Pricing error:', e);
+    res.status(500).json({ error: e?.message || 'pricing_failed' });
+  }
 });
 
 // Catalog by category slug or id

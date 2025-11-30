@@ -24,5 +24,3 @@ test('home route loads and switches tabs within budget', async ({ page }) => {
     expect(tSwitch).toBeLessThan(1500);
   }
 });
-*** End Patch***  }```} ***!
-
