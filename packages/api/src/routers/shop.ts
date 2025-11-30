@@ -3265,8 +3265,14 @@ shop.get('/me/coupons', async (req: any, res) => {
     const categoryIds = new Set<string>();
     for (const c of filtered) {
       const rule = rulesByCode.get(String(c.code || '').toUpperCase());
-      const cats = rule?.targeting?.categories?.include || [];
-      if (Array.isArray(cats)) cats.forEach((id: any) => categoryIds.add(String(id)));
+      const inc = rule?.includes || [];
+      if (Array.isArray(inc)) {
+        inc.forEach((tag: string) => {
+          if (tag.startsWith('category:')) {
+            categoryIds.add(tag.split(':')[1].trim());
+          }
+        });
+      }
     }
 
     const categoryMap = new Map<string, string>();
@@ -3282,10 +3288,18 @@ shop.get('/me/coupons', async (req: any, res) => {
 
     let coupons = filtered.map((c: any) => {
       const rule = rulesByCode.get(String(c.code || '').toUpperCase());
-      const catIds = rule?.targeting?.categories?.include || [];
-      const displayCategories = Array.isArray(catIds)
-        ? catIds.map((id: any) => categoryMap.get(String(id))).filter(Boolean)
-        : [];
+      const inc = rule?.includes || [];
+      const displayCategories: string[] = [];
+
+      if (Array.isArray(inc)) {
+        inc.forEach((tag: string) => {
+          if (tag.startsWith('category:')) {
+            const id = tag.split(':')[1].trim();
+            const name = categoryMap.get(id);
+            if (name) displayCategories.push(name);
+          }
+        });
+      }
 
       return {
         id: c.id,
@@ -3296,7 +3310,7 @@ shop.get('/me/coupons', async (req: any, res) => {
         minOrderAmount: c.minOrderAmount || 0,
         validUntil: c.validUntil || null,
         displayCategories,
-        includes: rule?.targeting || null
+        includes: inc
       };
     });
     // Prioritize new-user coupons for new users
