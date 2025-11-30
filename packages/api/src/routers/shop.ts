@@ -1925,6 +1925,7 @@ shop.get('/product/:id', async (req, res) => {
       where: { id: String(req.params.id) },
       include: {
         category: { select: { id: true, name: true, slug: true } },
+        categoryLinks: { select: { categoryId: true } },
         reviews: true,
         variants: true,
       },
@@ -2051,6 +2052,10 @@ shop.get('/product/:id', async (req, res) => {
       sizes: Array.from(sizes),
       attributes,
       colorGalleries,
+      categoryIds: Array.from(new Set([
+        p.categoryId,
+        ...(p.categoryLinks || []).map((l: any) => l.categoryId)
+      ].filter(Boolean)))
     });
     {
       const payload = out;

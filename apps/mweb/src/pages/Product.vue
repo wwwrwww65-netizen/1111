@@ -1186,6 +1186,7 @@ const categorySlug = ref<string>('')
 const brand = ref<string>('')
 const categoryName = ref<string>('')
 const categoryId = ref<string>('')
+const allCategoryIds = ref<string[]>([])
 const safeDescription = computed(()=>{
   try{
     const html = String(product.value?.description||'')
@@ -1483,7 +1484,7 @@ const tabs = ref<Array<{ key:string; label:string }>>([
 const isLoadingRecommended = ref(false)
 const hasMoreRecommended = ref(true)
 const placeholderRatios = [1.2, 1.5, 1.35, 1.1, 1.4, 1.25, 1.6, 1.3]
-type RecItem = { id:string; title:string; img:string; brand?:string; priceText:string; originalText?:string; afterCoupon?:string; discountPercent?:number; soldCount?:number; fast?:boolean; bestRank?:number; thumbs?:string[]; href?:string }
+type RecItem = { id:string; title:string; img:string; brand?:string; priceText:string; originalText?:string; afterCoupon?:string; discountPercent?:number; soldCount?:number; fast?:boolean; bestRank?:number; thumbs?:string[]; href?:string; _ratio?:number }
 const recommendedProducts = ref<RecItem[]>([])
 const restoredRec = ref(false)
 
@@ -2118,6 +2119,10 @@ async function loadProductData(pid?: string) {
       categorySlug.value = String(d?.category?.slug||'')
       categoryName.value = String(d?.category?.name||'')
       categoryId.value = String(d?.category?.id||'')
+      // Store all category IDs for coupon targeting
+      if (Array.isArray(d.categoryIds)) allCategoryIds.value = d.categoryIds.map(String)
+      else allCategoryIds.value = [categoryId.value].filter(Boolean)
+      
       brand.value = String(d?.brand||'')
       
       // Sizes from API if available (accept only real size tokens)
@@ -2468,7 +2473,7 @@ async function fetchRecommendations(pid?: string){
     // If a subcategory tab is active, fetch catalog for that category
     const tab = recTabs.value.find(t=> t.key===activeRecTab.value)
     if (tab && tab.catId){
-      const j = await apiGet<any>(`/api/catalog/${encodeURIComponent(tab.catId)}?limit=10`, undefined, signal).catch(()=>null)
+      const j = await apiGet<any>(`/api/catalog/${encodeURIComponent(tab.catId)}?limit=10`, { signal }).catch(()=>null)
       const items = Array.isArray(j?.items)? j.items : []
       const mapped = items.map((it:any)=> toRecItem(it))
       // de-duplicate by id
@@ -2481,7 +2486,7 @@ async function fetchRecommendations(pid?: string){
     }
     // Default: similar by current product's category, then recent
     const p = String(pid || id.value)
-    const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(p)}`, undefined, signal).catch(()=>null)
+    const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(p)}`, { signal }).catch(()=>null)
     let list: any[] = Array.isArray(sim?.items) ? sim!.items : []
     if (!list.length){
       const ex = Array.from(new Set(recommendedProducts.value.map(p=> String(p.id)))).slice(0,200)
@@ -2523,6 +2528,7 @@ function toRecItem(it:any): RecItem{
   return {
     id: String(it?.id||it?.sku||''),
     title: String(it?.name||''),
+    img,
     brand: it?.brand||'',
     priceText: price? String(price) : '',
     originalText: undefined,
@@ -2576,7 +2582,13 @@ async function hydrateCouponsForPdp(){
     const base = Number(price.value||0)
     if (!base || !cups.length){ afterCouponPriceText.value = ''; pdpCoupons.value = []; return }
     // build product token object
-    const prod = { id: id.value, categoryId: (product.value?.categoryId||product.value?.category?.id||product.value?.category||null), brand: product.value?.brand, sku: product.value?.sku }
+    const prod = { 
+      id: id.value, 
+      categoryId: (product.value?.categoryId||product.value?.category?.id||product.value?.category||null), 
+      categoryIds: allCategoryIds.value,
+      brand: product.value?.brand, 
+      sku: product.value?.sku 
+    }
     // collect matches with resulting prices
     const items: Array<{ code?:string; title?:string; kindLabel?:string; priceAfter?:number; discountText?:string; discountLabel?:string; percentLabel?:string; minLabel?:string; validUntil?:string|number|null; schedule?:any; expiresAt?:any }>=[]
     const site = cups.find(isCouponSitewideRec)
@@ -2636,6 +2648,9 @@ function eligibleByTokensRec(prod: any, c: SimpleCoupon): boolean {
   const exc = Array.isArray(c?.rules?.excludes) ? c.rules!.excludes! : []
   const tokens: string[] = []
   if (prod?.categoryId) tokens.push(`category:${prod.categoryId}`)
+  if (Array.isArray(prod?.categoryIds)) {
+    prod.categoryIds.forEach((cid:string) => tokens.push(`category:${cid}`))
+  }
   if (prod?.id) tokens.push(`product:${prod.id}`)
   if (prod?.brand) tokens.push(`brand:${prod.brand}`)
   if (prod?.sku) tokens.push(`sku:${prod.sku}`)
@@ -2648,7 +2663,13 @@ async function ensureProductMetaRec(p:any): Promise<any> {
   if (p.categoryId!=null) return p
   try{
     const d = await apiGet<any>(`/api/product/${encodeURIComponent(p.id)}`)
-    if (d){ p.categoryId = d.categoryId || d.category?.id || d.category || null; p.brand = p.brand || d.brand; p.sku = p.sku || d.sku }
+    if (d){ 
+      p.categoryId = d.categoryId || d.category?.id || d.category || null; 
+      p.brand = p.brand || d.brand; 
+      p.sku = p.sku || d.sku;
+      if (Array.isArray(d.categoryIds)) p.categoryIds = d.categoryIds.map(String)
+      else if (p.categoryId) p.categoryIds = [String(p.categoryId)]
+    }
   }catch{}
   return p
 }
