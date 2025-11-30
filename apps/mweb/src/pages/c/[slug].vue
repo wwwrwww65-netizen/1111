@@ -622,39 +622,34 @@ function loadMoreProducts() {
       const offset = prev
       const kids = childCategoryIds.value
       let items: any[] = []
-      if (kids.length){
-        const url = new URL(`${API_BASE}/api/products`)
-        url.searchParams.set('limit', String(pageSize))
-        url.searchParams.set('offset', String(offset))
-        if (sort) url.searchParams.set('sort', sort)
-        // Include parent category ID to ensure products directly assigned to parent are also shown
-        const allIds = [...kids, currentCategory.value?.id].filter(Boolean)
-        url.searchParams.set('categoryIds', allIds.join(','))
-        const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
-        if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
-        if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
-        if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
-        if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
-        // Exclude already loaded product ids to avoid repeats when backend ignores offset
-        try{
-          const ids = Array.from(new Set(products.value.map((p:any)=> String(p.id)))).slice(0, 200)
-          if (ids.length) url.searchParams.set('excludeIds', ids.join(','))
-        }catch{}
-        const data = await apiGet<any>(`/api/products?${url.searchParams.toString()}`).catch(()=> null)
-        items = Array.isArray(data?.items)? data.items : []
-      } else {
-        const url = new URL(`${API_BASE}/api/catalog/${encodeURIComponent(slug)}`)
-        url.searchParams.set('limit', String(pageSize))
-        url.searchParams.set('offset', String(offset))
-        if (sort) url.searchParams.set('sort', sort)
-        const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
-        if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
-        if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
-        if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
-        if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
-        const data = await apiGet<any>(`/api/catalog/${encodeURIComponent(slug)}?${url.searchParams.toString()}`).catch(()=> null)
-        items = Array.isArray(data?.items)? data.items : []
-      }
+      
+      // Always use /api/products for consistent filtering by categoryIds
+      const url = new URL(`${API_BASE}/api/products`)
+      url.searchParams.set('limit', String(pageSize))
+      url.searchParams.set('offset', String(offset))
+      if (sort) url.searchParams.set('sort', sort)
+      
+      // Construct categoryIds:
+      // 1. If we have kids (Parent Category), include them + current.
+      // 2. If no kids (Leaf Category), just use current.
+      const allIds = kids.length > 0 
+        ? [...kids, currentCategory.value?.id].filter(Boolean)
+        : [currentCategory.value?.id].filter(Boolean)
+        
+      if (allIds.length) url.searchParams.set('categoryIds', allIds.join(','))
+      
+      const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
+      if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
+      if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
+      if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
+      if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
+      // Exclude already loaded product ids to avoid repeats when backend ignores offset
+      try{
+        const ids = Array.from(new Set(products.value.map((p:any)=> String(p.id)))).slice(0, 200)
+        if (ids.length) url.searchParams.set('excludeIds', ids.join(','))
+      }catch{}
+      const data = await apiGet<any>(`/api/products?${url.searchParams.toString()}`).catch(()=> null)
+      items = Array.isArray(data?.items)? data.items : []
       const sliceRaw = items.map((it:any)=> ({
         id: String(it.id),
         title: String(it.name||''),
@@ -712,6 +707,9 @@ const childCategoryIds = computed<string[]>(()=>{
   }catch{ return [] }
 })
 
+  }catch{ allCategories.value = []; currentCategory.value = null; categories.value = [] }
+}
+
 async function loadCategories(){
   try{
     const data = await apiGet<any>('/api/categories?limit=1000')
@@ -721,8 +719,17 @@ async function loadCategories(){
     // Robust matching: check both ID and Slug
     const cur = allCategories.value.find(c=> String(c.id)===slug || (c.slug && c.slug===slug)) || null
     currentCategory.value = cur ? { id: cur.id, slug: cur.slug||undefined, name: cur.name } : null
-    // Build child categories list with robust parentId check
-    const children = cur ? allCategories.value.filter(c=> String(c.parentId||'').trim() === String(cur.id).trim()) : []
+    
+    if (!cur) { categories.value = []; return }
+
+    // 1. Try to find children (Sub-categories)
+    let children = allCategories.value.filter(c=> String(c.parentId||'').trim() === String(cur.id).trim())
+    
+    // 2. If no children, show siblings (children of parent) to keep nav bar useful
+    if (children.length === 0 && cur.parentId) {
+       children = allCategories.value.filter(c=> String(c.parentId||'').trim() === String(cur.parentId).trim())
+    }
+
     const safeImg = (u?: string|null) => {
       const s = String(u||'').trim()
       if (!s || s.startsWith('blob:')) return '/images/placeholder-product.jpg'
@@ -749,37 +756,32 @@ async function loadProducts(limit: number = 10){
     const sort = mapSort()
     const kids = childCategoryIds.value
     let items: any[] = []
-    if (kids.length){
-      // Aggregate products across subcategories
-      const url = new URL(`${API_BASE}/api/products`)
-      url.searchParams.set('limit', String(limit))
-      url.searchParams.set('offset', '0')
-      if (sort) url.searchParams.set('sort', sort)
-      // Include parent category ID to ensure products directly assigned to parent are also shown
-      const allIds = [...kids, currentCategory.value?.id].filter(Boolean)
-      url.searchParams.set('categoryIds', allIds.join(','))
-      const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
-      if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
-      if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
-      if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
-      if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
-      try{ const ex = Array.from(new Set(products.value.map((p:any)=> String(p.id)))).slice(0,200); if (ex.length) url.searchParams.set('excludeIds', ex.join(',')) }catch{}
-      const data = await apiGet<any>(`/api/products?${url.searchParams.toString()}`).catch(()=> null)
-      items = Array.isArray(data?.items)? data.items : []
-    } else {
-      // Fallback to current category only
-      const url = new URL(`${API_BASE}/api/catalog/${encodeURIComponent(slug)}`)
-      url.searchParams.set('limit', String(limit))
-      url.searchParams.set('offset', '0')
-      if (sort) url.searchParams.set('sort', sort)
-      const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
-      if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
-      if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
-      if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
-      if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
-      const data = await apiGet<any>(`/api/catalog/${encodeURIComponent(slug)}?${url.searchParams.toString()}`).catch(()=> null)
-      items = Array.isArray(data?.items)? data.items : []
-    }
+    
+    // Always use /api/products for consistent filtering by categoryIds
+    const url = new URL(`${API_BASE}/api/products`)
+    url.searchParams.set('limit', String(limit))
+    url.searchParams.set('offset', '0')
+    if (sort) url.searchParams.set('sort', sort)
+    
+    // Construct categoryIds:
+    // 1. If we have kids (Parent Category), include them + current.
+    // 2. If no kids (Leaf Category), just use current.
+    // This ensures we get EXACTLY what we want, not "all products from parent" when on a leaf.
+    const allIds = kids.length > 0 
+      ? [...kids, currentCategory.value?.id].filter(Boolean)
+      : [currentCategory.value?.id].filter(Boolean)
+      
+    if (allIds.length) url.searchParams.set('categoryIds', allIds.join(','))
+    
+    const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
+    if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
+    if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
+    if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
+    if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
+    try{ const ex = Array.from(new Set(products.value.map((p:any)=> String(p.id)))).slice(0,200); if (ex.length) url.searchParams.set('excludeIds', ex.join(',')) }catch{}
+    
+    const data = await apiGet<any>(`/api/products?${url.searchParams.toString()}`).catch(()=> null)
+    items = Array.isArray(data?.items)? data.items : []
     const mappedRaw = items.map((it:any)=> ({
       id: String(it.id),
       title: String(it.name||''),
