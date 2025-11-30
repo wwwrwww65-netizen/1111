@@ -1,5 +1,11 @@
 <template>
   <div class="min-h-screen bg-[#f7f7f7]" dir="rtl" @scroll.passive="onScroll" ref="page">
+    <!-- DEBUG BOX -->
+    <div v-if="true" class="bg-yellow-100 p-2 text-xs border-b border-yellow-300 font-mono" style="direction:ltr; text-align:left; position:fixed; top:0; left:0; right:0; z-index:9999;">
+      <b>DEBUG:</b> Slug: {{ currentSlug() }} <br/>
+      CatID: {{ currentCategory?.id }} | Name: {{ currentCategory?.name }} <br/>
+      AllCats: {{ allCategories.length }} | Products: {{ products.length }}
+    </div>
     <!-- الهيدر (ثابت أعلى) -->
     <div class="w-full bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
       <div class="h-12 px-2 flex items-center justify-between">
@@ -725,11 +731,8 @@ async function loadCategories(){
     // 1. Try to find children (Sub-categories)
     let children = allCategories.value.filter(c=> String(c.parentId||'').trim() === String(cur.id).trim())
     
-    // 2. If no children, show siblings (children of parent) to keep nav bar useful
-    if (children.length === 0 && cur.parentId) {
-       children = allCategories.value.filter(c=> String(c.parentId||'').trim() === String(cur.parentId).trim())
-    }
-
+    // Sibling fallback removed as per user request
+    
     const safeImg = (u?: string|null) => {
       const s = String(u||'').trim()
       if (!s || s.startsWith('blob:')) return '/images/placeholder-product.jpg'
