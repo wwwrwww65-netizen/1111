@@ -3225,7 +3225,7 @@ shop.get('/me/coupons', async (req: any, res) => {
     }));
     const rulesByCode = new Map<string, any>(settings);
 
-    let coupons = activeCoupons
+    let filtered = activeCoupons
       .filter((c: any) => !usedIds.has(String(c.id)))
       .filter((c: any) => {
         const rule = rulesByCode.get(String(c.code || '').toUpperCase());
@@ -3259,16 +3259,46 @@ shop.get('/me/coupons', async (req: any, res) => {
         const enabledOk = rule?.enabled !== false;
         // Do NOT filter out token-targeted coupons here; show them to user and let PDP/cart apply eligibility rules
         return allowedAudience && enabledOk && fromOk && toOk;
-      })
-      .map((c: any) => ({
+      });
+
+    // Resolve category names for display
+    const categoryIds = new Set<string>();
+    for (const c of filtered) {
+      const rule = rulesByCode.get(String(c.code || '').toUpperCase());
+      const cats = rule?.targeting?.categories?.include || [];
+      if (Array.isArray(cats)) cats.forEach((id: any) => categoryIds.add(String(id)));
+    }
+
+    const categoryMap = new Map<string, string>();
+    if (categoryIds.size > 0) {
+      try {
+        const cats = await db.category.findMany({
+          where: { id: { in: Array.from(categoryIds) } },
+          select: { id: true, name: true }
+        } as any);
+        cats.forEach((cat: any) => categoryMap.set(cat.id, cat.name));
+      } catch { }
+    }
+
+    let coupons = filtered.map((c: any) => {
+      const rule = rulesByCode.get(String(c.code || '').toUpperCase());
+      const catIds = rule?.targeting?.categories?.include || [];
+      const displayCategories = Array.isArray(catIds)
+        ? catIds.map((id: any) => categoryMap.get(String(id))).filter(Boolean)
+        : [];
+
+      return {
         id: c.id,
         code: c.code,
-        title: c.title || c.code,
+        title: rule?.title || c.title || c.code,
         discountType: c.discountType,
         discountValue: c.discountValue,
         minOrderAmount: c.minOrderAmount || 0,
-        validUntil: c.validUntil || null
-      }));
+        validUntil: c.validUntil || null,
+        displayCategories,
+        includes: rule?.targeting || null
+      };
+    });
     // Prioritize new-user coupons for new users
     try {
       if (isNewUser) {
