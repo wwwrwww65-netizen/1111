@@ -55,7 +55,10 @@
               class="flex flex-col items-center min-w-[76px] pb-1"
               @click="onCategoryClick(c)"
             >
-              <div class="w-14 h-14 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden">
+              <div 
+                class="w-14 h-14 rounded-full bg-white border flex items-center justify-center overflow-hidden transition-all"
+                :class="route.query.c === c.id ? 'border-[#8a1538] ring-2 ring-[#8a1538] ring-offset-1' : 'border-gray-200'"
+              >
                 <img :src="c.img" :alt="c.label" class="w-full h-full object-cover" />
               </div>
               <span class="mt-1 text-[12px] text-gray-700 text-center leading-tight category-title">
@@ -74,7 +77,10 @@
               class="flex items-center gap-1.5 min-w-[85px] max-w-[85px] px-1 py-1 rounded-md hover:bg-gray-50"
               @click="onCategoryClick(c)"
             >
-              <div class="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden shrink-0">
+              <div 
+                class="w-9 h-9 rounded-full bg-white border flex items-center justify-center overflow-hidden shrink-0 transition-all"
+                :class="route.query.c === c.id ? 'border-[#8a1538] ring-1 ring-[#8a1538]' : 'border-gray-200'"
+              >
                 <img :src="c.img" :alt="c.label" class="w-full h-full object-cover" />
               </div>
               <div class="text-right flex-1 min-w-0">
@@ -520,7 +526,18 @@ function togglePriceSort() {
 
 function onCategoryClick(c: {id:string;label:string;img:string}) {
   if (!c?.id) return
-  router.push({ path: `/c/${encodeURIComponent(c.id)}` })
+  const currentCat = String(route.query.c || '')
+  const newQuery = { ...route.query }
+  
+  if (currentCat === c.id) {
+    // Deselect if already active
+    delete newQuery.c
+  } else {
+    // Select new category
+    newQuery.c = c.id
+  }
+  
+  router.push({ query: newQuery })
 }
 
 const filterSheet = ref<{ open:boolean; type:'category'|'size'|'color'|'material'|'style'|null }>({ open:false, type:null })
@@ -589,6 +606,11 @@ function loadMoreProducts() {
       if (sort) url.searchParams.set('sort', sort)
       
       const q = query.value; if(q) url.searchParams.set('q', q)
+
+      // Apply category filter if present in query
+      const catId = String(route.query.c || '').trim()
+      if (catId) url.searchParams.set('categoryIds', catId)
+
       if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
       if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
       if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
@@ -695,6 +717,11 @@ async function loadProducts(limit: number = 10){
     if (sort) url.searchParams.set('sort', sort)
     
     const q = query.value; if(q) url.searchParams.set('q', q)
+    
+    // Apply category filter if present in query
+    const catId = String(route.query.c || '').trim()
+    if (catId) url.searchParams.set('categoryIds', catId)
+
     if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
     if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
     if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
@@ -760,6 +787,14 @@ watch(query, (newQ, oldQ) => {
     hasMore.value = false
     productsLoading.value = true
     void bootstrap() 
+})
+
+watch(() => route.query.c, (newCat, oldCat) => {
+  if (newCat === oldCat) return
+  products.value = []
+  hasMore.value = false
+  productsLoading.value = true
+  void loadProducts()
 })
 
 // ===== كوبونات وتطبيق السعر بعد الخصم على البطاقات =====

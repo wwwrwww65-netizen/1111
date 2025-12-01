@@ -1803,26 +1803,68 @@ shop.get('/products', async (req, res) => {
       if (excludeIds.length) where.id = { notIn: excludeIds };
 
       if (q) {
-        where.OR = [
-          { name: { contains: q, mode: 'insensitive' } },
-          { description: { contains: q, mode: 'insensitive' } },
-          { sku: { contains: q, mode: 'insensitive' } },
-          { brand: { contains: q, mode: 'insensitive' } }
-        ];
+        // Improved Search Logic: Split query into terms and require ALL terms to match (AND logic for terms)
+        // Each term can match ANY of the fields (OR logic for fields)
+        const terms = q.split(/\s+/).filter(Boolean);
+        if (terms.length > 0) {
+          where.AND = terms.map(term => ({
+            OR: [
+              { name: { contains: term, mode: 'insensitive' } },
+              { description: { contains: term, mode: 'insensitive' } },
+              { sku: { contains: term, mode: 'insensitive' } },
+              { brand: { contains: term, mode: 'insensitive' } },
+              // Also search in the Category name itself
+              { category: { name: { contains: term, mode: 'insensitive' } } }
+            ]
+          }));
+        }
       }
 
+      console.error('[API DEBUG] /products:', { q, categoryIds, where: JSON.stringify(where, null, 2) });
+
       if (categoryIds.length) {
+        // Resolve slugs/IDs to actual Category IDs
+        // The frontend might send slugs (e.g. "womens-pullovers") or IDs
+        let resolvedCatIds: string[] = [];
+        try {
+          const cats = await db.category.findMany({
+            where: {
+              OR: [
+                { id: { in: categoryIds } },
+                { slug: { in: categoryIds } }
+              ]
+            },
+            select: { id: true }
+          });
+          resolvedCatIds = cats.map(c => c.id);
+        } catch (e) {
+          console.error('[API] Failed to resolve category IDs:', e);
+          resolvedCatIds = categoryIds; // Fallback
+        }
+
+        // If we found resolved IDs, use them. Otherwise fallback to input (in case of error or no match)
+        const targetIds = resolvedCatIds.length > 0 ? resolvedCatIds : categoryIds;
+
         // Try with categoryLinks first (robust against schema differences)
         try {
           const catCondition = {
             OR: [
-              { categoryId: { in: categoryIds } },
-              { categoryLinks: { some: { categoryId: { in: categoryIds } } } as any }
+              { categoryId: { in: targetIds } },
+              { categoryLinks: { some: { categoryId: { in: targetIds } } } as any }
             ]
           };
 
           // If we have 'q', we must AND the category condition with the search condition
-          const finalWhere = q ? { AND: [where, catCondition] } : { ...where, ...catCondition };
+          // Since 'where.AND' is already an array of term conditions, we push the category condition into it
+          let finalWhere = { ...where };
+          if (q && Array.isArray(finalWhere.AND)) {
+            finalWhere.AND.push(catCondition);
+          } else if (q) {
+            // Should not happen with new logic, but fallback
+            finalWhere = { AND: [where, catCondition] };
+          } else {
+            finalWhere = { ...where, ...catCondition };
+          }
 
           items = await db.product.findMany({
             where: finalWhere,
@@ -1837,7 +1879,17 @@ shop.get('/products', async (req, res) => {
           }) as any;
         } catch {
           // Fallback: simple categoryId
-          const fallbackWhere = { ...where, categoryId: { in: categoryIds } };
+          let fallbackWhere = { ...where };
+          const simpleCat = { categoryId: { in: targetIds } };
+
+          if (q && Array.isArray(fallbackWhere.AND)) {
+            fallbackWhere.AND.push(simpleCat);
+          } else if (q) {
+            fallbackWhere = { AND: [where, simpleCat] };
+          } else {
+            fallbackWhere = { ...where, ...simpleCat };
+          }
+
           items = await db.product.findMany({
             where: fallbackWhere,
             select: {
