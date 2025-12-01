@@ -89,13 +89,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref, reactive } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, reactive, onActivated, onDeactivated } from 'vue'
 import ProductGridCard from '@/components/ProductGridCard.vue'
 import { apiGet, API_BASE, isAuthenticated } from '@/lib/api'
 import { buildThumbUrl } from '@/lib/media'
 import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
 import { useCart } from '@/store/cart'
 import { markTrending } from '@/lib/trending'
+
+defineOptions({ name: 'MasonryForYouBlock' })
 
 type GridP = { id: string; title: string; image?: string; images?: string[]; overlayBannerSrc?: string; overlayBannerAlt?: string; brand?: string; discountPercent?: number; bestRank?: number; bestRankCategory?: string; basePrice?: string; soldPlus?: string; couponPrice?: string; isTrending?: boolean; _ratio?: number; categoryId?: string; categoryIds?: string[] }
 type Cfg = { columns?: number; products?: any[]; items?: any[] }
@@ -258,8 +260,56 @@ const hasMore = ref(true)
 const isLoadingMore = ref(false)
 const fyLoadMoreSentinel = ref<HTMLDivElement|null>(null)
 
-onMounted(()=>{ loadRecommendations(); try{ window.addEventListener('scroll', onWinScroll, { passive:true }) }catch{} })
-onBeforeUnmount(()=>{ try{ window.removeEventListener('scroll', onWinScroll) }catch{} })
+// Global state backup for persistence (fallback if KeepAlive fails)
+const STATE_KEY = 'MasonryForYouBlock_State'
+function saveState(){
+  try{
+    (window as any)[STATE_KEY] = {
+      products: products.value,
+      hasMore: hasMore.value,
+      mode: mode.value,
+      scrollY: window.scrollY
+    }
+  }catch{}
+}
+function restoreState(): boolean {
+  try{
+    const s = (window as any)[STATE_KEY]
+    if (s && Array.isArray(s.products) && s.products.length > 0){
+      products.value = s.products
+      hasMore.value = s.hasMore
+      mode.value = s.mode
+      // Restore scroll position slightly delayed to allow layout
+      setTimeout(()=> window.scrollTo(0, s.scrollY || 0), 100)
+      return true
+    }
+  }catch{}
+  return false
+}
+
+onMounted(()=>{ 
+  if (!restoreState()) {
+    loadRecommendations(); 
+  } else {
+    isLoading.value = false
+  }
+  try{ window.addEventListener('scroll', onWinScroll, { passive:true }) }catch{} 
+})
+
+onActivated(() => {
+  try{ window.addEventListener('scroll', onWinScroll, { passive:true }) }catch{}
+})
+
+onDeactivated(() => {
+  saveState()
+  try{ window.removeEventListener('scroll', onWinScroll) }catch{}
+})
+
+onBeforeUnmount(()=>{
+  saveState()
+  try{ window.removeEventListener('scroll', onWinScroll) }catch{}
+})
+
 
 onMounted(()=>{
   try{
@@ -297,6 +347,25 @@ async function loadMore(){
     const w: any = window as any
     const cfgRec: any = (cfg as any).recommend || {}
     const catIds: string[] = Array.isArray(cfgRec.categoryIds) ? cfgRec.categoryIds : (Array.isArray(w.__LAST_CAROUSEL_CATEGORY_IDS) ? w.__LAST_CAROUSEL_CATEGORY_IDS : [])
+    
+    // Helper to append unique items only
+    const appendUnique = async (newItems: any[]) => {
+      const existingIds = new Set(products.value.map(p => String(p.id)))
+      const uniqueNew = newItems.filter(p => !existingIds.has(String(p.id || p.title || '')))
+      if (uniqueNew.length === 0) {
+        // If we got items but they were all duplicates, try to fetch next page? 
+        // For now, just stop to avoid infinite loops of fetching same data
+        if (newItems.length > 0) hasMore.value = false 
+        return
+      }
+      const mapped = uniqueNew.map(toGridP)
+      await Promise.all(mapped.map(p=> probeRatioPromise(p)))
+      products.value = [...products.value, ...mapped]
+      hasMore.value = mapped.length >= 1
+      try{ markTrending(products.value as any[]) }catch{}
+      try{ await hydrateCouponsAndPrices() }catch{}
+    }
+
     if (mode.value==='category' && catIds.length){
       const ex = Array.from(new Set(products.value.map(p=> String(p.id)))).slice(0,200)
       const u = new URL(`${API_BASE}/api/products`)
@@ -307,14 +376,7 @@ async function loadMore(){
       if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
       const j = await (await fetch(u.toString(), { headers:{ 'Accept':'application/json' } })).json()
       const arr = Array.isArray(j?.items)? j.items: []
-      const lst = uniqById(arr)
-      const mapped = lst.map(toGridP)
-      await Promise.all(mapped.map(p=> probeRatioPromise(p)))
-      const pre = products.value.length
-      products.value = products.value.concat(mapped)
-      hasMore.value = mapped.length >= 1
-      try{ markTrending(products.value as any[]) }catch{}
-      try{ await hydrateCouponsAndPrices() }catch{}
+      await appendUnique(uniqById(arr))
       return
     }
     // Other modes
@@ -327,12 +389,7 @@ async function loadMore(){
       if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
       const j = await (await fetch(u.toString(), { headers:{ 'Accept':'application/json' } })).json()
       const arr = Array.isArray(j?.items)? j.items: []
-      const mapped = arr.map(toGridP)
-      await Promise.all(mapped.map(p=> probeRatioPromise(p)))
-      products.value = products.value.concat(mapped)
-      hasMore.value = mapped.length >= 1
-      try{ markTrending(products.value as any[]) }catch{}
-      try{ await hydrateCouponsAndPrices() }catch{}
+      await appendUnique(arr)
       return
     }
     // personal: fallback to new with excludeIds
@@ -344,12 +401,7 @@ async function loadMore(){
       if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
       const j = await (await fetch(u.toString(), { headers:{ 'Accept':'application/json' } })).json()
       const arr = Array.isArray(j?.items)? j.items: []
-      const mapped = arr.map(toGridP)
-      await Promise.all(mapped.map(p=> probeRatioPromise(p)))
-      products.value = products.value.concat(mapped)
-      hasMore.value = mapped.length >= 1
-      try{ markTrending(products.value as any[]) }catch{}
-      try{ await hydrateCouponsAndPrices() }catch{}
+      await appendUnique(arr)
     }
   }catch{ hasMore.value = false } finally { isLoadingMore.value = false }
 }

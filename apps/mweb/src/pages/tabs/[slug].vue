@@ -26,8 +26,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+defineOptions({ name: 'TabsPage' })
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch, computed, onActivated, onDeactivated } from 'vue'
+import { useRouter, useRoute, RouterLink } from 'vue-router'
 import { API_BASE } from '@/lib/api'
 import HeroBlock from '@/components/blocks/HeroBlock.vue'
 import PromoTilesBlock from '@/components/blocks/PromoTilesBlock.vue'
@@ -35,6 +36,7 @@ import MidPromoBlock from '@/components/blocks/MidPromoBlock.vue'
 import ProductCarouselBlock from '@/components/blocks/ProductCarouselBlock.vue'
 import CategoriesBlock from '@/components/blocks/CategoriesBlock.vue'
 import MasonryForYouBlock from '@/components/blocks/MasonryForYouBlock.vue'
+
 const route = useRoute()
 const router = useRouter()
 const slug = computed(()=> String(route.params.slug||''))
@@ -42,6 +44,9 @@ const content = ref<any>({ sections: [] })
 const previewActive = ref<boolean>(false)
 const tabs = ref<Array<{ slug:string; label:string }>>([])
 const sections = computed(()=> Array.isArray(content.value?.content?.sections) ? content.value.content.sections : (Array.isArray(content.value?.sections)? content.value.sections : []))
+const scrolled = ref(false)
+const headerH = ref(0)
+
 function go(p:string){ router.push(p) }
 function renderBlock(s:any){
   const t = String(s?.type||'').toLowerCase()
@@ -54,7 +59,15 @@ function renderBlock(s:any){
   return Unknown
 }
 
+function measureHeader(){ 
+  // dummy implementation if header ref is not available in this component or use global state
+}
+
+function onScroll(){ scrolled.value = window.scrollY > 60; }
+
 onMounted(async ()=>{
+  window.addEventListener('scroll', onScroll, { passive: true })
+  
   try{
     // Admin preview support via query token/payload
     const u = new URL(location.href)
@@ -101,6 +114,18 @@ onMounted(async ()=>{
   // Notify admin preview container that we're ready to receive live updates
   try{ if (window.parent) window.parent.postMessage({ __tabs_preview_ready: true }, '*') }catch{}
   try{ if (window.opener) window.opener.postMessage({ __tabs_preview_ready: true }, '*') }catch{}
+})
+
+onActivated(() => {
+  window.addEventListener('scroll', onScroll, { passive: true })
+})
+
+onDeactivated(() => {
+  window.removeEventListener('scroll', onScroll)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', onScroll)
 })
 
 function clickTrack(){ try{ fetch('/api/tabs/track', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug: slug.value, type:'click' }) }) }catch{} }

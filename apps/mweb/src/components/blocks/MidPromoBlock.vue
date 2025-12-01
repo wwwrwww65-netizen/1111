@@ -18,6 +18,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'MidPromoBlock' })
 import { buildThumbUrl } from '../../lib/media'
 type Cfg = { image?: string; alt?: string; text?: string; href?: string }
 defineProps<{ cfg?: Cfg }>()

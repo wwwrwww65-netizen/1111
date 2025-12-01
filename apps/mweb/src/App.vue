@@ -1,6 +1,6 @@
 <template>
   <router-view v-slot="{ Component, route }">
-    <keep-alive include="CategoryPage,ProductsPage">
+    <keep-alive include="CategoryPage,ProductsPage,SearchResultPage,ProductPage,TabsPage">
       <component :is="Component" :key="route.fullPath" />
     </keep-alive>
   </router-view>

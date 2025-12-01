@@ -1045,9 +1045,10 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'ProductPage' })
 // ==================== IMPORTS ====================
 import { useRoute, useRouter } from 'vue-router'
-import { ref, onMounted, computed, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, onMounted, computed, onBeforeUnmount, watch, nextTick, onActivated, onDeactivated } from 'vue'
 import { useCart } from '@/store/cart'
 import { useRecent } from '@/store/recent'
 import { useWishlist } from '@/store/wishlist'
@@ -1986,6 +1987,9 @@ onMounted(async ()=>{
 })
 
 // Force refresh when navigating to same component with different ?id (URL changes but Vue keeps instance)
+// DISABLE WATCHER: App.vue uses key="route.fullPath", so a new instance is created for every ID change.
+// This watcher was causing the CACHED instance to reload data when the route changed, messing up the state.
+/*
 watch(() => route.query.id, async (nv, ov)=>{
   try{
     if (String(nv||'') !== String(ov||'')) {
@@ -2024,11 +2028,21 @@ watch(() => route.query.id, async (nv, ov)=>{
     }
   }catch{}
 })
+*/
+
+onActivated(() => {
+  window.addEventListener('scroll', onScroll, { passive:true })
+  window.addEventListener('resize', computeGalleryHeight, { passive:true })
+})
+
+onDeactivated(() => {
+  window.removeEventListener('scroll', onScroll)
+  window.removeEventListener('resize', computeGalleryHeight)
+})
 
 onBeforeUnmount(()=> {
   window.removeEventListener('scroll', onScroll)
   window.removeEventListener('resize', computeGalleryHeight)
-
 })
 
 // ==================== DATA LOADING ====================

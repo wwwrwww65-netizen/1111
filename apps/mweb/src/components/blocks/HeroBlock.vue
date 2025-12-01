@@ -40,6 +40,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'HeroBlock' })
 import { computed, ref } from 'vue'
 import { Swiper, SwiperSlide } from 'swiper/vue'
 import { Autoplay } from 'swiper/modules'

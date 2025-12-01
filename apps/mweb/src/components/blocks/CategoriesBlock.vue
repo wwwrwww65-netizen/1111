@@ -26,6 +26,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'CategoriesBlock' })
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { buildThumbUrl } from '../../lib/media'

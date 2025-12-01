@@ -38,6 +38,7 @@
   </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'ProductCarouselBlock' })
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { API_BASE } from '@/lib/api'

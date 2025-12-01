@@ -21,6 +21,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'PromoTilesBlock' })
 import { computed } from 'vue'
 import { buildThumbUrl } from '../../lib/media'
 

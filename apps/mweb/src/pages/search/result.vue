@@ -345,7 +345,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed, watch, reactive } from 'vue';
+defineOptions({ name: 'SearchResultPage' })
+import { ref, onMounted, onBeforeUnmount, computed, watch, reactive, onActivated, onDeactivated } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useCart } from '../../store/cart';
 import { storeToRefs } from 'pinia';
@@ -449,15 +450,27 @@ const headerHeight = computed(() => {
 });
 
 let lastScrollY = 0;
+const activeQuery = ref('')
 
 onMounted(() => {
   lastScrollY = window.scrollY || 0;
   atTop.value = lastScrollY <= 0;
   isScrollingUp.value = false;
   window.addEventListener('scroll', handleWindowScroll, { passive: true });
-  headerSearchQ.value = query.value
+  
+  const q = String(route.query.q || '').trim()
+  headerSearchQ.value = q
+  activeQuery.value = q
   void bootstrap()
 });
+
+onActivated(() => {
+  window.addEventListener('scroll', handleWindowScroll, { passive: true });
+})
+
+onDeactivated(() => {
+  window.removeEventListener('scroll', handleWindowScroll);
+})
 
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', handleWindowScroll);
@@ -731,8 +744,21 @@ async function bootstrap(){
     await loadCategories(); 
 }
 
-watch(query, ()=>{ 
-    headerSearchQ.value = query.value
+watch(query, (newQ, oldQ) => { 
+    const q = String(newQ || '').trim()
+    
+    // 1. If navigating away (query lost/changed to empty), ignore.
+    if (!q && oldQ) return 
+    
+    // 2. If coming back to the same query, ignore (KeepAlive handles it).
+    if (q === activeQuery.value) return
+
+    // 3. Genuine change -> Reload
+    activeQuery.value = q
+    headerSearchQ.value = q
+    products.value = []
+    hasMore.value = false
+    productsLoading.value = true
     void bootstrap() 
 })
 
