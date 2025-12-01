@@ -357,7 +357,8 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed, watch, reactive } from 'vue';
+defineOptions({ name: 'ProductsPage' })
+import { ref, onMounted, onBeforeUnmount, computed, watch, reactive, onActivated, onDeactivated } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useCart } from '../store/cart';
 import { storeToRefs } from 'pinia';
@@ -475,6 +476,14 @@ onMounted(() => {
   window.addEventListener('scroll', handleWindowScroll, { passive: true });
   void bootstrap()
 });
+
+onActivated(() => {
+  window.addEventListener('scroll', handleWindowScroll, { passive: true });
+})
+
+onDeactivated(() => {
+  window.removeEventListener('scroll', handleWindowScroll);
+})
 
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', handleWindowScroll);

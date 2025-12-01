@@ -1,5 +1,9 @@
 <template>
-  <router-view :key="$route.fullPath" />
+  <router-view v-slot="{ Component, route }">
+    <keep-alive include="CategoryPage,ProductsPage">
+      <component :is="Component" :key="route.fullPath" />
+    </keep-alive>
+  </router-view>
   <div id="gsap-root" style="position:fixed;inset:0;pointer-events:none"></div>
   <ConsentBanner />
   <PromoHost />

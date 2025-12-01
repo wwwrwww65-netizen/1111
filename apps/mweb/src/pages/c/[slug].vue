@@ -348,12 +348,14 @@
           <button class="btn btn-outline" @click="closeFilter">إلغاء</button>
           <button class="btn" style="background:#8a1538;color:#fff" @click="applyFilters">تطبيق</button>
         </div>
+```
       </div>
     </div>
   </div>
 </template>
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed, watch, reactive } from 'vue';
+defineOptions({ name: 'CategoryPage' })
+import { ref, onMounted, onBeforeUnmount, computed, watch, reactive, onActivated, onDeactivated } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useCart } from '../../store/cart';
 import { storeToRefs } from 'pinia';
@@ -466,20 +468,41 @@ const headerHeight = computed(() => {
 
 let lastScrollY = 0;
 
+const activeSlug = ref('')
+
 onMounted(() => {
   lastScrollY = window.scrollY || 0;
   atTop.value = lastScrollY <= 0;
   isScrollingUp.value = false;
   window.addEventListener('scroll', handleWindowScroll, { passive: true });
+  
+  activeSlug.value = String(route.params.slug || '')
   void bootstrap()
 });
+
+onActivated(() => {
+  window.addEventListener('scroll', handleWindowScroll, { passive: true });
+})
+
+onDeactivated(() => {
+  window.removeEventListener('scroll', handleWindowScroll);
+})
 
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', handleWindowScroll);
 });
 
-watch(() => route.params.slug, () => {
-  // Reset state and reload when slug changes
+watch(() => route.params.slug, (newSlug, oldSlug) => {
+  const s = String(newSlug || '').trim()
+  
+  // 1. If navigating away (slug lost), ignore.
+  if (!s) return 
+  
+  // 2. If coming back to the same category, ignore (KeepAlive handles it).
+  if (s === activeSlug.value) return
+
+  // 3. Genuine change -> Reload
+  activeSlug.value = s
   products.value = []
   hasMore.value = false
   productsLoading.value = true
@@ -642,20 +665,6 @@ async function loadCategories(){
     
     if (!cur) { categories.value = []; childCategoryIds.value = []; return }
 
-    // Find children
-    let children = allCategories.value.filter(c=> String(c.parentId||'').trim() === String(cur.id).trim())
-    
-    // If no children, show siblings (fallback)
-    if (children.length === 0 && cur.parentId) {
-       children = allCategories.value.filter(c=> String(c.parentId||'').trim() === String(cur.parentId).trim())
-    }
-    // If still no children (top level leaf), show top level categories? Or just nothing?
-    // Let's stick to children or siblings logic for now.
-    
-    // IMPORTANT: childCategoryIds should ONLY contain children if we are on a parent.
-    // If we are on a leaf (children.length=0 initially), childCategoryIds should be empty.
-    // The 'children' variable here is reused for UI (siblings), so we need to be careful.
-    
     // Re-calculate true children for product fetching logic (Recursive)
     const getDescendants = (parentId: string): string[] => {
       const kids = allCategories.value.filter(c => String(c.parentId||'').trim() === String(parentId).trim())
@@ -670,13 +679,36 @@ async function loadCategories(){
     // If we are on a leaf, getDescendants will return empty, which is correct (we just use currentCategory.id)
     childCategoryIds.value = getDescendants(cur.id)
 
+    // Logic for Category Bar (UI)
+    // Rule: Update ONLY if subcategory has children. Otherwise, keep fixed (unless empty/irrelevant).
+    const directChildren = allCategories.value.filter(c=> String(c.parentId||'').trim() === String(cur.id).trim())
+    
+    let uiCategories = directChildren
+    
+    if (directChildren.length === 0) {
+       // No children. Check if we should keep the current list.
+       const currentListHasTarget = categories.value.some(c => String(c.id) === String(cur.id))
+       
+       if (currentListHasTarget && categories.value.length > 0) {
+         // The current category is already visible in the list.
+         // User wants the bar to "remain fixed". So we do NOT update uiCategories.
+         // We just return here, keeping categories.value as is.
+         return 
+       } else {
+         // Fallback: If list is empty or irrelevant, show siblings
+         if (cur.parentId) {
+           uiCategories = allCategories.value.filter(c=> String(c.parentId||'').trim() === String(cur.parentId).trim())
+         }
+       }
+    }
+
     const safeImg = (u?: string|null) => {
       const s = String(u||'').trim()
       if (!s || s.startsWith('blob:')) return '/images/placeholder-product.jpg'
       return buildThumbUrl(s, 112, 60)
     }
     
-    categories.value = children.map(c=> ({
+    categories.value = uiCategories.map(c=> ({
       id: c.id,
       label: c.name,
       img: safeImg(c.image)
