@@ -21,22 +21,17 @@
           >
             <!-- Input (Readonly/Fake) -->
             <div class="flex-1 text-[12px] text-gray-500 text-right truncate">
-              ابحث في المنتجات
+              {{ currentCategory?.name || 'ابحث في المنتجات' }}
             </div>
             
             <!-- Camera Icon -->
             <button class="opacity-60 flex items-center justify-center" aria-label="بحث بالصور">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M23 19C23 19.5304 22.7893 20.0391 22.4142 20.4142C22.0391 20.7893 21.5304 21 21 21H3C2.46957 21 1.96086 20.7893 1.58579 20.4142C1.21071 20.0391 1 19.5304 1 19V8C1 7.46957 1.21071 6.96086 1.58579 6.58579C1.96086 6.21071 2.46957 6 3 6H7L9 3H15L17 6H21C21.5304 6 22.0391 6.21071 22.4142 6.58579C22.7893 6.96086 23 7.46957 23 8V19Z" stroke="#222" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="12" cy="13" r="4" stroke="#222" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+              <Camera class="w-5 h-5 text-[#222]" />
             </button>
 
             <!-- Search Button (Oval) -->
             <div class="bg-[#8a1538] rounded-[16px] w-[44px] h-[30px] flex items-center justify-center shadow-sm">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+              <Search class="w-[18px] h-[18px] text-white" />
             </div>
           </div>
         </div>
@@ -57,7 +52,7 @@
         </div>
       </div>
 
-      <!-- منطقة الفئات -->
+      <!-- منطقة الفئات (الأقسام الفرعية) -->
       <Transition name="category-switch" mode="out-in">
         <!-- الوضع العادي -->
         <div v-if="!compact && categories.length>0" key="normal" class="bg-white border-t border-gray-100">
@@ -68,10 +63,10 @@
               class="flex flex-col items-center min-w-[76px] pb-1"
               @click="onCategoryClick(c)"
             >
-              <div class="w-14 h-14 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden">
+              <div class="w-14 h-14 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden" :class="{'ring-2 ring-[#8a1538]': c.id === currentCategory?.id}">
                 <img :src="c.img" :alt="c.label" class="w-full h-full object-cover" />
               </div>
-              <span class="mt-1 text-[12px] text-gray-700 text-center leading-tight category-title">
+              <span class="mt-1 text-[12px] text-gray-700 text-center leading-tight category-title" :class="{'font-bold text-[#8a1538]': c.id === currentCategory?.id}">
                 {{ c.label }}
               </span>
             </button>
@@ -85,13 +80,14 @@
               v-for="c in compactCategories"
               :key="c.id"
               class="flex items-center gap-1.5 min-w-[85px] max-w-[85px] px-1 py-1 rounded-md hover:bg-gray-50"
+              :class="{'bg-gray-100': c.id === currentCategory?.id}"
               @click="onCategoryClick(c)"
             >
               <div class="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden shrink-0">
                 <img :src="c.img" :alt="c.label" class="w-full h-full object-cover" />
               </div>
               <div class="text-right flex-1 min-w-0">
-                <div class="text-[10px] text-gray-800 leading-tight truncate-2-lines break-words">
+                <div class="text-[10px] text-gray-800 leading-tight truncate-2-lines break-words" :class="{'font-bold text-[#8a1538]': c.id === currentCategory?.id}">
                   {{ c.label }}
                 </div>
               </div>
@@ -100,7 +96,7 @@
         </div>
       </Transition>
 
-      <!-- نسخة الفلاتر في الهيدر: تظهر دائمًا إذا لا توجد فئات فرعية -->
+      <!-- نسخة الفلاتر في الهيدر -->
       <Transition name="fade-slide">
         <div v-if="showHeaderFilters || categories.length===0" class="bg-white border-t border-gray-100 px-2 py-2">
           <div class="flex items-center justify-between mb-2">
@@ -143,8 +139,8 @@
     <!-- مساحة للهيدر الثابت -->
     <div :style="{ height: headerHeight + 'px' }"></div>
     
-    <!-- الفلاتر السفلية (تظهر فقط عند وجود فئات فرعية وإخفاء نسخة الهيدر) -->
-    <section v-if="!showHeaderFilters && categories.length>0" class="bg-white border-b border-gray-200 px-2 py-2">
+    <!-- الفلاتر السفلية -->
+    <section v-if="!showHeaderFilters && categories.length>0" class="bg-white border-b border-gray-200 px-2 py-2 mt-1">
       <div class="flex items-center justify-between mb-2">
         <button 
           @click="setFilter('recommend')" 
@@ -163,7 +159,6 @@
           class="flex items-center gap-1 text-[12px]" 
           :class="activeFilter === 'price' ? 'text-black font-semibold' : 'text-gray-600'">
           السعر
-          <!-- أيقونة السعر -->
           <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
             <g>
               <path 
@@ -181,7 +176,7 @@
           :class="['flex items-center gap-1 text-[12px]', activeFilter === 'rating' ? 'text-black font-semibold' : 'text-gray-600']">
           <Filter class="w-3.5 h-3.5" /> التصنيف
         </button>
-    </div>
+      </div>
 
       <div class="flex gap-2 overflow-x-auto no-scrollbar py-1">
         <button @click="openFilter('category')" class="flex items-center gap-1 bg-[#f7f7f7] px-2 py-1 rounded-md border border-gray-200 text-[12px] text-gray-800 min-w-max">الفئات<ArrowDown class="w-3.5 h-3.5 text-gray-500" /></button>
@@ -194,9 +189,9 @@
     
     <!-- ✅ مكان بطاقات المنتجات -->
     <section class="px-1 pb-1">
-      <!-- Skeleton grid أثناء التحميل (يحاكي شبكة متغيرة الارتفاع) -->
+      <!-- Skeleton grid أثناء التحميل -->
       <div v-if="productsLoading" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 grid-flow-row-dense">
-        <!-- عمود يسار (عناصر فردية) -->
+        <!-- عمود يسار -->
         <div>
           <div v-for="i in skeletonLeft" :key="'skl-l-'+i" class="mb-[6px]">
             <div class="w-full border border-gray-200 rounded bg-white overflow-hidden border-t-0 border-b-0 border-l-0">
@@ -214,7 +209,7 @@
             </div>
           </div>
         </div>
-        <!-- عمود يمين (عناصر زوجية) -->
+        <!-- عمود يمين -->
         <div>
           <div v-for="i in skeletonRight" :key="'skl-r-'+i" class="mb-[6px]">
             <div class="w-full border border-gray-200 rounded bg-white overflow-hidden border-t-0 border-b-0 border-l-0">
@@ -233,7 +228,7 @@
           </div>
         </div>
       </div>
-      <!-- شبكة عمودين حقيقيين بدون فجوة أفقية (منع الفراغات العمودية عبر عمودين مستقلين) -->
+      <!-- شبكة عمودين حقيقيين -->
       <div v-else class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 grid-flow-row-dense">
         <!-- عمود يسار -->
         <div>
@@ -357,10 +352,9 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed, watch, reactive } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useCart } from '../../store/cart';
 import { storeToRefs } from 'pinia';
 import {
@@ -372,40 +366,45 @@ import {
   Camera,
   Filter,
   ChevronDown as ArrowDown,
-  Store,
 } from 'lucide-vue-next';
 import ProductGridCard from '@/components/ProductGridCard.vue'
 import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
 import { markTrending } from '../../lib/trending'
+import { apiGet, API_BASE, isAuthenticated } from '../../lib/api'
+import { buildThumbUrl } from '../../lib/media'
 
 const router = useRouter();
+const route = useRoute();
 const cart = useCart();
 const { items } = storeToRefs(cart);
 
-import { useRoute } from 'vue-router'
-import { apiGet, API_BASE, isAuthenticated } from '../../lib/api'
-import { buildThumbUrl } from '../../lib/media'
-const route = useRoute()
+// Categories State
 const allCategories = ref<Array<{ id:string; slug?:string|null; name:string; parentId?:string|null; image?:string|null }>>([])
-const currentCategory = ref<{ id:string; slug?:string|null; name:string }|null>(null)
+const currentCategory = ref<{ id:string; slug?:string|null; name:string; parentId?:string|null }|null>(null)
 const categories = ref<Array<{ id:string; label:string; img:string }>>([])
+const childCategoryIds = ref<string[]>([])
 
-// بيانات المنتجات (حقيقية من API)
+// Products State
 const products = ref<any[]>([])
 const hasMore = ref(false)
 const productsLoading = ref(true)
 const defaultRatio = 1.3
 const placeholderRatios = [1.2, 1.5, 1.35, 1.1, 1.4, 1.25, 1.6, 1.3]
-// فهارس السكيليتون (يسار/يمين) لمضاهاة العمودين الفعليين
+
+// Skeleton Logic
 const skeletonLeft = computed(()=> Array.from({ length: 8 }, (_, k)=> k + 1).filter(i=> i % 2 === 1))
 const skeletonRight = computed(()=> Array.from({ length: 8 }, (_, k)=> k + 1).filter(i=> i % 2 === 0))
+
 function thumbSrc(p:any, w:number): string {
   const u = (Array.isArray(p.images)&&p.images[0]) || p.image
   return buildThumbUrl(String(u||''), w, 60)
 }
-// تقسيم تناوبي للعرض الشبكي: يسار/يمين
+
+// Masonry Split
 const leftProducts = computed(()=> products.value.filter((_p, i)=> i % 2 === 0))
 const rightProducts = computed(()=> products.value.filter((_p, i)=> i % 2 === 1))
+
+// Image Ratio Logic
 function probeRatioOnce(p:any): void {
   try{
     if (p._ratioProbing || p._ratio){ return }
@@ -425,7 +424,7 @@ function probeRatioOnce(p:any): void {
     img.src = u
   }catch{}
 }
-// نسخة Promise للاستعمال قبل العرض
+
 function probeRatioPromise(p:any): Promise<void>{
   return new Promise((resolve)=>{
     try{
@@ -442,8 +441,6 @@ function probeRatioPromise(p:any): Promise<void>{
 }
 
 const cartBadge = computed(() => cart.count);
-const promoWords = ["فساتين","هودي","بلايز","تيشيرت","جواكت"];
-const promoIndex = ref(0);
 const activeFilter = ref<'recommend'|'popular'|'price'|'rating'>('recommend');
 const priceSort = ref<'asc'|'desc'|null>(null);
 const compact = ref(false);
@@ -454,70 +451,50 @@ const isScrollingUp = ref(false);
 const atTop = ref(true);
 const showHeaderFilters = computed(() => isScrollingUp.value && !atTop.value);
 const isLoadingMore = ref(false);
-const pageNumber = ref(1);
 
-// حساب ارتفاع الهيدر ديناميكيًا
 const headerHeight = computed(() => {
-  let height = 48; // الهيدر الأساسي (h-12 = 3rem = 48px)
+  let height = 48; // Base header
   const hasCats = (categories.value||[]).length>0
   if (hasCats){
-    height += (!compact.value ? 100 : 60); // مساحة الفئات فقط عند توفرها
+    height += (!compact.value ? 100 : 60);
   }
-  // أضف مساحة الفلاتر في الهيدر عندما تكون مفعلة أو عند عدم توفر الفئات الفرعية
   if (showHeaderFilters.value || !hasCats) {
     height += 80;
   }
   return height;
 });
 
-let interval: any;
 let lastScrollY = 0;
 
 onMounted(() => {
-  interval = setInterval(()=> { promoIndex.value = (promoIndex.value + 1) % promoWords.length }, 3000);
   lastScrollY = window.scrollY || 0;
   atTop.value = lastScrollY <= 0;
   isScrollingUp.value = false;
   window.addEventListener('scroll', handleWindowScroll, { passive: true });
-  void restoreFromCacheOrBootstrap()
-  // دعم المعاينة الحية من لوحة التحكم (Categories Tabs)
-  try{
-    window.addEventListener('message', (e: MessageEvent)=>{
-      try{
-        const data:any = (e as any).data
-        if (data && typeof data==='object' && data.__categories_preview){
-          const c = data.content
-          if (c && (c.type==='categories-v1' || c.data)){
-            // استخرج فئات للمعاينة من content.data (featured / grid.explicit / suggestions.items)
-            const d = c.data || {}
-            const catFromMini = (arr:any[]) => (Array.isArray(arr)? arr : []).map((x:any)=> ({ id: String(x?.id||x?.slug||x?.name||''), label: String(x?.name||x?.label||''), img: String(x?.image||x?.img||'') })).filter((x:any)=> x.id && x.label)
-            let list:any[] = []
-            try{ list = list.concat(catFromMini(d.featured||[])) }catch{}
-            try{ if (Array.isArray(d.sidebarItems)) for (const it of d.sidebarItems){ if (Array.isArray(it?.featured)) list = list.concat(catFromMini(it.featured)); if (it?.grid?.mode==='explicit' && Array.isArray(it?.grid?.categories)) list = list.concat(catFromMini(it.grid.categories)); if (it?.suggestions && Array.isArray(it.suggestions.items)) list = list.concat(catFromMini(it.suggestions.items)); } }catch{}
-            // fallback إلى promoBanner أو عنوان
-            if (!list.length && d.title){ list = [{ id: 'title', label: String(d.title), img:'' }] }
-            if (Array.isArray(list) && list.length){ categories.value = list.slice(0, 20) }
-          }
-        }
-      }catch{}
-    })
-  }catch{}
+  void bootstrap()
 });
 
 onBeforeUnmount(() => {
-  clearInterval(interval);
   window.removeEventListener('scroll', handleWindowScroll);
-  try{ saveCache() }catch{}
 });
+
+watch(() => route.params.slug, () => {
+  // Reset state and reload when slug changes
+  products.value = []
+  hasMore.value = false
+  productsLoading.value = true
+  void bootstrap()
+})
 
 function handleWindowScroll() {
   const y = window.scrollY;
-  isScrollingUp.value = y < lastScrollY;
+  if (Math.abs(y - lastScrollY) > 5) {
+    isScrollingUp.value = y < lastScrollY;
+  }
   compact.value = y > 90;
-  atTop.value = y <= 0;
+  atTop.value = y <= 200;
   lastScrollY = y;
 
-  // التحميل اللانهائي
   const scrollHeight = document.documentElement.scrollHeight;
   const scrollTop = window.scrollY;
   const clientHeight = window.innerHeight;
@@ -555,11 +532,10 @@ function togglePriceSort() {
 
 function onCategoryClick(c: {id:string;label:string;img:string}) {
   if (!c?.id) return
-  const slugOrId = c.id
-  router.push({ path: `/c/${encodeURIComponent(slugOrId)}` })
+  router.push({ path: `/c/${encodeURIComponent(c.id)}` })
 }
 
-// فلاتر متقدمة
+// Filters
 const filterSheet = ref<{ open:boolean; type:'category'|'size'|'color'|'material'|'style'|null }>({ open:false, type:null })
 const selSizes = ref<string[]>([])
 const selColors = ref<string[]>([])
@@ -568,89 +544,247 @@ const selStyles = ref<string[]>([])
 function openFilter(t:'category'|'size'|'color'|'material'|'style'){ filterSheet.value = { open:true, type:t } }
 function closeFilter(){ filterSheet.value.open=false; filterSheet.value.type=null }
 function applyFilters(){ closeFilter(); void loadProducts() }
-function applySearch(){
+
+// Navigation
+function goToSearch() { router.push('/search'); }
+function goBack() { router.back(); }
+function goToWishlist() { router.push('/wishlist'); }
+function goToCart() { router.push('/cart'); }
+function goToCategories() { router.push('/categories'); }
+
+// Options Modal Logic
+const optionsModal = reactive<{ open: boolean; productId: string; color: string; size: string; groupValues: Record<string, string> }>({
+  open: false, productId: '', color: '', size: '', groupValues: {}
+})
+const optionsProduct = ref<any|null>(null)
+const requireOptionsNotice = ref(false)
+const toast = ref(false)
+const toastText = ref('تمت الإضافة إلى السلة')
+function showToast(msg?: string){ try{ if(msg) toastText.value = msg }catch{}; toast.value = true; setTimeout(()=>{ toast.value=false; try{ toastText.value='تمت الإضافة إلى السلة' }catch{} }, 1200) }
+
+async function fetchProductDetails(id: string){
   try{
-    const q = String(searchQ.value||'').trim()
-    if (q){
-      import('@/lib/track').then(m=> m.trackEvent('Search', { search_string: q }))
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`)
+    const imgs = Array.isArray(d.images)? d.images : []
+    const filteredImgs = imgs.filter((u:string)=> /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
+    const galleries = Array.isArray(d.colorGalleries) ? d.colorGalleries : []
+    const colors = galleries.map((g:any)=> ({ label: String(g.name||'').trim(), img: (g.primaryImageUrl || (Array.isArray(g.images)&&g.images[0]) || filteredImgs[0] || '/images/placeholder-product.jpg') })).filter((c:any)=> !!c.label)
+    const sizes: string[] = Array.isArray(d.sizes)? d.sizes: []
+    const letters = sizes.filter((s:string)=> /^(xxs|xs|s|m|l|xl|2xl|3xl|4xl|5xl)$/i.test(String(s)))
+    const numbers = sizes.filter((s:string)=> /^\d{1,3}$/.test(String(s)))
+    const sizeGroups: Array<{label:string; values:string[]}> = []
+    if (letters.length) sizeGroups.push({ label:'مقاسات بالأحرف', values: letters })
+    if (numbers.length) sizeGroups.push({ label:'مقاسات بالأرقام', values: numbers })
+    optionsProduct.value = { id: d.id||id, title: d.name||'', price: Number(d.price||0), images: filteredImgs.length? filteredImgs: ['/images/placeholder-product.jpg'], colors, sizes, sizeGroups, colorGalleries: galleries }
+  }catch{ optionsProduct.value = { id, title:'', price:0, images: ['/images/placeholder-product.jpg'], colors: [], sizes: [], sizeGroups: [] } }
+}
+
+async function openSuggestOptions(id: string){
+  try{
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`)
+    const galleries = Array.isArray(d?.colorGalleries) ? d.colorGalleries : []
+    const colorsCount = galleries.filter((g:any)=> String(g?.name||'').trim()).length
+    const hasColors = colorsCount > 1
+    const sizesArr = Array.isArray(d?.sizes) ? (d.sizes as any[]).filter((s:any)=> typeof s==='string' && String(s).trim()) : []
+    const variantsHasSize = Array.isArray(d?.variants) && d.variants.some((v:any)=> !!v?.size || /size|مقاس/i.test(String(v?.name||'')))
+    const hasSizes = (new Set(sizesArr.map((s:string)=> s.trim().toLowerCase()))).size > 1 || (!!variantsHasSize && (sizesArr.length>1))
+    if (!hasColors && !hasSizes){
+      const p = products.value.find(x=> String(x.id)===String(id))
+      if (p){ cart.add({ id: String(p.id), title: String(p.title), price: Number(String(p.basePrice||'0').replace(/[^0-9.]/g,''))||0, img: (Array.isArray(p.images)&&p.images[0]) || p.image || '/images/placeholder-product.jpg' }, 1); showToast() }
+      return
     }
   }catch{}
-  void loadProducts()
+  optionsModal.productId = id
+  optionsModal.color = ''
+  optionsModal.size = ''
+  optionsModal.groupValues = {}
+  optionsModal.open = true
+  await fetchProductDetails(id)
 }
-function goToCategories() { router.push('/categories'); }
-function goToSearch() { router.push('/search'); }
-
-// وظائف التنقل
-function goBack() {
-  router.back();
-}
-
-function goToWishlist() {
-  router.push('/wishlist');
-}
-
-function goToCart() {
-  router.push('/cart');
-}
-
-function openProduct(product: any) {
-  router.push(`/p?id=${product.id}`);
-}
-
-function addToCart(product: any) {
-  cart.add({
-    id: product.id,
-    title: product.title,
-    price: parseFloat(product.basePrice),
-    img: product.image,
-    variantColor: product.colors?.[0] || 'أبيض',
-    variantSize: 'M'
-  });
+function closeOptions(){ optionsModal.open = false }
+function onOptionsSave(payload: { color: string; size: string }){
+  try{
+    const prod = optionsProduct.value
+    const groups = Array.isArray(prod?.sizeGroups) ? prod!.sizeGroups : []
+    if (groups.length){
+      const composite = String(payload.size||'')
+      const missing = groups.some((g:any)=> !new RegExp(`(?:^|\\|)${g.label}:[^|]+`).test(composite))
+      if (missing){ requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value=false, 2000); return }
+    } else {
+      const hasSizes = Array.isArray(prod?.sizes) && prod!.sizes.length>0
+      if (hasSizes && !String(payload.size||'').trim()){ requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value=false, 2000); return }
+    }
+    const img = (prod?.images && prod.images[0]) || '/images/placeholder-product.jpg'
+    cart.add({ id: prod?.id || optionsModal.productId, title: prod?.title || '', price: Number(prod?.price||0), img, variantColor: payload.color||undefined, variantSize: payload.size||undefined }, 1)
+    showToast()
+  }catch{}
+  optionsModal.open = false
 }
 
-// تحميل المزيد من المنتجات
-function loadMoreProducts() {
+// Data Loading
+async function loadCategories(){
+  try{
+    // Increased limit to ensure all categories are loaded
+    const data = await apiGet<any>('/api/categories?limit=10000')
+    const list = Array.isArray(data?.categories)? data.categories : []
+    allCategories.value = list.map((c:any)=> ({ id:String(c.id), slug:c.slug||null, name:String(c.name||''), parentId: c.parentId? String(c.parentId) : null, image: c.image||null }))
+    
+    const slug = route.params.slug as string
+    const target = String(slug||'').toLowerCase().trim()
+    
+    // Find current category
+    const cur = allCategories.value.find(c=> 
+      String(c.id).toLowerCase() === target || 
+      String(c.slug||'').toLowerCase() === target
+    ) || null
+    
+    currentCategory.value = cur
+    
+    if (!cur) { categories.value = []; childCategoryIds.value = []; return }
+
+    // Find children
+    let children = allCategories.value.filter(c=> String(c.parentId||'').trim() === String(cur.id).trim())
+    
+    // If no children, show siblings (fallback)
+    if (children.length === 0 && cur.parentId) {
+       children = allCategories.value.filter(c=> String(c.parentId||'').trim() === String(cur.parentId).trim())
+    }
+    // If still no children (top level leaf), show top level categories? Or just nothing?
+    // Let's stick to children or siblings logic for now.
+    
+    // IMPORTANT: childCategoryIds should ONLY contain children if we are on a parent.
+    // If we are on a leaf (children.length=0 initially), childCategoryIds should be empty.
+    // The 'children' variable here is reused for UI (siblings), so we need to be careful.
+    
+    // Re-calculate true children for product fetching logic (Recursive)
+    const getDescendants = (parentId: string): string[] => {
+      const kids = allCategories.value.filter(c => String(c.parentId||'').trim() === String(parentId).trim())
+      let res = kids.map(k => k.id)
+      for (const kid of kids) {
+        res = [...res, ...getDescendants(kid.id)]
+      }
+      return res
+    }
+    
+    // If we are on a parent category, we want all descendants
+    // If we are on a leaf, getDescendants will return empty, which is correct (we just use currentCategory.id)
+    childCategoryIds.value = getDescendants(cur.id)
+
+    const safeImg = (u?: string|null) => {
+      const s = String(u||'').trim()
+      if (!s || s.startsWith('blob:')) return '/images/placeholder-product.jpg'
+      return buildThumbUrl(s, 112, 60)
+    }
+    
+    categories.value = children.map(c=> ({
+      id: c.id,
+      label: c.name,
+      img: safeImg(c.image)
+    }))
+  }catch(e){ allCategories.value = []; categories.value = []; childCategoryIds.value = [] }
+}
+
+function mapSort(): string {
+  if (activeFilter.value==='price') return priceSort.value==='asc' ? 'price_asc' : 'price_desc'
+  return 'reco'
+}
+
+async function loadProducts(limit: number = 10){
+  try{
+    productsLoading.value = true
+    const sort = mapSort()
+    const url = new URL(`${API_BASE}/api/products`)
+    url.searchParams.set('limit', String(limit))
+    url.searchParams.set('offset', '0')
+    if (sort) url.searchParams.set('sort', sort)
+    
+    // Category Context
+    const curId = currentCategory.value?.id
+    if (curId) {
+      const kids = childCategoryIds.value
+      const allIds = kids.length > 0 ? [...kids, curId] : [curId]
+      url.searchParams.set('categoryIds', allIds.join(','))
+    }
+    
+    const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
+    if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
+    if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
+    if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
+    if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
+    
+    const data = await apiGet<any>(`/api/products?${url.searchParams.toString()}`).catch((e)=> { return null })
+    const items = Array.isArray(data?.items)? data.items : []
+
+    const mappedRaw = items.map((it:any)=> ({
+      id: String(it.id),
+      title: String(it.name||''),
+      image: Array.isArray(it.images)&&it.images[0]? it.images[0] : '/images/placeholder-product.jpg',
+      images: Array.isArray(it.images)? it.images : [],
+      basePrice: Number(it.price||0).toFixed(2),
+      brand: it.brand||'',
+      discountPercent: typeof it.discountPercent==='number'? it.discountPercent : undefined,
+      bestRank: typeof it.bestRank==='number'? it.bestRank : undefined,
+      bestRankCategory: it.bestRankCategory || undefined,
+      soldPlus: it.soldPlus || undefined,
+      overlayBannerSrc: it.overlayBannerSrc || undefined,
+      overlayBannerAlt: it.overlayBannerAlt || undefined,
+      categoryId: it.categoryId || it.category?.id,
+      categoryIds: Array.isArray(it.categoryIds) ? it.categoryIds : undefined,
+      _ratio: undefined,
+      _imgLoaded: false
+    }))
+
+    // De-duplicate
+    const seen: Record<string, boolean> = {}
+    const mapped = mappedRaw.filter((p:any)=>{ const k=String(p.id); if (seen[k]) return false; seen[k]=true; return true })
+    
+    // Probe ratios
+    await Promise.all(mapped.slice(0, limit).map((p:any)=> probeRatioPromise(p)))
+    products.value = mapped
+    
+    // Probe remaining
+    setTimeout(()=>{ try{ for (const p of products.value.slice(limit, limit*2)){ probeRatioOnce(p) } }catch{} }, 0)
+    
+    hasMore.value = items.length >= limit
+    try{ markTrending(products.value as any[]) }catch{}
+    try{ await hydrateCouponsAndPrices() }catch{}
+
+  }catch{ products.value = []; hasMore.value = false }
+  finally { productsLoading.value = false }
+}
+
+async function loadMoreProducts() {
   if (isLoadingMore.value) return;
   if (!hasMore.value) return;
   isLoadingMore.value = true;
   const prev = products.value.length
-  ;(async ()=>{
-    try{
-      const slug = currentSlug()
-      const sort = mapSort()
-      const pageSize = 10
-      const offset = prev
+  const pageSize = 10
+  const offset = prev
+  
+  try {
+    const sort = mapSort()
+    const url = new URL(`${API_BASE}/api/products`)
+    url.searchParams.set('limit', String(pageSize))
+    url.searchParams.set('offset', String(offset))
+    if (sort) url.searchParams.set('sort', sort)
+    
+    // Category Context
+    const curId = currentCategory.value?.id
+    if (curId) {
       const kids = childCategoryIds.value
-      let items: any[] = []
-      
-      // Always use /api/products for consistent filtering by categoryIds
-      const url = new URL(`${API_BASE}/api/products`)
-      url.searchParams.set('limit', String(pageSize))
-      url.searchParams.set('offset', String(offset))
-      if (sort) url.searchParams.set('sort', sort)
-      
-      // Construct categoryIds:
-      // 1. If we have kids (Parent Category), include them + current.
-      // 2. If no kids (Leaf Category), just use current.
-      const allIds = kids.length > 0 
-        ? [...kids, currentCategory.value?.id].filter(Boolean)
-        : [currentCategory.value?.id].filter(Boolean)
-        
-      if (allIds.length) url.searchParams.set('categoryIds', allIds.join(','))
-      
-      const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
-      if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
-      if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
-      if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
-      if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
-      // Exclude already loaded product ids to avoid repeats when backend ignores offset
-      try{
-        const ids = Array.from(new Set(products.value.map((p:any)=> String(p.id)))).slice(0, 200)
-        if (ids.length) url.searchParams.set('excludeIds', ids.join(','))
-      }catch{}
-      const data = await apiGet<any>(`/api/products?${url.searchParams.toString()}`).catch(()=> null)
-      items = Array.isArray(data?.items)? data.items : []
-      const sliceRaw = items.map((it:any)=> ({
+      const allIds = kids.length > 0 ? [...kids, curId] : [curId]
+      url.searchParams.set('categoryIds', allIds.join(','))
+    }
+
+    const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
+    // ... filters ...
+    // Exclude logic removed to avoid conflict with offset-based pagination
+    // if (ids.length) url.searchParams.set('excludeIds', ids.join(','))
+
+    const data = await apiGet<any>(`/api/products?${url.searchParams.toString()}`).catch(()=> null)
+    const items = Array.isArray(data?.items)? data.items : []
+    
+    const sliceRaw = items.map((it:any)=> ({
         id: String(it.id),
         title: String(it.name||''),
         image: Array.isArray(it.images)&&it.images[0]? it.images[0] : '/images/placeholder-product.jpg',
@@ -667,212 +801,29 @@ function loadMoreProducts() {
         categoryIds: Array.isArray(it.categoryIds) ? it.categoryIds : undefined,
         _ratio: undefined,
         _imgLoaded: false
-      }))
-      // de-duplicate against existing products
-      const existing = new Set(products.value.map((p:any)=> String(p.id)))
-      const slice = sliceRaw.filter((p:any)=> !existing.has(String(p.id)))
-      if (slice.length){
-        // جس النسب قبل الإضافة لمنع أي قفزات لاحقة
+    }))
+    
+    const existing = new Set(products.value.map((p:any)=> String(p.id)))
+    const slice = sliceRaw.filter((p:any)=> !existing.has(String(p.id)))
+    
+    if (slice.length){
         await Promise.all(slice.map((p:any)=> probeRatioPromise(p)))
         products.value = products.value.concat(slice)
-        // اعتبر أن هناك المزيد فقط إذا حصلنا على عناصر جديدة بعد الاستبعاد
         hasMore.value = items.length >= pageSize
-        const nextPage = Math.floor(prev / pageSize) + 1
-        pageNumber.value = nextPage
-        try{ await fireListView(slice, nextPage) }catch{}
         try{ markTrending(products.value as any[]) }catch{}
         try{ await hydrateCouponsAndPrices() }catch{}
-      } else {
+    } else {
         hasMore.value = false
-      }
-    } finally {
-      isLoadingMore.value = false
-    }
-  })()
-}
-
-const visibleCategories = computed(()=> categories.value)
-const compactCategories = computed(()=> categories.value)
-
-// ===== تحميل بيانات الفئة والمنتجات =====
-function currentSlug(): string { try{ return String(route.params.slug||'') }catch{ return '' } }
-
-// Real child category IDs for the current category (to aggregate products from subcategories)
-const childCategoryIds = computed<string[]>(()=>{
-  try{
-    const cur = currentCategory.value
-    if (!cur) return []
-    const kids = allCategories.value.filter(c=> String(c.parentId||'')===cur.id)
-    return kids.map(c=> String(c.id))
-  }catch{ return [] }
-})
-
-
-
-async function loadCategories(){
-  // Fix category navigation
-  try{
-    const data = await apiGet<any>('/api/categories?limit=1000')
-    const list = Array.isArray(data?.categories)? data.categories : []
-    allCategories.value = list.map((c:any)=> ({ id:String(c.id), slug:c.slug||null, name:String(c.name||''), parentId: c.parentId? String(c.parentId) : null, image: c.image||null }))
-    const slug = currentSlug()
-    // Robust matching: check both ID and Slug
-    const cur = allCategories.value.find(c=> String(c.id)===slug || (c.slug && c.slug===slug)) || null
-    currentCategory.value = cur ? { id: cur.id, slug: cur.slug||undefined, name: cur.name } : null
-    
-    if (!cur) { categories.value = []; return }
-
-    // 1. Try to find children (Sub-categories)
-    let children = allCategories.value.filter(c=> String(c.parentId||'').trim() === String(cur.id).trim())
-    
-    // 2. If no children, show siblings (children of parent) to keep nav bar useful
-    if (children.length === 0 && cur.parentId) {
-       children = allCategories.value.filter(c=> String(c.parentId||'').trim() === String(cur.parentId).trim())
     }
 
-    const safeImg = (u?: string|null) => {
-      const s = String(u||'').trim()
-      if (!s || s.startsWith('blob:')) return '/images/placeholder-product.jpg'
-      return buildThumbUrl(s, 112, 60)
-    }
-    categories.value = children.map(c=> ({
-      id: c.slug||c.id,
-      label: c.name,
-      img: safeImg(c.image)
-    }))
-  }catch{ allCategories.value = []; currentCategory.value = null; categories.value = [] }
-}
-
-function mapSort(): string {
-  if (activeFilter.value==='price') return priceSort.value==='asc' ? 'price_asc' : 'price_desc'
-  // popular/recommend fall back to backend default
-  return 'reco'
-}
-
-async function loadProducts(limit: number = 10){
-  try{
-    productsLoading.value = true
-    const slug = currentSlug()
-    const sort = mapSort()
-    const kids = childCategoryIds.value
-    let items: any[] = []
-    
-    // Always use /api/products for consistent filtering by categoryIds
-    const url = new URL(`${API_BASE}/api/products`)
-    url.searchParams.set('limit', String(limit))
-    url.searchParams.set('offset', '0')
-    if (sort) url.searchParams.set('sort', sort)
-    
-    // Construct categoryIds:
-    // 1. If we have kids (Parent Category), include them + current.
-    // 2. If no kids (Leaf Category), just use current.
-    // This ensures we get EXACTLY what we want, not "all products from parent" when on a leaf.
-    const allIds = kids.length > 0 
-      ? [...kids, currentCategory.value?.id].filter(Boolean)
-      : [currentCategory.value?.id].filter(Boolean)
-      
-    if (allIds.length) url.searchParams.set('categoryIds', allIds.join(','))
-    
-    const q = String(searchQ.value||'').trim(); if(q) url.searchParams.set('q', q)
-    if (selSizes.value.length) url.searchParams.set('sizes', selSizes.value.join(','))
-    if (selColors.value.length) url.searchParams.set('colors', selColors.value.join(','))
-    if (selMaterials.value.length) url.searchParams.set('materials', selMaterials.value.join(','))
-    if (selStyles.value.length) url.searchParams.set('styles', selStyles.value.join(','))
-    try{ const ex = Array.from(new Set(products.value.map((p:any)=> String(p.id)))).slice(0,200); if (ex.length) url.searchParams.set('excludeIds', ex.join(',')) }catch{}
-    
-    const data = await apiGet<any>(`/api/products?${url.searchParams.toString()}`).catch(()=> null)
-    items = Array.isArray(data?.items)? data.items : []
-    const mappedRaw = items.map((it:any)=> ({
-      id: String(it.id),
-      title: String(it.name||''),
-      image: Array.isArray(it.images)&&it.images[0]? it.images[0] : '/images/placeholder-product.jpg',
-      images: Array.isArray(it.images)? it.images : [],
-      basePrice: Number(it.price||0).toFixed(2),
-      brand: it.brand||'',
-      discountPercent: typeof it.discountPercent==='number'? it.discountPercent : undefined,
-      bestRank: typeof it.bestRank==='number'? it.bestRank : undefined,
-      bestRankCategory: it.bestRankCategory || undefined,
-      couponPrice: undefined,
-      categoryIds: Array.isArray(it.categoryIds) ? it.categoryIds : undefined,
-      soldPlus: it.soldPlus || undefined,
-      overlayBannerSrc: it.overlayBannerSrc || undefined,
-      overlayBannerAlt: it.overlayBannerAlt || undefined,
-      _ratio: undefined,
-      _imgLoaded: false
-    }))
-    // de-duplicate by id
-    const seen: Record<string, boolean> = {}
-    const mapped = mappedRaw.filter((p:any)=>{ const k=String(p.id); if (seen[k]) return false; seen[k]=true; return true })
-    // جس النسب قبل العرض لضمان أن الهيكل يطابق الصورة
-    await Promise.all(mapped.slice(0, limit).map((p:any)=> probeRatioPromise(p)))
-    products.value = mapped
-    try{ markTrending(products.value as any[]) }catch{}
-    // جس لاحق لأي عناصر إضافية خارج أول دفعة إن لزم
-    setTimeout(()=>{ try{ for (const p of products.value.slice(limit, limit*2)){ probeRatioOnce(p) } }catch{} }, 0)
-    hasMore.value = items.length >= limit
-    try{ await hydrateCouponsAndPrices() }catch{}
-    try{
-      pageNumber.value = 1;
-      await fireListView(products.value.slice(0, Math.min(24, products.value.length)), 1)
-    }catch{}
-  }catch{ products.value = []; hasMore.value = false }
-  finally { productsLoading.value = false }
+  } finally {
+    isLoadingMore.value = false
+  }
 }
 
 async function bootstrap(){ await loadCategories(); await loadProducts() }
 
-watch(()=> route.params.slug, ()=>{ void bootstrap() })
-
-// ====== ذاكرة الصفحة (جلسة المتصفح) للحفاظ على المكان والبيانات ======
-function cacheKey(slug?: string){ const s = String(slug ?? currentSlug()); return `cat:${s}:v1` }
-function saveCache(){
-  try{
-    const key = cacheKey()
-    const data = {
-      products: products.value,
-      hasMore: hasMore.value,
-      pageNumber: pageNumber.value,
-      activeFilter: activeFilter.value,
-      priceSort: priceSort.value,
-      selSizes: selSizes.value,
-      selColors: selColors.value,
-      selMaterials: selMaterials.value,
-      selStyles: selStyles.value,
-      searchQ: searchQ.value,
-      scrollY: window.scrollY || 0,
-    }
-    sessionStorage.setItem(key, JSON.stringify(data))
-  }catch{}
-}
-function restoreCache(){
-  try{
-    const key = cacheKey()
-    const raw = sessionStorage.getItem(key)
-    if (!raw) return false
-    const j = JSON.parse(raw)
-    if (!j || !Array.isArray(j.products)) return false
-    products.value = j.products
-    hasMore.value = !!j.hasMore
-    pageNumber.value = Number(j.pageNumber||1)
-    activeFilter.value = j.activeFilter || 'recommend'
-    priceSort.value = j.priceSort || null
-    selSizes.value = Array.isArray(j.selSizes)? j.selSizes : []
-    selColors.value = Array.isArray(j.selColors)? j.selColors : []
-    selMaterials.value = Array.isArray(j.selMaterials)? j.selMaterials : []
-    selStyles.value = Array.isArray(j.selStyles)? j.selStyles : []
-    searchQ.value = String(j.searchQ||'')
-    productsLoading.value = false
-    setTimeout(()=>{ try{ window.scrollTo(0, Number(j.scrollY||0)) }catch{} }, 0)
-    return true
-  }catch{ return false }
-}
-async function restoreFromCacheOrBootstrap(){
-  if (!restoreCache()){
-    await bootstrap()
-  }
-}
-
-// ===== كوبونات وتطبيق السعر بعد الخصم على البطاقات =====
+// Coupons Logic
 type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
 const couponsCache = ref<SimpleCoupon[]>([])
 const couponsCacheTs = ref(0)
@@ -936,7 +887,7 @@ function eligibleByTokens(prod: any, c: SimpleCoupon): boolean {
 }
 
 async function ensureProductMeta(p:any): Promise<any> {
-  if (p.categoryId!=null && Array.isArray(p.categoryIds)) return p
+  if (p.categoryId!=null) return p
   try{
     const d = await apiGet<any>(`/api/product/${encodeURIComponent(p.id)}`)
     if (d){ 
@@ -975,107 +926,15 @@ async function computeCouponPrices(list:any[]){
   }
 }
 
-// ===== Tracking helper: ViewCategory / ProductListView =====
-async function fireListView(list:any[], page:number){
-  try{
-    if (!Array.isArray(list) || !list.length) return
-    const { trackEvent } = await import('../../lib/track')
-    const categoryName = String(currentCategory.value?.name || currentSlug() || '').trim()
-    const contents = list.map((p:any, i:number)=> ({
-      id: String(p.id),
-      item_price: Number(String(p.basePrice||'0').replace(/[^0-9.]/g,''))||0,
-      quantity: 1,
-      position: i + 1,
-      page_number: page
-    }))
-    const ids = contents.map(c=> c.id)
-    await trackEvent('ViewCategory', {
-      content_ids: ids,
-      content_type: 'product_group',
-      contents,
-      currency: (window as any).__CURRENCY_CODE__||'YER'
-    })
-  }catch{}
-}
+const visibleCategories = computed(()=> categories.value)
+const compactCategories = computed(()=> categories.value)
 
-// ===== صور مصغرة مستجيبة =====
-function thumb(u: string): string {
-  return buildThumbUrl(u, 384, 60)
-}
-
-// ===== خيارات المنتج (إضافة للسلة من البطاقة) =====
-const optionsModal = reactive<{ open: boolean; productId: string; color: string; size: string; groupValues: Record<string, string> }>({
-  open: false, productId: '', color: '', size: '', groupValues: {}
-})
-const optionsProduct = ref<any|null>(null)
-const requireOptionsNotice = ref(false)
-const toast = ref(false)
-const toastText = ref('تمت الإضافة إلى السلة')
-function showToast(msg?: string){ try{ if(msg) toastText.value = msg }catch{}; toast.value = true; setTimeout(()=>{ toast.value=false; try{ toastText.value='تمت الإضافة إلى السلة' }catch{} }, 1200) }
-
-async function fetchProductDetails(id: string){
-  try{
-    const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`)
-    const imgs = Array.isArray(d.images)? d.images : []
-    const filteredImgs = imgs.filter((u:string)=> /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
-    const galleries = Array.isArray(d.colorGalleries) ? d.colorGalleries : []
-    const colors = galleries.map((g:any)=> ({ label: String(g.name||'').trim(), img: (g.primaryImageUrl || (Array.isArray(g.images)&&g.images[0]) || filteredImgs[0] || '/images/placeholder-product.jpg') })).filter((c:any)=> !!c.label)
-    const sizes: string[] = Array.isArray(d.sizes)? d.sizes: []
-    const letters = sizes.filter((s:string)=> /^(xxs|xs|s|m|l|xl|2xl|3xl|4xl|5xl)$/i.test(String(s)))
-    const numbers = sizes.filter((s:string)=> /^\\d{1,3}$/.test(String(s)))
-    const sizeGroups: Array<{label:string; values:string[]}> = []
-    if (letters.length) sizeGroups.push({ label:'مقاسات بالأحرف', values: letters })
-    if (numbers.length) sizeGroups.push({ label:'مقاسات بالأرقام', values: numbers })
-    optionsProduct.value = { id: d.id||id, title: d.name||'', price: Number(d.price||0), images: filteredImgs.length? filteredImgs: ['/images/placeholder-product.jpg'], colors, sizes, sizeGroups, colorGalleries: galleries }
-  }catch{ optionsProduct.value = { id, title:'', price:0, images: ['/images/placeholder-product.jpg'], colors: [], sizes: [], sizeGroups: [] } }
-}
-
-async function openSuggestOptions(id: string){
-  try{
-    const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`)
-    const galleries = Array.isArray(d?.colorGalleries) ? d.colorGalleries : []
-    const colorsCount = galleries.filter((g:any)=> String(g?.name||'').trim()).length
-    const hasColors = colorsCount > 1
-    const sizesArr = Array.isArray(d?.sizes) ? (d.sizes as any[]).filter((s:any)=> typeof s==='string' && String(s).trim()) : []
-    const variantsHasSize = Array.isArray(d?.variants) && d.variants.some((v:any)=> !!v?.size || /size|مقاس/i.test(String(v?.name||'')))
-    const hasSizes = (new Set(sizesArr.map((s:string)=> s.trim().toLowerCase()))).size > 1 || (!!variantsHasSize && (sizesArr.length>1))
-    if (!hasColors && !hasSizes){
-      const p = products.value.find(x=> String(x.id)===String(id))
-      if (p){ cart.add({ id: String(p.id), title: String(p.title), price: Number(String(p.basePrice||'0').replace(/[^0-9.]/g,''))||0, img: (Array.isArray(p.images)&&p.images[0]) || p.image || '/images/placeholder-product.jpg' }, 1); showToast() }
-      return
-    }
-  }catch{}
-  optionsModal.productId = id
-  optionsModal.color = ''
-  optionsModal.size = ''
-  optionsModal.groupValues = {}
-  optionsModal.open = true
-  await fetchProductDetails(id)
-}
-function closeOptions(){ optionsModal.open = false }
-function onOptionsSave(payload: { color: string; size: string }){
-  try{
-    const prod = optionsProduct.value
-    const groups = Array.isArray(prod?.sizeGroups) ? prod!.sizeGroups : []
-    if (groups.length){
-      const composite = String(payload.size||'')
-      const missing = groups.some((g:any)=> !new RegExp(`(?:^|\\|)${g.label}:[^|]+`).test(composite))
-      if (missing){ requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value=false, 2000); return }
-    } else {
-      const hasSizes = Array.isArray(prod?.sizes) && prod!.sizes.length>0
-      if (hasSizes && !String(payload.size||'').trim()){ requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value=false, 2000); return }
-    }
-    const img = (prod?.images && prod.images[0]) || '/images/placeholder-product.jpg'
-    cart.add({ id: prod?.id || optionsModal.productId, title: prod?.title || '', price: Number(prod?.price||0), img, variantColor: payload.color||undefined, variantSize: payload.size||undefined }, 1)
-    showToast()
-  }catch{}
-  optionsModal.open = false
-}
 </script>
+
 <style scoped>
 .product-grid{column-gap:5px!important;row-gap:0!important}
-.no-scrollbar{ -ms-overflow-style: none; scrollbar-width: none }
-.no-scrollbar::-webkit-scrollbar{ display: none }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
 
 .category-title {
   display: -webkit-box;
