@@ -44,22 +44,7 @@
     </nav>
 
     <!-- أثناء تحديد التبويب والانتقال إليه، اعرض هيكل عظمي -->
-    <div v-if="redirecting" class="px-0" :style="{ marginTop: layoutTop }">
-      <div class="layout" :style="{ height: layoutHeight }">
-        <aside class="side">
-          <div v-for="i in 8" :key="'sk-side-'+i" class="h-8 rounded bg-gray-200 animate-pulse mb-2" />
-        </aside>
-        <main class="main">
-          <div class="grid">
-            <div v-for="i in 12" :key="'sk-circ-'+i" class="cell">
-              <div class="w-20 h-20 bg-gray-200 rounded-full animate-pulse" />
-              <div class="name"><span class="inline-block w-16 h-3 bg-gray-200 rounded mt-2"></span></div>
-            </div>
-          </div>
-        </main>
-      </div>
-    </div>
-    <div v-else class="layout" :style="{ marginTop: layoutTop, height: layoutHeight }">
+    <div class="layout" :style="{ marginTop: layoutTop, height: layoutHeight }">
       <!-- Sidebar -->
       <aside v-if="showSidebar" class="side">
         <button 
@@ -124,27 +109,31 @@
           </div>
         </div>
         <div v-else class="grid">
-          <a v-for="c in displayedCategories" :key="c.id" class="cell" :href="`/c/${encodeURIComponent(c.id)}`" @click="trackCategoryClick(c)">
+          <div 
+            v-for="c in displayedCategories" 
+            :key="c.id" 
+            class="cell cursor-pointer" 
+            @click="go(`/c/${encodeURIComponent(c.id)}`); trackCategoryClick(c)"
+          >
             <img :src="thumb(c.image, 160)" :alt="c.name" loading="lazy" />
             <div class="name">{{ c.name }}</div>
             <div v-if="c.badge" class="badge">{{ c.badge }}</div>
-          </a>
+          </div>
         </div>
 
         <!-- Suggestions Section -->
         <template v-if="activeSuggestions.length">
           <h3 class="ttl2">{{ activeSuggestionsTitle }}</h3>
           <div class="grid suggestions">
-            <a 
+            <div 
               v-for="(sug, idx) in activeSuggestions" 
               :key="idx" 
-              class="cell"
-              :href="`/c/${encodeURIComponent(sug.id)}`"
-              @click="trackSuggestionClick(sug)"
+              class="cell cursor-pointer"
+              @click="go(`/c/${encodeURIComponent(sug.id)}`); trackSuggestionClick(sug)"
             >
               <img :src="thumb(sug.image, 180)" :alt="sug.name" loading="lazy" />
               <div class="name">{{ sug.name }}</div>
-            </a>
+            </div>
           </div>
         </template>
       </main>
@@ -156,6 +145,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'CategoriesIndex' })
 import BottomNav from '@/components/BottomNav.vue'
 import Icon from '@/components/Icon.vue'
 import { ref, onMounted, computed, watch } from 'vue'
@@ -262,90 +252,11 @@ const sidebarItems = computed<SidebarItem[]>(()=>{
   if (tabSide) return tabSide.map((s:any)=> ({ label: String(s.label||''), icon: s.icon, href: s.href }))
   const arr = Array.isArray(catConfig.value?.sidebar)? catConfig.value.sidebar : null
   if (arr) return arr.map((s:any)=> ({ label: String(s.label||''), icon: s.icon, tab: s.tabKey||s.tab, href: s.href }))
-  return [
-    { label: 'لأحلامكم فقط', icon: '✨' },
-    { label: 'جديد في', icon: '🆕', tab: 'all' },
-    { label: 'تخفيض الأسعار', icon: '🔥' },
-    { label: 'ملابس نسائية', icon: '👗', tab: 'women' },
-    { label: 'إلكترونيات', icon: '📱' },
-    { label: 'أحذية', icon: '👟' },
-    { label: 'الملابس الرجالية', icon: '👔', tab: 'men' },
-    { label: 'الأطفال', icon: '👶', tab: 'kids' },
-    { label: 'المنزل والمطبخ', icon: '🏠', tab: 'home' },
-    { label: 'ملابس داخلية، وملابس نوم', icon: '🛏️' },
-    { label: 'مقاسات كبيرة', icon: '➕', tab: 'plus' },
-    { label: 'مجوهرات وإكسسوارات', icon: '💎' },
-    { label: 'الأطفال والأمومة', icon: '🍼' },
-    { label: 'الرياضة والأنشطة الخارجية', icon: '⚽' },
-    { label: 'الصحة والجمال', icon: '💄', tab: 'beauty' },
-    { label: 'الحقائب والأمتعة', icon: '👜' },
-    { label: 'منسوجات منزلية', icon: '🛋️' },
-    { label: 'هواتف خليوية وإكسسوارات', icon: '📱' },
-    { label: 'الألعاب', icon: '🎮' },
-    { label: 'أدوات وتحسين المنزل', icon: '🔧' },
-    { label: 'مستلزمات مكتبية ومدرسية', icon: '📚' },
-    { label: 'أجهزة', icon: '⚙️' },
-    { label: 'السيارات', icon: '🚗' },
-    { label: 'مستلزمات الحيوانات الأليفة', icon: '🐾' }
-  ]
+  return []
 })
 
 // Hierarchical category structure (fallback)
-const categoryHierarchy: Record<string, Cat[]> = {
-  women: [
-    { id: 'women-new', name: 'الجديد في', image: 'https://csspicker.dev/api/image/?q=new+women+fashion&image_type=photo', badge: 'جديد' },
-    { id: 'women-dresses', name: 'فساتين', image: 'https://csspicker.dev/api/image/?q=dresses&image_type=photo' },
-    { id: 'women-long-dresses', name: 'فساتين طويلة', image: 'https://csspicker.dev/api/image/?q=long+dresses&image_type=photo' },
-    { id: 'women-tops', name: 'ملابس علوية', image: 'https://csspicker.dev/api/image/?q=women+tops&image_type=photo' },
-    { id: 'women-tshirts', name: 'تي شيرتات', image: 'https://csspicker.dev/api/image/?q=women+tshirts&image_type=photo' },
-    { id: 'women-blouses', name: 'بلايز', image: 'https://csspicker.dev/api/image/?q=blouses&image_type=photo' },
-    { id: 'women-bottoms', name: 'ملابس سفلية', image: 'https://csspicker.dev/api/image/?q=women+bottoms&image_type=photo' },
-    { id: 'women-skirts', name: 'تنانير', image: 'https://csspicker.dev/api/image/?q=skirts&image_type=photo' },
-    { id: 'women-pants', name: 'بناطيل', image: 'https://csspicker.dev/api/image/?q=women+pants&image_type=photo' },
-    { id: 'women-knits', name: 'منسوجة', image: 'https://csspicker.dev/api/image/?q=knit+wear&image_type=photo' },
-    { id: 'women-sweaters', name: 'سويترات', image: 'https://csspicker.dev/api/image/?q=sweaters&image_type=photo' },
-    { id: 'women-sets', name: 'أطقم منسقة', image: 'https://csspicker.dev/api/image/?q=matching+sets&image_type=photo' }
-  ],
-  men: [
-    { id: 'men-new', name: 'جديد رجالي', image: 'https://csspicker.dev/api/image/?q=men+fashion+new&image_type=photo', badge: 'جديد' },
-    { id: 'men-shirts', name: 'قمصان', image: 'https://csspicker.dev/api/image/?q=men+shirts&image_type=photo' },
-    { id: 'men-tshirts', name: 'تيشيرتات', image: 'https://csspicker.dev/api/image/?q=men+tshirts&image_type=photo' },
-    { id: 'men-pants', name: 'بناطيل', image: 'https://csspicker.dev/api/image/?q=men+pants&image_type=photo' },
-    { id: 'men-hoodies', name: 'هوديز', image: 'https://csspicker.dev/api/image/?q=men+hoodies&image_type=photo' },
-    { id: 'men-jackets', name: 'جاكيتات', image: 'https://csspicker.dev/api/image/?q=men+jackets&image_type=photo' },
-    { id: 'men-shoes', name: 'أحذية رجالية', image: 'https://csspicker.dev/api/image/?q=men+shoes&image_type=photo' },
-    { id: 'men-accessories', name: 'إكسسوارات رجالية', image: 'https://csspicker.dev/api/image/?q=men+accessories&image_type=photo' }
-  ],
-  kids: [
-    { id: 'kids-new', name: 'جديد أطفال', image: 'https://csspicker.dev/api/image/?q=kids+fashion+new&image_type=photo', badge: 'جديد' },
-    { id: 'kids-girls', name: 'ملابس بنات', image: 'https://csspicker.dev/api/image/?q=girls+clothing&image_type=photo' },
-    { id: 'kids-boys', name: 'ملابس أولاد', image: 'https://csspicker.dev/api/image/?q=boys+clothing&image_type=photo' },
-    { id: 'kids-baby', name: 'ملابس رضع', image: 'https://csspicker.dev/api/image/?q=baby+clothing&image_type=photo' },
-    { id: 'kids-shoes', name: 'أحذية أطفال', image: 'https://csspicker.dev/api/image/?q=kids+shoes&image_type=photo' },
-    { id: 'kids-toys', name: 'ألعاب', image: 'https://csspicker.dev/api/image/?q=kids+toys&image_type=photo' }
-  ],
-  plus: [
-    { id: 'plus-women', name: 'مقاسات كبيرة نساء', image: 'https://csspicker.dev/api/image/?q=plus+size+women&image_type=photo' },
-    { id: 'plus-men', name: 'مقاسات كبيرة رجال', image: 'https://csspicker.dev/api/image/?q=plus+size+men&image_type=photo' },
-    { id: 'plus-dresses', name: 'فساتين واسعة', image: 'https://csspicker.dev/api/image/?q=plus+size+dresses&image_type=photo' },
-    { id: 'plus-activewear', name: 'ملابس رياضية', image: 'https://csspicker.dev/api/image/?q=plus+size+activewear&image_type=photo' }
-  ],
-  home: [
-    { id: 'home-decor', name: 'ديكور منزلي', image: 'https://csspicker.dev/api/image/?q=home+decor&image_type=photo' },
-    { id: 'home-kitchen', name: 'أدوات مطبخ', image: 'https://csspicker.dev/api/image/?q=kitchen+tools&image_type=photo' },
-    { id: 'home-bedding', name: 'مفروشات', image: 'https://csspicker.dev/api/image/?q=bedding&image_type=photo' },
-    { id: 'home-pets', name: 'مستلزمات حيوانات', image: 'https://csspicker.dev/api/image/?q=pet+supplies&image_type=photo' },
-    { id: 'home-storage', name: 'تخزين وتنظيم', image: 'https://csspicker.dev/api/image/?q=storage+organization&image_type=photo' }
-  ],
-  beauty: [
-    { id: 'beauty-makeup', name: 'مكياج', image: 'https://csspicker.dev/api/image/?q=makeup&image_type=photo' },
-    { id: 'beauty-skincare', name: 'العناية بالبشرة', image: 'https://csspicker.dev/api/image/?q=skincare&image_type=photo' },
-    { id: 'beauty-haircare', name: 'العناية بالشعر', image: 'https://csspicker.dev/api/image/?q=haircare&image_type=photo' },
-    { id: 'beauty-fragrance', name: 'عطور', image: 'https://csspicker.dev/api/image/?q=perfume&image_type=photo' },
-    { id: 'beauty-nails', name: 'العناية بالأظافر', image: 'https://csspicker.dev/api/image/?q=nail+care&image_type=photo' },
-    { id: 'beauty-tools', name: 'أدوات تجميل', image: 'https://csspicker.dev/api/image/?q=beauty+tools&image_type=photo' }
-  ]
-}
+const categoryHierarchy: Record<string, Cat[]> = {}
 
 // Suggestions data
 const suggestions = ref<Cat[]>([])
@@ -631,26 +542,7 @@ onMounted(async () => {
     }))
   } else {
     // Fallback with mixed categories
-    cats.value = [
-      ...Array.from({ length: 6 }).map((_, i) => ({ 
-        id: `women-${i}`, 
-        name: `فئة نسائية ${i + 1}`, 
-        image: `https://csspicker.dev/api/image/?q=women+fashion+${i}&image_type=photo`,
-        categoryType: 'women'
-      })),
-      ...Array.from({ length: 4 }).map((_, i) => ({ 
-        id: `men-${i}`, 
-        name: `فئة رجالية ${i + 1}`, 
-        image: `https://csspicker.dev/api/image/?q=men+fashion+${i}&image_type=photo`,
-        categoryType: 'men'
-      })),
-      ...Array.from({ length: 3 }).map((_, i) => ({ 
-        id: `kids-${i}`, 
-        name: `فئة أطفال ${i + 1}`, 
-        image: `https://csspicker.dev/api/image/?q=kids+fashion+${i}&image_type=photo`,
-        categoryType: 'kids'
-      }))
-    ]
+    cats.value = []
   }
   loading.value = false
   
@@ -658,14 +550,7 @@ onMounted(async () => {
   try{
     if (Array.isArray(catConfig.value?.suggestions)) suggestions.value = catConfig.value?.suggestions
     else if (Array.isArray(catConfig.value?.suggestions?.items)) suggestions.value = catConfig.value?.suggestions?.items
-    else suggestions.value = [
-      { id: 'sug-accessories', name: 'إكسسوارات عصرية', image: 'https://csspicker.dev/api/image/?q=fashion+accessories&image_type=photo' },
-      { id: 'sug-kids', name: 'ملابس أطفال مريحة', image: 'https://csspicker.dev/api/image/?q=kids+comfortable+clothing&image_type=photo' },
-      { id: 'sug-sports', name: 'معدات رياضية', image: 'https://csspicker.dev/api/image/?q=sports+equipment&image_type=photo' },
-      { id: 'sug-bags', name: 'حقائب أنيقة', image: 'https://csspicker.dev/api/image/?q=stylish+bags&image_type=photo' },
-      { id: 'sug-shoes', name: 'أحذية مريحة', image: 'https://csspicker.dev/api/image/?q=comfortable+shoes&image_type=photo' },
-      { id: 'sug-jewelry', name: 'مجوهرات', image: 'https://csspicker.dev/api/image/?q=jewelry&image_type=photo' }
-    ]
+    else suggestions.value = []
   }catch{}
 
   // Show promo popup from config

@@ -272,26 +272,31 @@ function saveState(){
     }
   }catch{}
 }
-function restoreState(): boolean {
+function getSavedState(): any {
   try{
     const s = (window as any)[STATE_KEY]
     if (s && Array.isArray(s.products) && s.products.length > 0){
-      products.value = s.products
-      hasMore.value = s.hasMore
-      mode.value = s.mode
-      // Restore scroll position slightly delayed to allow layout
-      setTimeout(()=> window.scrollTo(0, s.scrollY || 0), 100)
-      return true
+      return s
     }
   }catch{}
-  return false
+  return null
+}
+
+// Synchronous restore attempt
+const saved = getSavedState()
+if (saved) {
+  products.value = saved.products
+  hasMore.value = saved.hasMore
+  mode.value = saved.mode
+  isLoading.value = false
 }
 
 onMounted(()=>{ 
-  if (!restoreState()) {
-    loadRecommendations(); 
+  if (saved) {
+    // Restore scroll position slightly delayed to allow layout
+    setTimeout(()=> window.scrollTo(0, saved.scrollY || 0), 100)
   } else {
-    isLoading.value = false
+    loadRecommendations(); 
   }
   try{ window.addEventListener('scroll', onWinScroll, { passive:true }) }catch{} 
 })
