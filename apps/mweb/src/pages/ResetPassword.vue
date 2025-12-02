@@ -98,7 +98,8 @@ const loading = ref(false)
 const errorMessage = ref('')
 
 const isValid = computed(() => {
-  return newPassword.value.length >= 8 && newPassword.value === confirmPassword.value
+  // Allow button click to show errors
+  return true
 })
 
 function goBack() {
@@ -106,13 +107,23 @@ function goBack() {
 }
 
 async function submit() {
-  if (!isValid.value) return
+  errorMessage.value = ''
   
+  if (!newPassword.value) {
+    errorMessage.value = 'الرجاء إدخال كلمة المرور الجديدة'
+    return
+  }
+
   if (newPassword.value.length < 8) {
     errorMessage.value = 'كلمة المرور يجب أن تكون 8 أحرف على الأقل'
     return
   }
   
+  if (!confirmPassword.value) {
+    errorMessage.value = 'الرجاء تأكيد كلمة المرور'
+    return
+  }
+
   if (newPassword.value !== confirmPassword.value) {
     errorMessage.value = 'كلمتا المرور غير متطابقتين'
     return
@@ -122,6 +133,7 @@ async function submit() {
   errorMessage.value = ''
 
   try {
+    // Note: In production, Nginx should proxy /trpc to the backend. In dev, Vite proxy handles it.
     const res = await fetch('/trpc/auth.setPassword', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

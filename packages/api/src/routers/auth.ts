@@ -121,13 +121,13 @@ export const authRouter = router({
       }
 
       if (!user) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid credentials' });
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'بيانات الدخول غير صحيحة' });
       }
 
       // Verify password
       const isValidPassword = await bcrypt.compare(password, user.password);
       if (!isValidPassword) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid credentials' });
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'بيانات الدخول غير صحيحة' });
       }
 
       // Generate JWT token and set cookie
@@ -238,7 +238,7 @@ export const authRouter = router({
       });
 
       if (!user) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'المستخدم غير موجود' });
       }
 
       return user;
@@ -293,13 +293,13 @@ export const authRouter = router({
       // Get user with password
       const user = await db.user.findUnique({ where: { id: ctx.user.userId }, select: { password: true } });
       if (!user) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'المستخدم غير موجود' });
       }
 
       // Verify current password
       const isValidPassword = await bcrypt.compare(currentPassword, user.password);
       if (!isValidPassword) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Current password is incorrect' });
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'كلمة المرور الحالية غير صحيحة' });
       }
 
       // Hash new password

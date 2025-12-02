@@ -117,6 +117,7 @@ const login = async () => {
 
   try {
     // Use phone-based login directly
+    // Note: In production, Nginx should proxy /trpc to the backend. In dev, Vite proxy handles it.
     const res = await fetch('/trpc/auth.login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
