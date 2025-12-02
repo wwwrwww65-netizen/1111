@@ -17,6 +17,13 @@ export default function RegisterPage(): JSX.Element {
     setError(null);
     try {
       await register.mutateAsync({ name, email, phone, password });
+      // After successful register, link anonymous session
+      try{
+        const sid = typeof window!=='undefined'? (localStorage.getItem('sid_v1')||'') : '';
+        if (sid){
+          await fetch('/api/analytics/link', { method:'POST', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ sessionId: sid }) });
+        }
+      }catch{}
       const dest = new URL('/account', window.location.origin).toString();
       window.location.assign(dest);
     } catch (e: any) {

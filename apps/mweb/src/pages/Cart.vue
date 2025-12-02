@@ -4,7 +4,7 @@
     <header class="w-full bg-white border-b border-gray-200 px-4 pt-3 pb-2">
       <div class="flex items-center justify-between">
         <!-- إذا كانت السلة ممتلئة - عرض تحديد الكل -->
-        <div v-if="items.length" class="flex items-center gap-1.5">
+        <div v-if="validItems.length" class="flex items-center gap-1.5">
           <button
             @click="toggleSelectAll"
             :class="`w-5 h-5 rounded-full border flex items-center justify-center ${
@@ -63,7 +63,7 @@
     <!-- المحتوى الرئيسي -->
     <main class="w-full flex-1">
       <!-- السلة الفارغة -->
-      <section v-if="!items.length" class="bg-white w-full flex flex-col items-center justify-center py-8 space-y-4">
+      <section v-if="!items.length && !hasOutOfStock" class="bg-white w-full flex flex-col items-center justify-center py-8 space-y-4">
         <!-- أيقونة السلة -->
         <div class="w-20 h-20 rounded-full bg-white border border-gray-300 flex items-center justify-center shadow-sm">
           <ShoppingCart class="w-10 h-10 text-gray-400" />
@@ -95,7 +95,7 @@
       <!-- السلة الممتلئة -->
       <div v-else class="space-y-1 pt-1">
         <!-- المنتجات في السلة -->
-        <section v-for="item in items" :key="item.uid" class="bg-white w-[99.5%] mx-auto rounded-[6px] border border-gray-200 p-2 flex items-start gap-2">
+        <section v-for="item in validItems" :key="item.uid" class="bg-white w-[99.5%] mx-auto rounded-[6px] border border-gray-200 p-2 flex items-start gap-2">
           <!-- Select item -->
           <button
             @click="toggleItem(item.uid)"
@@ -123,14 +123,18 @@
               class="inline-flex items-center gap-1 px-3 h-7 rounded-full bg-gray-100 text-[11px] text-gray-700 border border-gray-200"
               aria-label="تعديل اللون والمقاس"
             >
-              <span>{{ item.variantColor || '—' }} / {{ formatSizeForChip(item.variantSize) }}</span>
+              <span>{{ variantLabel(item.variantColor, item.variantSize) }}</span>
               <ChevronDown class="w-3.5 h-3.5 text-gray-500" />
             </button>
 
             <!-- Price & qty (qty on left) -->
             <div class="flex items-center justify-between">
-              <div class="text-[13px] text-[#8a1538] font-bold">
-                {{ fmtPrice(item.price) }}
+              <div>
+                <div class="text-[13px] text-[#8a1538] font-bold">{{ fmtPrice(item.price) }}</div>
+                <div v-if="afterOf(item) != null" class="mt-1 inline-flex items-center gap-1 px-2 h-6 rounded" style="background: rgba(250,99,56,.10)">
+                  <span class="text-[12px] font-extrabold" style="color:#fa6338">{{ fmtPrice(afterOf(item) || 0) }}</span>
+                  <span class="text-[10px]" style="color:#fa6338">/بعد الكوبون</span>
+                </div>
               </div>
               <div class="flex items-center gap-1.5">
                 <button v-if="item.qty > 1"
@@ -162,55 +166,31 @@
 
         <!-- بطاقة انتهى من المخزون + المنتجات غير صالحة -->
         <section v-if="hasOutOfStock" class="bg-white w-[99.5%] mx-auto rounded-[6px] border border-gray-200 p-3 space-y-3">
-          <!-- شريط تنبيه أعلى البطاقة -->
           <div class="w-full rounded-[6px] border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700 text-center">
             انتهى من المخزون والمنتجات غير صالحة
-            </div>
-
-          <!-- محتوى البطاقة -->
-          <div class="flex items-start gap-3">
-            <!-- صورة المنتج -->
+          </div>
+          <div v-for="item in oosItems" :key="'oos-'+item.uid" class="flex items-start gap-3">
             <div class="relative w-20 h-20 bg-gray-100 rounded-[6px] overflow-hidden shrink-0">
-              <img src="https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=200&auto=format&fit=crop" alt="منتج انتهى من المخزون" class="w-full h-full object-cover opacity-50" />
-              <div class="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-[11px] text-center py-0.5">تم البيع</div>
-            </div>
-
-            <!-- التفاصيل -->
-            <div class="flex-1 text-right space-y-2">
-              <div class="text-[13px] font-semibold text-gray-900 leading-5 opacity-60">
-                منتج انتهى من المخزون
+              <img :src="item.img" :alt="item.title" class="w-full h-full object-cover opacity-50" />
+              <div class="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-[11px] text-center py-0.5">
+                {{ statusOf(item.uid)==='invalid' ? 'غير صالح' : 'تم البيع' }}
               </div>
-
-              <!-- السعر والخصم -->
+            </div>
+            <div class="flex-1 text-right space-y-2">
+              <div class="text-[13px] font-semibold text-gray-900 leading-5 opacity-60 line-clamp-2">{{ item.title }}</div>
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2 opacity-60">
-                  <span class="text-[13px] font-bold text-[#8a1538]">{{ fmtPrice(9) }}</span>
-                  <span class="text-[12px] text-gray-500 line-through">{{ fmtPrice(20) }}</span>
-                  <span class="text-[11px] px-2 py-0.5 rounded-[4px] bg-rose-100 text-rose-700 border border-rose-200">
-                    55%
-                  </span>
+                  <span class="text-[13px] font-bold text-[#8a1538]">{{ fmtPrice(item.price) }}</span>
+                  <span v-if="item.variantColor || item.variantSize" class="text-[11px] text-gray-500">{{ variantLabel(item.variantColor, item.variantSize) }}</span>
                 </div>
-
-                <!-- أيقونات الإجراءات -->
                 <div class="flex items-center gap-2">
-                  <button class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center" aria-label="مشاركة">
-                    <Share2 class="w-4 h-4 text-gray-600" />
-                  </button>
-                  <button class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center" aria-label="إضافة للمفضلة">
-                    <Heart class="w-4 h-4 text-gray-600" />
-                  </button>
-                  <button class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center" aria-label="حذف">
+                  <button class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center" aria-label="حذف" @click="cart.remove(item.uid)">
                     <X class="w-4 h-4 text-gray-600" />
                   </button>
                 </div>
               </div>
-
-              <!-- زر منتجات مشابهة -->
               <div class="flex justify-start">
-                <button
-                  class="h-9 px-3 rounded-[6px] text-[12px] font-semibold border border-[#8a1538] text-[#8a1538] bg-white"
-                  aria-label="منتجات مشابهة"
-                >
+                <button class="h-9 px-3 rounded-[6px] text-[12px] font-semibold border border-[#8a1538] text-[#8a1538] bg-white" aria-label="منتجات مشابهة">
                   منتجات مشابهة
                 </button>
               </div>
@@ -228,23 +208,82 @@
 
       <!-- المنتجات المقترحة خارج الحاوية وبملء العرض، دون هوامش جانبية إضافية -->
       <div>
-        <div v-if="!suggested.length" class="text-center text-gray-500 text-[12px] py-4">لا توجد مقترحات حالياً</div>
-        <div v-else class="px-2 py-2">
-          <div class="columns-2 gap-1 [column-fill:_balance]">
-            <div v-for="(p,i) in suggested" :key="'sug-'+i" class="mb-1 break-inside-avoid">
-              <ProductGridCard 
-                :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice }"
-                @add="openSuggestOptions"
-              />
+        <!-- Skeleton grid أثناء التحميل -->
+        <div v-if="suggestedLoading" class="px-1 pb-1">
+          <div class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0">
+            <!-- يسار -->
+            <div>
+              <div v-for="i in sugSkLeft" :key="'sug-sk-l-'+i" class="mb-[6px]">
+                <div class="w-full border border-gray-200 rounded bg-white overflow-hidden border-t-0 border-b-0 border-l-0">
+                  <div class="relative w-full">
+                    <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[(i-1)%placeholderRatios.length] * 100) + '%' }"></div>
+                  </div>
+                  <div class="p-2">
+                    <div class="inline-flex items-center gap-1 mb-1">
+                      <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                      <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+                    </div>
+                    <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+                    <div class="w-24 h-3 bg-gray-200 rounded"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- يمين -->
+            <div>
+              <div v-for="i in sugSkRight" :key="'sug-sk-r-'+i" class="mb-[6px]">
+                <div class="w-full border border-gray-200 rounded bg-white overflow-hidden border-t-0 border-b-0 border-l-0">
+                  <div class="relative w-full">
+                    <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[(i-1)%placeholderRatios.length] * 100) + '%' }"></div>
+                  </div>
+                  <div class="p-2">
+                    <div class="inline-flex items-center gap-1 mb-1">
+                      <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                      <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+                    </div>
+                    <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+                    <div class="w-24 h-3 bg-gray-200 rounded"></div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+        </div>
+        <div v-else-if="!suggested.length" class="text-center text-gray-500 text-[12px] py-4">لا توجد مقترحات حالياً</div>
+        <div v-else class="px-1 pt-2 pb-1">
+          <div class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0">
+            <!-- يسار -->
+            <div>
+              <div v-for="(p,ci) in suggestedLeft" :key="'sug-l-'+ci" class="mb-[6px]">
+                <ProductGridCard 
+                  :class="'border-t-0 border-b-0 border-l-0'"
+                  :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges)&& (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
+                  :ratio="(p as any)._ratio || defaultRatio"
+                  @add="openSuggestOptions"
+                />
+              </div>
+            </div>
+            <!-- يمين -->
+            <div>
+              <div v-for="(p,ci) in suggestedRight" :key="'sug-r-'+ci" class="mb-[6px]">
+                <ProductGridCard 
+                  :class="'border-t-0 border-b-0 border-l-0'"
+                  :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges)&& (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
+                  :ratio="(p as any)._ratio || defaultRatio"
+                  @add="openSuggestOptions"
+                />
+              </div>
+            </div>
+          </div>
+          <div ref="sugLoadMoreSentinel" class="h-1"></div>
         </div>
       </div>
     </main>
 
     <!-- شريط الدفع السفلي - يظهر فقط عندما تكون السلة ممتلئة -->
-    <footer v-if="items.length" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 py-2 flex items-center justify-between z-50">
-      <div class="text-[14px] font-semibold text-gray-900">{{ fmtPrice(selectedTotal) }}</div>
+    <footer v-if="validItems.length" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 py-2 flex items-center justify-between z-50">
+      <div class="text-[12px] text-gray-500" v-if="effectiveDiscount>0">خصم مفعّل: -{{ fmtPrice(effectiveDiscount) }}</div>
+      <div class="text-[14px] font-semibold" style="color:#fa6338">كوبونات · {{ fmtPrice(totalAfterCoupons) }}</div>
       <button
         class="flex items-center justify-center px-3 h-9 rounded-[6px] text-[12px] font-semibold text-white bg-[#8a1538]"
         aria-label="الانتقال إلى الدفع"
@@ -259,7 +298,7 @@
       v-if="toast" 
       class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-black text-white text-[13px] px-4 py-2.5 rounded-lg shadow-lg z-50 flex items-center gap-2"
     >
-      <CheckCircle class="w-4 h-4 text-green-400" />
+      <Check class="w-4 h-4 text-green-400" />
       <span>{{ toastText }}</span>
     </div>
 
@@ -295,7 +334,7 @@
 import { storeToRefs } from 'pinia'
 import { useCart } from '@/store/cart'
 import { useRouter } from 'vue-router'
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted, onBeforeUnmount, watch } from 'vue'
 import { initCurrency, fmtPrice } from '@/lib/currency'
 import { 
   X, 
@@ -315,12 +354,14 @@ import {
 import ProductOptionsModal from '../components/ProductOptionsModal.vue'
 import ProductGridCard from '@/components/ProductGridCard.vue'
 import ProductCard from '@/components/ProductCard.vue'
+import { markTrending } from '@/lib/trending'
+import { buildThumbUrl } from '@/lib/media'
 
 const cart = useCart()
 const router = useRouter()
 const { items, total } = storeToRefs(cart)
 
-// عنوان الشحن الديناميكي
+// عنوان الشحن الديناميكي: إظهار المحافظة والمنطقة فقط
 const shippingAddress = ref('اليمن')
 const hasAnyAddress = ref(false)
 
@@ -328,9 +369,65 @@ const hasAnyAddress = ref(false)
 const selectedItems = ref<string[]>([])
 const selectAll = ref(false)
 const menuOpen = ref(false)
-const hasOutOfStock = ref(true)
+const hasOutOfStock = ref(false)
+const oosMap = ref<Record<string,'oos'|'invalid'>>({})
+const validItems = computed(()=> items.value.filter(i=> !oosMap.value[i.uid]))
+const oosItems = computed(()=> items.value.filter(i=> !!oosMap.value[i.uid]))
+function statusOf(uid: string){ return oosMap.value[uid] }
 const isLoggedIn = ref(false)
-const suggested = ref<Array<{ id:string; title:string; image:string; images?: string[]; imagesNormalized?: string[]; price:number; brand?:string; colors?: string[]; colorCount?: number; discountPercent?: number; soldPlus?: string; bestRank?: number; bestRankCategory?: string; couponPrice?: string }>>([])
+const suggestedLoading = ref(true)
+const placeholderRatios = [1.2, 1.5, 1.35, 1.1, 1.4, 1.25, 1.6, 1.3]
+const defaultRatio = 1.3
+const suggested = ref<Array<{ id:string; title:string; image:string; images?: string[]; imagesNormalized?: string[]; price:number; brand?:string; colors?: string[]; colorCount?: number; discountPercent?: number; soldPlus?: string; bestRank?: number; bestRankCategory?: string; couponPrice?: string; _ratio?: number }>>([])
+const suggestedLeft = computed(()=> suggested.value.filter((_p,i)=> i%2===0))
+const suggestedRight = computed(()=> suggested.value.filter((_p,i)=> i%2===1))
+const sugSkLeft = computed(()=> Array.from({ length:10 }, (_,k)=> k+1).filter(i=> i%2===1))
+const sugSkRight = computed(()=> Array.from({ length:10 }, (_,k)=> k+1).filter(i=> i%2===0))
+const suggestedHasMore = ref(true)
+const suggestedLoadingMore = ref(false)
+function thumbSrcSug(p:any, w:number): string {
+  const u = (Array.isArray(p.imagesNormalized)&&p.imagesNormalized[0]) || p.image
+  return buildThumbUrl(String(u||''), w, 60)
+}
+// (grid-cols-2 يضبط العرض بدقة؛ لا حاجة لتقسيم يدوي)
+// ===== Cache helpers (session) =====
+function saveCartCache(){
+  try{
+    sessionStorage.setItem('cart:scrollY', String(window.scrollY||0))
+    sessionStorage.setItem('cart:suggest', JSON.stringify(suggested.value||[]))
+  }catch{}
+}
+function restoreCartCache(): boolean{
+  try{
+    const raw = sessionStorage.getItem('cart:suggest')
+    if (raw){
+      const list = JSON.parse(raw)||[]
+      if (Array.isArray(list) && list.length){
+        suggested.value = list
+        suggestedLoading.value = false
+      }
+    }
+    const sy = Number(sessionStorage.getItem('cart:scrollY')||'0')
+    if (sy>0) setTimeout(()=>{ try{ window.scrollTo(0, sy) }catch{} }, 0)
+    return true
+  }catch{ return false }
+}
+onMounted(()=>{ try{ restoreCartCache() }catch{} })
+onBeforeUnmount(()=>{ try{ saveCartCache() }catch{} })
+function probeRatioPromise(p:any): Promise<void>{
+  return new Promise((resolve)=>{
+    try{
+      if (p._ratio){ resolve(); return }
+      const u = thumbSrcSug(p, 64)
+      const img = new Image()
+      ;(img as any).loading = 'eager'
+      ;(img as any).decoding = 'async'
+      img.onload = ()=>{ try{ const w=(img as any).naturalWidth||64; const h=(img as any).naturalHeight||64; if (w>0&&h>0) p._ratio=h/w }catch{} finally{ resolve() } }
+      img.onerror = ()=> resolve()
+      img.src = u
+    }catch{ resolve() }
+  })
+}
 
 // Modal state
 const optionsModal = reactive({
@@ -359,13 +456,29 @@ const enhancedItems = computed(() => {
 })
 
 // حساب الإجمالي للمنتجات المحددة
-const selectedTotal = computed(() => {
+const selectedSubtotal = computed(() => {
   return selectedItems.value.reduce((sum, uid) => {
     const item = items.value.find(i => i.uid === uid)
     if (!item) return sum
+    if (oosMap.value[item.uid]) return sum
     return sum + item.price * item.qty
   }, 0)
 })
+const effectiveTotal = ref<number>(0)
+const effectiveDiscount = ref<number>(0)
+async function refreshEffectivePricing(){
+  try{
+    const { apiPost } = await import('@/lib/api')
+    const itemsPayload = selectedItems.value.map(uid=>{ const it = items.value.find(i=> i.uid===uid); return it? { id: it.id, qty: it.qty } : null }).filter(Boolean)
+    const j = await apiPost('/api/pricing/effective', { items: itemsPayload })
+    effectiveTotal.value = Number((j as any)?.total||selectedSubtotal.value)
+    effectiveDiscount.value = Number((j as any)?.discount||0)
+  }catch{ effectiveTotal.value = selectedSubtotal.value; effectiveDiscount.value = 0 }
+}
+watch([selectedItems, items], ()=>{ refreshEffectivePricing() }, { deep:true })
+onMounted(()=> refreshEffectivePricing())
+// Always hydrate cart from server on cart page load to avoid stale local state
+onMounted(()=> { try{ cart.syncFromServer(true) }catch{} })
 
 // وظائف التنقل
 function goBack() {
@@ -381,6 +494,13 @@ async function goToCheckout() {
     showToast('يرجى تحديد المنتجات المطلوبة')
     return
   }
+  try{
+    const { trackEvent } = await import('@/lib/track')
+    const contents = (validItems.value||[]).filter(it=> selectedItems.value.includes(it.uid)).map(it=> ({ id: String(it.id), quantity: Number(it.qty||1), item_price: Number(it.price||0) }))
+    await trackEvent('InitiateCheckout', { value: Number(effectiveTotal.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids: contents.map(c=> c.id), content_type:'product_group', contents, num_items: contents.length } as any)
+  }catch{}
+  // في حال لم يسجل المستخدم الدخول، نوجّهه لتسجيل الدخول ثم نعود للسلة
+  if (!isLoggedIn.value) { router.push({ path:'/login', query: { return: '/cart' } }); return }
   const { apiGet } = await import('@/lib/api')
   try{
     const list = await apiGet<any[]>('/api/addresses')
@@ -389,7 +509,7 @@ async function goToCheckout() {
     router.push('/address?return=/checkout'); return
   }
   // Persist selected items to sessionStorage for Checkout filtering
-  try{ sessionStorage.setItem('checkout_selected_ids', JSON.stringify(selectedItems.value)) }catch{}
+  try{ sessionStorage.setItem('checkout_selected_uids', JSON.stringify(selectedItems.value)) }catch{}
   router.push('/checkout')
 }
 
@@ -424,6 +544,15 @@ function formatSizeForChip(s?: string){
   return cleaned.length ? cleaned.join(' | ') : '—'
 }
 
+function variantLabel(color?: string, size?: string){
+  const c = String(color||'').trim()
+  const s = formatSizeForChip(size)
+  if (c && s !== '—') return `${c} / ${s}`
+  if (c) return c
+  if (s !== '—') return s
+  return ''
+}
+
 function parseSizeComposite(s?: string): Record<string,string> {
   const out: Record<string,string> = {}
   const raw = String(s||'').trim()
@@ -449,14 +578,14 @@ function toggleItem(uid: string) {
 function toggleSelectAll() {
   selectAll.value = !selectAll.value
   if (selectAll.value) {
-    selectedItems.value = items.value.map(item => item.uid)
+    selectedItems.value = validItems.value.map(item => item.uid)
   } else {
     selectedItems.value = []
   }
 }
 
 function updateSelectAll() {
-  selectAll.value = selectedItems.value.length === items.value.length
+  selectAll.value = selectedItems.value.length > 0 && selectedItems.value.length === validItems.value.length
 }
 
 function changeQty(uid: string, delta: number) {
@@ -553,19 +682,43 @@ async function fetchProductDetails(id: string){
     const imgs = Array.isArray(d.images)? d.images : []
     const filteredImgs = imgs.filter((u:string)=> /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
     const variants = Array.isArray(d.variants)? d.variants : []
-    let sizes = Array.isArray(d.sizes)? d.sizes.filter((s:any)=> typeof s==='string' && s.trim()) : []
-    // Normalize and sort sizes in logical ascending order: S, M, L, XL, then others
-    const order = ['xs','s','m','l','xl','xxl','xxxl']
-    const lower = sizes.map((s:string)=> s.trim())
-    sizes = lower.sort((a:string,b:string)=>{
-      const ai = order.indexOf(a.toLowerCase())
-      const bi = order.indexOf(b.toLowerCase())
+    // ==== Helpers (align with PDP sanitation) ====
+    const looksSizeToken = (s:string): boolean => {
+      const v = String(s||'').trim()
+      if (!v) return false
+      // Support common alpha sizes and extended forms (2XL..5XL), case-insensitive
+      if (/^(xxs|xs|s|m|l|xl|xxl|xxxl|xxxxl|xxxxxl|2xl|3xl|4xl|5xl)$/i.test(v)) return true
+      // Numeric sizes (e.g., shoes 36-46, jeans 28-42)
+      if (/^\d{1,3}$/.test(v)) return true
+      return false
+    }
+    const COLOR_WORDS = new Set([
+      'احمر','أحمر','red','ازرق','أزرق','blue','اخضر','أخضر','green','اصفر','أصفر','yellow','وردي','زهري','pink','اسود','أسود','black','ابيض','أبيض','white','بنفسجي','violet','purple','برتقالي','orange','بني','brown','رمادي','gray','grey','سماوي','turquoise','تركوازي','تركواز','بيج','beige','كحلي','navy','ذهبي','gold','فضي','silver'
+    ])
+    const isColorWord = (s:string): boolean => COLOR_WORDS.has(String(s||'').trim().toLowerCase())
+
+    // ==== Sizes: only accept real size tokens, never color words ====
+    let sizes = Array.isArray(d.sizes)? (d.sizes as any[]).filter((s:any)=> typeof s==='string' && looksSizeToken(String(s).trim()) && !isColorWord(String(s).trim())) : []
+    if (!sizes.length && variants.length){
+      const set = new Set<string>()
+      for (const v of variants){
+        const sv = String((v as any).size||'').trim()
+        if (sv && looksSizeToken(sv) && !isColorWord(sv)) set.add(sv)
+      }
+      sizes = Array.from(set)
+    }
+    // Normalize and sort sizes in logical ascending order: letters then numbers
+    const order = ['XS','S','M','L','XL','XXL','XXXL','XXXXL','XXXXXL']
+    sizes = sizes.sort((a:string,b:string)=>{
+      const ai = order.indexOf(a.toUpperCase())
+      const bi = order.indexOf(b.toUpperCase())
       if (ai!==-1 || bi!==-1) return (ai===-1? 999:ai) - (bi===-1? 999:bi)
       const an = parseFloat(a); const bn = parseFloat(b)
       if (!isNaN(an) && !isNaN(bn)) return an - bn
       return a.localeCompare(b, 'ar')
     })
-    // Prefer distinct colors from colorGalleries → then product.colors → then variants
+
+    // ==== Colors: prefer attributes.color → colorGalleries; never derive from generic name/value ====
     const galleries = Array.isArray(d.colorGalleries) ? d.colorGalleries : []
     let colors: Array<{ label: string; img: string }> = []
     const normalizeImage = (u: any): string => {
@@ -585,38 +738,34 @@ async function fetchProductDetails(id: string){
       }
       return filteredImgs[0] || '/images/placeholder-product.jpg'
     }
-    if (galleries.length){
+    // Prefer attributes.color
+    try{
+      const attrs: Array<{ key:string; label:string; values:string[] }> = Array.isArray((d as any).attributes)? (d as any).attributes : []
+      const col = attrs.find(a=> a.key==='color')
+      const colVals: string[] = Array.isArray(col?.values)? col!.values : []
+      if (colVals.length){
+        colors = colVals.map((label:string)=>{
+          const g = galleries.find((x:any)=> String(x?.name||'').trim().toLowerCase() === String(label||'').trim().toLowerCase())
+          const chosen = g?.primaryImageUrl || (Array.isArray(g?.images)&&g!.images![0]) || pickFallbackByLabel(label)
+          return { label, img: normalizeImage(chosen) }
+        })
+      }
+    }catch{}
+    // Fallback: colorGalleries by names
+    if (!colors.length && galleries.length){
       colors = galleries.map((g:any)=> {
         const label = String(g.name||'').trim()
         const chosen = g.primaryImageUrl || (Array.isArray(g.images)&&g.images[0]) || pickFallbackByLabel(label)
         return { label, img: normalizeImage(chosen) }
       }).filter(c=> !!c.label)
-    } else if (Array.isArray((d as any).colors) && (d as any).colors.length){
-      const raw = (d as any).colors as Array<any>
-      const seen = new Set<string>()
-      for (const c of raw){
-        const label = typeof c === 'string' ? String(c).trim() : String((c?.name)||'').trim()
-        if (!label || seen.has(label)) continue
-        seen.add(label)
-        const first = Array.isArray(c?.images)
-          ? (typeof c.images[0] === 'string' ? c.images[0] : (c.images[0]?.url || ''))
-          : ''
-        const img = typeof c === 'object' && c ? (c.primaryImageUrl || first || pickFallbackByLabel(label)) : pickFallbackByLabel(label)
-        colors.push({ label, img: normalizeImage(img) })
-      }
-    } else {
-      const labelSet = new Set<string>()
-      for (const v of variants){
-        const lbl = String((v as any).color || (v as any).name || (v as any).value || '').trim()
-        if (lbl) labelSet.add(lbl)
-      }
-      colors = Array.from(labelSet).map((label:string)=> ({ label, img: '/images/placeholder-product.jpg' }))
     }
+    // If still single color or none, hide colors by emptying the list
+    if (colors.length <= 1) colors = []
     // Build simple two-row size groups: letters and numbers
     const isNumber = (x:string)=> /^\d{1,3}$/.test(String(x).trim())
     const letters = new Set<string>()
     const numbers = new Set<string>()
-    for (const s of sizes){ if (isNumber(s)) numbers.add(s); else letters.add(s) }
+    for (const s of sizes){ if (isNumber(s)) numbers.add(s); else if (looksSizeToken(s)) letters.add(s) }
     const lettersOrder = ['XXS','XS','S','M','L','XL','2XL','3XL','4XL','5XL']
     const orderLetters = (vals:string[])=> Array.from(vals).sort((a,b)=> lettersOrder.indexOf(String(a).toUpperCase()) - lettersOrder.indexOf(String(b).toUpperCase()))
     const orderNumbers = (vals:string[])=> Array.from(vals).sort((a,b)=> (parseInt(a,10)||0) - (parseInt(b,10)||0))
@@ -630,7 +779,8 @@ async function fetchProductDetails(id: string){
       price: Number(d.price || (items.value.find(i=>i.id===id)?.price) || 0),
       images: filteredImgs.length ? filteredImgs : [items.value.find(i=>i.id===id)?.img || '/images/placeholder-product.jpg'],
       colors,
-      sizes: sizes.length ? sizes : Array.from(new Set(variants.map((v:any)=> String(v.size||v.value||v.name||'').trim()).filter(Boolean))),
+      // Only expose validated sizes; never fall back to variant value/name tokens
+      sizes: sizes,
       sizeGroups,
       colorGalleries: galleries
     }
@@ -656,10 +806,44 @@ function hasOptions(id: string){
 
 // Preload options for all cart items on page load
 onMounted(async () => {
+  // حدّد كل العناصر مبدئياً حتى يراها المستخدم محددة فوراً
+  try{
+    selectedItems.value = items.value.map(i=> i.uid)
+    selectAll.value = selectedItems.value.length > 0
+  }catch{}
   try{
     const ids = Array.from(new Set(items.value.map(i=> i.id)))
     await Promise.all(ids.map(id => fetchProductDetails(id)))
   }catch{}
+  // تحقق من صلاحية وتوفر عناصر السلة الحالية
+  try{
+    const base = (await import('@/lib/api')).API_BASE
+    const prods = await Promise.all(items.value.map(async (it)=>{
+      try{
+        const res = await fetch(`${base}/api/product/${encodeURIComponent(it.id)}`, { headers:{ 'Accept':'application/json' } })
+        if (!res.ok) return { uid: it.uid, status: 'invalid' as const }
+        const d = await res.json()
+    const stock = (typeof d.stock === 'number' ? d.stock : (typeof d.stockQuantity === 'number' ? d.stockQuantity : (Array.isArray(d.variants)? d.variants.reduce((n:any,v:any)=> n + (Number(v.stockQuantity||0)), 0) : 0)))
+        const isActive = d?.isActive !== false
+        const available = isActive && stock > 0
+        return { uid: it.uid, status: available ? null : ('oos' as const) }
+      }catch{ return { uid: it.uid, status: 'invalid' as const } }
+    }))
+    const map: Record<string,'oos'|'invalid'> = {}
+    for (const p of prods){ if (p.status) map[p.uid] = p.status }
+    oosMap.value = map
+    hasOutOfStock.value = Object.keys(map).length > 0
+    // نظّف التحديدات لتقتصر على العناصر الصالحة فقط
+    selectedItems.value = selectedItems.value.filter(uid => !map[uid])
+    updateSelectAll()
+    // في الزيارة الأولى: حدد جميع العناصر الصالحة تلقائياً
+    if (selectedItems.value.length === 0 && validItems.value.length > 0){
+      selectedItems.value = validItems.value.map(it=> it.uid)
+      selectAll.value = true
+    }
+  }catch{}
+  // حساب أسعار بعد الكوبون لعناصر السلة
+  try{ await hydrateCartAfterCoupons() }catch{}
 })
 
 
@@ -698,22 +882,23 @@ onMounted(async () => {
     hasAnyAddress.value = Array.isArray(list) && list.length>0
     if (hasAnyAddress.value){
       const a = (list.find((x:any)=>x.isDefault) || list[0]) || {}
-      const parts = [a.country || 'اليمن', (a.state||a.province), a.city, a.area, a.street].filter((s:string)=>!!s)
-      shippingAddress.value = parts.join(' / ') || 'اليمن'
+      const parts = [(a.state||a.province), a.area].filter((s:string)=>!!s)
+      shippingAddress.value = parts.join(' / ') || '—'
     } else {
       shippingAddress.value = 'اليمن'
     }
   }catch{ shippingAddress.value = 'اليمن'; hasAnyAddress.value = false }
   // جلب منتجات مقترحة
   try{
-    const r = await (await import('@/lib/api')).apiGet<any>('/api/products?limit=6')
+    if (suggested.value.length){ suggestedLoading.value = false; return }
+    const r = await (await import('@/lib/api')).apiGet<any>('/api/products?limit=10')
     const items = r?.items || []
     const normalizeList = (arr: string[]|undefined): string[] => {
       const list = Array.isArray(arr) ? arr : []
       const filtered = list.filter(u => /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
       return filtered.length ? filtered : ['/images/placeholder-product.jpg']
     }
-    suggested.value = items.map((x:any)=> ({
+    const mapped = items.map((x:any)=> ({
       id: x.id,
       title: x.name,
       image: (normalizeList(x.images)[0]||'/images/placeholder-product.jpg'),
@@ -726,12 +911,95 @@ onMounted(async () => {
       bestRank: typeof x.bestRank==='number'? x.bestRank : undefined,
       bestRankCategory: x.bestRankCategory||undefined,
       couponPrice: x.couponPrice||undefined,
+      categoryIds: Array.isArray(x.categoryIds) ? x.categoryIds : undefined,
       options: { colors: (x.variants||[]).map((v:any)=>v.color).filter((c:any)=>!!c), sizes: (x.variants||[]).map((v:any)=>v.size).filter((s:any)=>!!s) }
     }))
+    // de-duplicate by id
+    const seen: Record<string, boolean> = {}
+    const dedup = mapped.filter(p=>{ const k=String(p.id); if (seen[k]) return false; seen[k]=true; return true })
+    await Promise.all(dedup.map(p=> probeRatioPromise(p)))
+    suggested.value = dedup
+    suggestedHasMore.value = items.length >= 10
+    try{ markTrending(suggested.value as any[]) }catch{}
+    try{ await hydrateCouponsAndPricesForSuggested() }catch{}
+  }catch{} finally { suggestedLoading.value = false }
+  try{ window.addEventListener('scroll', onWinScroll, { passive:true }) }catch{}
+})
+onBeforeUnmount(()=>{ try{ window.removeEventListener('scroll', onWinScroll) }catch{} })
+
+function onWinScroll(){
+  try{
+    const scrollHeight = document.documentElement.scrollHeight
+    const scrollTop = window.scrollY
+    const clientHeight = window.innerHeight
+    if (scrollTop + clientHeight >= scrollHeight - 300 && !suggestedLoadingMore.value && suggestedHasMore.value){
+      void loadMoreSuggested()
+    }
+  }catch{}
+}
+
+const sugLoadMoreSentinel = ref<HTMLDivElement|null>(null)
+onMounted(()=>{
+  try{
+    if ('IntersectionObserver' in window){
+      const io = new IntersectionObserver((entries)=>{
+        const e = entries[0]
+        if (e && e.isIntersecting && suggestedHasMore.value && !suggestedLoadingMore.value){
+          void loadMoreSuggested()
+        }
+      }, { root:null, rootMargin:'0px 0px 300px 0px', threshold:0 })
+      if (sugLoadMoreSentinel.value) io.observe(sugLoadMoreSentinel.value)
+    }
   }catch{}
 })
 
-function goLogin(){ router.push('/login?next=/cart') }
+async function loadMoreSuggested(){
+  if (suggestedLoadingMore.value || !suggestedHasMore.value) return
+  suggestedLoadingMore.value = true
+  try{
+    const ex = Array.from(new Set(suggested.value.map(p=> String(p.id)))).slice(0,200)
+    const { API_BASE } = await import('@/lib/api')
+    const u = new URL(`${API_BASE}/api/products`)
+    u.searchParams.set('limit','10')
+    u.searchParams.set('sort','new')
+    u.searchParams.set('offset', String(suggested.value.length))
+    if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
+    const r = await fetch(u.toString(), { headers:{ 'Accept':'application/json' } })
+    if (!r.ok){ suggestedHasMore.value = false; return }
+    const j:any = await r.json()
+    const items = Array.isArray(j?.items)? j.items : []
+    const normalizeList = (arr: string[]|undefined): string[] => {
+      const list = Array.isArray(arr) ? arr : []
+      const filtered = list.filter(u => /^https?:\/\//i.test(String(u)) && !String(u).startsWith('blob:'))
+      return filtered.length ? filtered : ['/images/placeholder-product.jpg']
+    }
+    const mapped = items.map((x:any)=> ({
+      id: x.id,
+      title: x.name,
+      image: (normalizeList(x.images)[0]||'/images/placeholder-product.jpg'),
+      images: normalizeList(x.images),
+      imagesNormalized: normalizeList(x.images),
+      price: Number(x.price||0),
+      brand: x.brand||'',
+      discountPercent: typeof x.discountPercent==='number'? x.discountPercent : undefined,
+      soldPlus: x.soldPlus||undefined,
+      bestRank: typeof x.bestRank==='number'? x.bestRank : undefined,
+      bestRankCategory: x.bestRankCategory||undefined,
+      couponPrice: x.couponPrice||undefined,
+      categoryIds: Array.isArray(x.categoryIds) ? x.categoryIds : undefined
+    }))
+    const seen = new Set(suggested.value.map(p=> String(p.id)))
+    const dedup = mapped.filter(p=> !seen.has(String(p.id)))
+    if (!dedup.length){ suggestedHasMore.value = false; return }
+    await Promise.all(dedup.map(p=> probeRatioPromise(p)))
+    suggested.value = suggested.value.concat(dedup)
+    suggestedHasMore.value = items.length >= 1
+    try{ markTrending(suggested.value as any[]) }catch{}
+    try{ await hydrateCouponsAndPricesForSuggested() }catch{}
+  }catch{ suggestedHasMore.value = false } finally { suggestedLoadingMore.value = false }
+}
+
+function goLogin(){ router.push({ path:'/login', query: { return: '/cart' } }) }
 function openProduct(p:any){ const id = typeof p==='string'? p : (p?.id||''); if (id) router.push(`/p?id=${encodeURIComponent(String(id))}`) }
 function addSugToCart(p:any){
   cart.add({ id: String(p.id), title: String(p.title), price: Number(p.price||0), img: String(p.image||'') }, 1)
@@ -776,8 +1044,178 @@ function goShippingAddresses(){
   if (hasAnyAddress.value) router.push('/address?return=/cart')
   else router.push('/address?return=/cart&open=1')
 }
+
+// ===== كوبونات لعناصر السلة =====
+type CartCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
+const couponsCacheCart = ref<CartCoupon[]>([])
+const couponsCacheCartTs = ref(0)
+const afterById = ref<Record<string, number>>({})
+
+async function fetchCouponsListCart(): Promise<CartCoupon[]> {
+  const { API_BASE, isAuthenticated } = await import('@/lib/api')
+  const tryFetch = async (path: string) => {
+    try{
+      const creds = path.startsWith('/api/coupons/public')? 'omit':'include'
+      const { getAuthHeader } = await import('@/lib/api')
+      const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json', ...getAuthHeader() } })
+      if(!r.ok) return null; return await r.json()
+    }catch{ return null }
+  }
+  let data: any = null
+  if (isAuthenticated()){ data = await tryFetch('/api/me/coupons') }
+  if (data){
+    const itemsArr = Array.isArray(data.items) ? data.items : []
+    const couponsArr = Array.isArray(data.coupons) ? data.coupons : []
+    const merged = [...itemsArr, ...couponsArr]
+    if (merged.length>0) return normalizeCouponsCart(merged)
+  }
+  // لا تستخدم مسارات المشرف من الواجهة العامة
+  return []
+}
+function normalizeCouponsCart(list:any[]): CartCoupon[] {
+  return (list||[]).map((c:any)=> ({ code:c.code, discountType: (String(c.discountType||'PERCENTAGE').toUpperCase()==='FIXED'?'FIXED':'PERCENTAGE'), discountValue:Number(c.discountValue||c.discount||0), audience:c.audience?.target||c.audience||undefined, kind:c.kind||undefined, rules: { includes: c.includes || c.rules?.includes || [], excludes: c.excludes || c.rules?.excludes || [], min: c.minOrderAmount || c.rules?.min } }))
+}
+function priceAfterCouponCart(base:number, cup: CartCoupon): number { if(!Number.isFinite(base)||base<=0) return base; const v=Number(cup.discountValue||0); return cup.discountType==='FIXED'? Math.max(0, base-v) : Math.max(0, base*(1-v/100)) }
+function isCouponSitewideCart(c: CartCoupon): boolean { return String(c.kind||'').toLowerCase()==='sitewide' || !Array.isArray(c?.rules?.includes) }
+function eligibleByTokensCart(prod:any, c: CartCoupon): boolean { const inc=Array.isArray(c?.rules?.includes)?c.rules!.includes!:[]; const exc=Array.isArray(c?.rules?.excludes)?c.rules!.excludes!:[]; const tokens:string[]=[]; if(prod?.categoryId) tokens.push(`category:${prod.categoryId}`); if(Array.isArray(prod?.categoryIds)) { prod.categoryIds.forEach((cid:string) => tokens.push(`category:${cid}`)) } if(prod?.id) tokens.push(`product:${prod.id}`); if(prod?.brand) tokens.push(`brand:${prod.brand}`); if(prod?.sku) tokens.push(`sku:${prod.sku}`); const hasInc=!inc.length||inc.some(t=>tokens.includes(t)); const hasExc=exc.length&&exc.some(t=>tokens.includes(t)); return hasInc&&!hasExc }
+async function ensureProductMetaCart(id:string, item:any){ try{ const { apiGet } = await import('@/lib/api'); const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`); if(!d) return { id, categoryId:null, brand:item?.brand, sku:item?.sku }; return { id, categoryId: d.categoryId||d.category?.id||d.category||null, categoryIds: Array.isArray(d.categoryIds)?d.categoryIds.map(String):undefined, brand: d.brand||item?.brand, sku: d.sku||item?.sku } }catch{ return { id, categoryId:null } }
+}
+async function hydrateCartAfterCoupons(){
+  try{
+    const now = Date.now()
+    if (!couponsCacheCart.value.length || (now - couponsCacheCartTs.value) > 60000){
+      couponsCacheCart.value = await fetchCouponsListCart(); couponsCacheCartTs.value = now
+    }
+    const cups = couponsCacheCart.value||[]
+    if (!cups.length) return
+    const ids = Array.from(new Set(items.value.map(i=> String(i.id))))
+    for (const pid of ids){
+      const baseItem = items.value.find(i=> String(i.id)===String(pid))
+      const basePrice = Number(baseItem?.price||0)
+      if (!basePrice){ continue }
+      const site = cups.find(isCouponSitewideCart)
+      if (site){ afterById.value[pid] = priceAfterCouponCart(basePrice, site); continue }
+      const meta = await ensureProductMetaCart(pid, baseItem)
+      const match = cups.find(c=> eligibleByTokensCart(meta, c))
+      if (match){ afterById.value[pid] = priceAfterCouponCart(basePrice, match) }
+    }
+  }catch{}
+}
+watch(items, ()=>{ hydrateCartAfterCoupons().catch(()=>{}) }, { deep:true })
+function afterOf(item:any): number | null { const v = afterById.value[String(item.id)]; return (typeof v==='number')? v : null }
+const totalAfterCoupons = computed(()=> items.value.reduce((s,it)=> s + Number((afterById.value[String(it.id)]??it.price)||0)*Number(it.qty||1), 0))
+// ===== كوبونات للمنتجات المقترحة في السلة =====
+type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
+const couponsCache = ref<SimpleCoupon[]>([])
+const couponsCacheTs = ref(0)
+
+async function fetchCouponsList(): Promise<SimpleCoupon[]> {
+  const { API_BASE, isAuthenticated } = await import('@/lib/api')
+  const tryFetch = async (path: string) => {
+    try{
+      const creds = path.startsWith('/api/coupons/public')? 'omit':'include'
+      const { getAuthHeader } = await import('@/lib/api')
+      const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json', ...getAuthHeader() } })
+      if(!r.ok) return null; return await r.json()
+    }catch{ return null }
+  }
+  let data: any = null
+  if (isAuthenticated()){ data = await tryFetch('/api/me/coupons') }
+  if (data){
+    const itemsArr = Array.isArray(data.items) ? data.items : []
+    const couponsArr = Array.isArray(data.coupons) ? data.coupons : []
+    const merged = [...itemsArr, ...couponsArr]
+    if (merged.length>0) return normalizeCoupons(merged)
+  }
+  // لا تستخدم مسارات المشرف من الواجهة العامة
+  return []
+}
+
+function normalizeCoupons(list:any[]): SimpleCoupon[] {
+  return (list||[]).map((c:any)=> ({
+    code: c.code,
+    discountType: (String(c.discountType||'PERCENTAGE').toUpperCase()==='FIXED' ? 'FIXED' : 'PERCENTAGE'),
+    discountValue: Number(c.discountValue||c.discount||0),
+    audience: c.audience?.target || c.audience || undefined,
+    kind: c.kind || undefined,
+    rules: { includes: c.includes || c.rules?.includes || [], excludes: c.excludes || c.rules?.excludes || [], min: c.minOrderAmount || c.rules?.min }
+  }))
+}
+
+function priceAfterCoupon(base:number, cup: SimpleCoupon): number {
+  if (!Number.isFinite(base) || base<=0) return base
+  const v = Number(cup.discountValue||0)
+  if (cup.discountType==='FIXED') return Math.max(0, base - v)
+  return Math.max(0, base * (1 - v/100))
+}
+
+function isCouponSitewide(c: SimpleCoupon): boolean { return String(c.kind||'').toLowerCase()==='sitewide' || !Array.isArray(c?.rules?.includes) }
+
+function eligibleByTokens(prod: any, c: SimpleCoupon): boolean {
+  const inc = Array.isArray(c?.rules?.includes) ? c.rules!.includes! : []
+  const exc = Array.isArray(c?.rules?.excludes) ? c.rules!.excludes! : []
+  const tokens: string[] = []
+  if (prod?.categoryId) tokens.push(`category:${prod.categoryId}`)
+  if (Array.isArray(prod?.categoryIds)) {
+    prod.categoryIds.forEach((cid:string) => tokens.push(`category:${cid}`))
+  }
+  if (prod?.id) tokens.push(`product:${prod.id}`)
+  if (prod?.brand) tokens.push(`brand:${prod.brand}`)
+  if (prod?.sku) tokens.push(`sku:${prod.sku}`)
+  const hasInc = !inc.length || inc.some(t=> tokens.includes(t))
+  const hasExc = exc.length && exc.some(t=> tokens.includes(t))
+  return hasInc && !hasExc
+}
+
+async function ensureProductMeta(p:any): Promise<any> {
+  if (p.categoryId!=null && Array.isArray(p.categoryIds)) return p
+  try{
+    const d = await (await import('@/lib/api')).apiGet<any>(`/api/product/${encodeURIComponent(p.id)}`)
+    if (d){ 
+      p.categoryId = d.categoryId || d.category?.id || d.category || null; 
+      p.brand = p.brand || d.brand; 
+      p.sku = p.sku || d.sku;
+      if (Array.isArray(d.categoryIds)) p.categoryIds = d.categoryIds.map(String)
+      else if (p.categoryId) p.categoryIds = [String(p.categoryId)]
+    }
+  }catch{}
+  return p
+}
+
+async function hydrateCouponsAndPricesForSuggested(){
+  try{
+    const now = Date.now()
+    if (!couponsCache.value.length || (now - couponsCacheTs.value) > 60000){
+      couponsCache.value = await fetchCouponsList(); couponsCacheTs.value = now
+    }
+  }catch{}
+  await computeCouponPricesForSuggested(suggested.value)
+}
+
+async function computeCouponPricesForSuggested(list:any[]){
+  const cups = couponsCache.value||[]
+  if (!cups.length) return
+  for (const p of list){
+    const base = Number(String(p.price||'0').replace(/[^0-9.]/g,''))||0
+    if (!base) { p.couponPrice = undefined; continue }
+    
+    // Ensure we have category/brand info for exclusion checks
+    await ensureProductMeta(p)
+
+    const site = cups.find(isCouponSitewide)
+    if (site){
+      if (eligibleByTokens(p, site)){
+        p.couponPrice = priceAfterCoupon(base, site).toFixed(2)
+      }
+      continue
+    }
+
+    const match = cups.find(c=> eligibleByTokens(p, c))
+    if (match){ p.couponPrice = priceAfterCoupon(base, match).toFixed(2) }
+  }
+}
 </script>
 
 <style scoped>
-/* استخدام Tailwind CSS - لا حاجة لأنماط إضافية */
+.product-grid{column-gap:5px!important;row-gap:0!important}
 </style>

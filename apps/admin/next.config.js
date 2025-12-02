@@ -7,6 +7,7 @@ const nextConfig = {
   images: { unoptimized: true },
   generateEtags: false,
   trailingSlash: false,
+  swcMinify: true,
   rewrites: async () => ([
     {
       source: '/uploads/:path*',

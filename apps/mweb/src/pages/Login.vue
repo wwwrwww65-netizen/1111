@@ -75,7 +75,7 @@
           </svg>
           التسجيل عبر جوجل
         </button>
-        <button class="w-full h-11 rounded-[4px] border border-gray-200 bg-white text-[13px] font-semibold text-gray-900 flex items-center justify-center gap-2 transition-transform duration-200 hover:scale-[1.02]" aria-label="التسجيل عبر فيسبوك">
+        <button class="w-full h-11 rounded-[4px] border border-gray-200 bg-white text-[13px] font-semibold text-gray-900 flex items-center justify-center gap-2 transition-transform duration-200 hover:scale-[1.02]" aria-label="التسجيل عبر فيسبوك" @click="loginWithFacebook">
           <Facebook class="w-4 h-4 text-[#1877F2]" />
           التسجيل عبر فيسبوك
         </button>
@@ -84,10 +84,6 @@
       <p class="text-[11px] text-gray-600 text-center">بالمُتابعة، فإنك توافق على سياسة الخصوصية وشروط الاستخدام الخاصة بنا</p>
     </main>
 
-    <style scoped>
-    @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-    .animate-fadeIn{animation:fadeIn .6s ease-in-out}
-    </style>
   </div>
 </template>
 
@@ -96,6 +92,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Gift, Star, Globe, ChevronDown, AlertCircle, Facebook, ArrowRight } from 'lucide-vue-next'
 import { apiPost } from '@/lib/api'
+import { facebookLoginUrl } from '@/lib/api'
 import { googleLoginUrl } from '@/lib/api'
 
 type Country = { code: string; name: string; dial: string }
@@ -138,15 +135,58 @@ function loginWithGoogle(){
   window.location.href = url
 }
 
+function loginWithFacebook(){
+  const ret = typeof window !== 'undefined' ? (new URLSearchParams(location.search).get('return') || '/account') : '/account'
+  const url = facebookLoginUrl(ret)
+  window.location.href = url
+}
+
 async function verifyOtp(){
   msg.value = ''; ok.value = false;
   if (!code.value.trim()){ msg.value = 'أدخل الرمز'; return }
   try{
     verifying.value = true
     const r = await apiPost('/api/auth/otp/verify', { phone: phone.value, code: code.value })
-    if (r && r.ok){ ok.value = true; msg.value = 'تم تسجيل الدخول بنجاح'; setTimeout(()=> router.push('/'), 500) }
+    if (r && r.ok){
+      // Persist token to cookies and localStorage
+      try{
+        const writeCookie = (name: string, value: string) => {
+          try{
+            const host = location.hostname
+            const parts = host.split('.')
+            const apex = parts.length >= 2 ? '.' + parts.slice(-2).join('.') : ''
+            const isHttps = location.protocol === 'https:'
+            const sameSite = isHttps ? 'None' : 'Lax'
+            const secure = isHttps ? ';Secure' : ''
+            const domainPart = apex ? `;domain=${apex}` : ''
+            document.cookie = `${name}=${encodeURIComponent(value)};path=/;max-age=${60*60*24*30}${domainPart};SameSite=${sameSite}${secure}`
+          }catch{}
+        }
+        if (r.token){
+          writeCookie('auth_token', r.token)
+          writeCookie('shop_auth_token', r.token)
+          try{ localStorage.setItem('shop_token', r.token) }catch{}
+        }
+      }catch{}
+      // Link current anonymous session to user for analytics
+      try{
+        let sid = localStorage.getItem('sid_v1') || ''
+        if (!sid){
+          try{
+            sid = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
+            localStorage.setItem('sid_v1', sid)
+          }catch{}
+        }
+        if (sid){ await apiPost('/api/analytics/link', { sessionId: sid }) }
+      }catch{}
+      ok.value = true; msg.value = 'تم تسجيل الدخول بنجاح'
+      setTimeout(()=> router.push('/account'), 400)
+    }
     else { msg.value = 'رمز غير صحيح أو منتهي' }
   } catch { msg.value = 'خطأ في الشبكة' } finally { verifying.value = false }
 }
 </script>
-
+<style scoped>
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.animate-fadeIn{animation:fadeIn .6s ease-in-out}
+</style>

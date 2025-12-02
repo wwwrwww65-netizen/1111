@@ -9,6 +9,52 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
+import { apiGet } from '@/lib/api'
+onMounted(async ()=>{
+  try{ window.dispatchEvent(new CustomEvent('order:purchase')) }catch{}
+  // إرسال Purchase عبر Pixel باستخدام البيانات المخزنة من مرحلة Checkout
+  try{
+    const raw = sessionStorage.getItem('last_purchase')
+    if (raw){
+      const data = JSON.parse(raw||'{}')
+      // جلب event_id من الخادم للتوحيد (dedupe)
+      let eventId: string | undefined
+      try{
+        const ordId = String(data?.order_id||'').trim()
+        if (ordId){
+          const ord = await apiGet<any>(`/api/orders/${encodeURIComponent(ordId)}`)
+          eventId = ord?.eventIds?.purchase || undefined
+        }
+      }catch{}
+      const params = {
+        value: Number(data?.value||0),
+        currency: String(data?.currency||'YER'),
+        contents: Array.isArray(data?.contents)? data.contents : [],
+        content_ids: Array.isArray(data?.content_ids)? data.content_ids : [],
+        content_type: 'product_group'
+      }
+      // أرسل CAPI أولاً للحصول على event_id في حال عدم توفره من الخادم، ثم أرسل Pixel بنفس event_id للتطابق
+      try{
+        const { trackEvent } = await import('@/lib/track')
+        if (!eventId){
+          const eid = await trackEvent('Purchase', params as any)
+          eventId = eid
+        } else {
+          await trackEvent('Purchase', params as any, eventId)
+        }
+      }catch{}
+      try{
+        const fbq = (window as any).fbq
+        if (typeof fbq === 'function'){
+          if (eventId){ fbq('track','Purchase', params as any, { eventID: eventId }) }
+          else { fbq('track','Purchase', params as any) }
+        }
+      }catch{}
+    }
+  }catch{}
+  try{ sessionStorage.removeItem('last_purchase') }catch{}
+})
 </script>
 
 <style scoped>

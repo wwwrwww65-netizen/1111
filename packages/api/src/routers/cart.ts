@@ -13,7 +13,10 @@ export const cartRouter = router({
           items: {
             include: {
               product: {
-                select: { id: true, name: true, price: true, images: true, stockQuantity: true },
+                select: {
+                  id: true, name: true, price: true, images: true, stockQuantity: true,
+                  colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
+                },
               },
             },
           },
@@ -28,11 +31,34 @@ export const cartRouter = router({
             items: {
               include: {
                 product: {
-                  select: { id: true, name: true, price: true, images: true, stockQuantity: true },
+                  select: {
+                    id: true, name: true, price: true, images: true, stockQuantity: true,
+                    colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
+                  },
                 },
               },
             },
           },
+        });
+      }
+
+      // Post-process items to prioritize hero image if no variant image is selected
+      if (cart && cart.items) {
+        cart.items.forEach((item: any) => {
+          const p = item.product;
+          if (Array.isArray(p.colors) && p.colors.length > 0) {
+            const colors = p.colors;
+            const defaultColor = colors.find((c: any) => c.isPrimary) || colors[0];
+            const hero = defaultColor.primaryImageUrl || (Array.isArray(defaultColor.images) && defaultColor.images[0]?.url);
+            if (hero) {
+              const heroUrl = String(hero).trim();
+              if (heroUrl) {
+                p.images = p.images || [];
+                p.images = p.images.filter((u: string) => u !== heroUrl);
+                p.images.unshift(heroUrl);
+              }
+            }
+          }
         });
       }
 
@@ -42,18 +68,31 @@ export const cartRouter = router({
     }),
 
   addItem: protectedProcedure
-    .input(z.object({ productId: z.string(), quantity: z.number().min(1).default(1) }))
+    .input(z.object({
+      productId: z.string(),
+      quantity: z.number().min(1).default(1),
+      attributes: z.record(z.any()).optional()
+    }))
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user!.userId;
-      const { productId, quantity } = input;
+      const { productId, quantity, attributes } = input;
 
       let cart = await db.cart.findUnique({ where: { userId } });
       if (!cart) {
         cart = await db.cart.create({ data: { userId } });
       }
 
-      const existing = await db.cartItem.findUnique({
-        where: { cartId_productId: { cartId: cart.id, productId } },
+      const existingItems = await db.cartItem.findMany({
+        where: { cartId: cart.id, productId },
+      });
+
+      const existing = existingItems.find(item => {
+        const itemAttrs = (item.attributes as Record<string, any>) || {};
+        const inputAttrs = attributes || {};
+        const k1 = Object.keys(itemAttrs).sort();
+        const k2 = Object.keys(inputAttrs).sort();
+        if (k1.length !== k2.length) return false;
+        return k1.every(k => itemAttrs[k] === inputAttrs[k]);
       });
 
       if (existing) {
@@ -62,23 +101,43 @@ export const cartRouter = router({
           data: { quantity: existing.quantity + quantity },
         });
       } else {
-        await db.cartItem.create({ data: { cartId: cart.id, productId, quantity } });
+        await db.cartItem.create({
+          data: {
+            cartId: cart.id,
+            productId,
+            quantity,
+            attributes: attributes || {}
+          }
+        });
       }
 
       return { success: true };
     }),
 
   updateItem: protectedProcedure
-    .input(z.object({ productId: z.string(), quantity: z.number().min(0) }))
+    .input(z.object({
+      productId: z.string(),
+      quantity: z.number().min(0),
+      attributes: z.record(z.any()).optional()
+    }))
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user!.userId;
-      const { productId, quantity } = input;
+      const { productId, quantity, attributes } = input;
 
       const cart = await db.cart.findUnique({ where: { userId } });
       if (!cart) return { success: true };
 
-      const existing = await db.cartItem.findUnique({
-        where: { cartId_productId: { cartId: cart.id, productId } },
+      const existingItems = await db.cartItem.findMany({
+        where: { cartId: cart.id, productId },
+      });
+
+      const existing = existingItems.find(item => {
+        const itemAttrs = (item.attributes as Record<string, any>) || {};
+        const inputAttrs = attributes || {};
+        const k1 = Object.keys(itemAttrs).sort();
+        const k2 = Object.keys(inputAttrs).sort();
+        if (k1.length !== k2.length) return false;
+        return k1.every(k => itemAttrs[k] === inputAttrs[k]);
       });
 
       if (!existing) return { success: true };
@@ -93,17 +152,30 @@ export const cartRouter = router({
     }),
 
   removeItem: protectedProcedure
-    .input(z.object({ productId: z.string() }))
+    .input(z.object({
+      productId: z.string(),
+      attributes: z.record(z.any()).optional()
+    }))
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user!.userId;
-      const { productId } = input;
+      const { productId, attributes } = input;
 
       const cart = await db.cart.findUnique({ where: { userId } });
       if (!cart) return { success: true };
 
-      const existing = await db.cartItem.findUnique({
-        where: { cartId_productId: { cartId: cart.id, productId } },
+      const existingItems = await db.cartItem.findMany({
+        where: { cartId: cart.id, productId },
       });
+
+      const existing = existingItems.find(item => {
+        const itemAttrs = (item.attributes as Record<string, any>) || {};
+        const inputAttrs = attributes || {};
+        const k1 = Object.keys(itemAttrs).sort();
+        const k2 = Object.keys(inputAttrs).sort();
+        if (k1.length !== k2.length) return false;
+        return k1.every(k => itemAttrs[k] === inputAttrs[k]);
+      });
+
       if (existing) {
         await db.cartItem.delete({ where: { id: existing.id } });
       }

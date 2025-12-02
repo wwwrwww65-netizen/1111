@@ -2,7 +2,7 @@
 
 Monorepo for a full‑stack e‑commerce platform (Web, Admin, API, Mobile) using Next.js 14, tRPC, Prisma, PostgreSQL, and Turborepo.
 
-## 🏗️ Architecture
+## 🏗️ Architecture 
 
 This monorepo contains a complete e‑commerce solution with: 
 
@@ -172,6 +172,32 @@ pnpm api      # API server (http://localhost:4000)
 - API (Admin REST): `packages/api/src/routers/admin-rest.ts`
 - Web PDP: `apps/web/src/app/products/[id]/page.tsx`
 - Mobile Web PDP: `apps/mweb/src/pages/Product.vue`
+
+### 🛒 Cart Variant Handling (Fixes) — معالجة التباينات في السلة
+
+تم إصلاح مشكلة دمج التباينات المختلفة (مثل نفس المنتج بألوان مختلفة) في سطر واحد في السلة. الإصلاح شمل المستخدمين المسجلين والزوار (Guest).
+
+#### 1. قاعدة البيانات (Database)
+- **إزالة القيود الفريدة (Unique Constraints):**
+  - تم حذف القيد `@@unique([cartId, productId])` من جدول `CartItem`.
+  - تم حذف القيود الفريدة من جدول `GuestCartItem`.
+  - تم استبدالها بفهارس (Indexes) غير فريدة `@@index([cartId, productId])` لتحسين الأداء والسماح بتكرار المنتج بخصائص مختلفة.
+
+#### 2. المنطق الخلفي (Backend Logic)
+- **مقارنة الخصائص (Attributes Comparison):**
+  - تم تحديث دوال `addItem`, `updateItem`, `removeItem` في `packages/api/src/routers/cart.ts` (للمسجلين) و `shop.ts` (للزوار).
+  - بدلاً من البحث عن المنتج بـ `productId` فقط، يتم الآن جلب جميع العناصر لنفس المنتج ومقارنة حقل `attributes` (مثل `color`, `size`) بدقة.
+  - يتم دمج الكميات فقط إذا تطابقت جميع الخصائص تماماً.
+
+#### 3. البرمجيات الوسيطة (Middleware)
+- **تحليل الطلبات (Body Parsing):**
+  - تم إضافة `app.use(express.json())` و `app.use(express.urlencoded())` في `packages/api/src/index.ts`.
+  - هذا كان السبب الرئيسي في وصول `attributes` كـ `undefined` سابقاً، مما أدى لدمج المنتجات خطأً.
+
+#### 4. سلة الزوار (Guest Cart)
+- **إصلاح شامل:**
+  - تم تطبيق نفس منطق مقارنة الخصائص على نقاط `POST /cart/add`, `/cart/update`, `/cart/remove`.
+  - تم تحديث دالة `mergeGuestIntoUserIfPresent` لضمان انتقال التباينات بشكل صحيح عند تسجيل الدخول، دون دمجها عشوائياً.
 
 ### 🤖 DeepSeek (محلي) — وضع صارم 100% لحقول النص
 
@@ -363,12 +389,6 @@ For support and questions:
 - EAS preview (اختياري):
   - Android: `pnpm --filter mobile dlx eas-cli build -p android --profile preview`
   - iOS: `pnpm --filter mobile dlx eas-cli build -p ios --profile preview`
-
-### قدرات التطبيق (ملخص)
-- تبويب رئيسي: Home, Search, Categories, Wishlist, Account, Cart.
-- صفحات: Product, Checkout.
-- تكامل tRPC عبر `EXPO_PUBLIC_TRPC_URL` مع `@tanstack/react-query`.
-- عمليات أساسية: استعراض المنتجات، البحث، إضافة للسلة، عرض السلة، بدء الدفع.
 
 ## 📱 m.jeeey.com (Figma 1:1 Sync)
 
@@ -854,13 +874,77 @@ RBAC: تمت إضافة صلاحيات `logistics.read`, `logistics.update`, `lo
 
 ## 🏷️ Discounts & Campaigns
 
-- Campaigns (تقسيم/جدولة/كوبونات):
-  - `POST /api/admin/marketing/campaigns`
-  - `GET /api/admin/marketing/campaigns`
-- Coupons (إنشاء/قائمة/تقرير الأداء):
-  - `POST /api/admin/marketing/coupons`
-  - `GET /api/admin/marketing/coupons`
-  - `GET /api/admin/marketing/coupons/:code/performance`
+- Campaigns (تقسيم/جدولة/Popups):
+  - `GET /api/admin/promotions/campaigns`
+  - `POST /api/admin/promotions/campaigns`
+  - `PUT /api/admin/promotions/campaigns/:id`
+  - `DELETE /api/admin/promotions/campaigns/:id`
+- Coupons (إنشاء/قائمة/قواعد/تحليلات) — موحّدة مع Prisma:
+  - `GET /api/admin/coupons/list`
+  - `POST /api/admin/coupons`
+  - `GET /api/admin/coupons/:code`
+  - `PATCH /api/admin/coupons/:code`
+  - `PATCH /api/admin/coupons/:id/activate`
+  - `GET /api/admin/coupons/:code/rules`
+  - `PUT /api/admin/coupons/:code/rules`
+  - `POST /api/admin/coupons/:code/test`
+  - `GET /api/admin/coupons/analytics?code=CODE&days=30`
+
+Frontend/mweb:
+- `GET /api/me/coupons` — قائمة الكوبونات المؤهلة للمستخدم (audience + صلاحية).
+- `POST /api/coupons/apply` — فحص وتطبيق الكوبون في الدفع (يفرض القيود والجداول).
+
+### Audience semantics (الجمهور المستهدف) — Coupons
+
+- Values stored canonically in rules at `Setting key=coupon_rules:CODE`: `audience.target` ∈ `all | users | new | guest | club`.
+- UI mapping (admin radios → stored target):
+  - الجميع → `all`
+  - الزوار (غير المسجلين) → `guest`
+  - المستخدمون الجدد → `new`
+  - المستخدمون (مسجلون) → `users`
+  - أعضاء JEEEY CLUB → `club` (مستقبلاً عند الحاجة)
+- Accepted synonyms on server (backward-compatible): `new_user`, `new_users`, `first`, `first_order` → normalize to `new`. Also `everyone`, `*` → `all`, and `registered`, `existing` → `users`.
+- New user definition (configurable):
+  - User qualifies as "new" if within window OR has 0 orders.
+  - Window days controlled by env `COUPON_NEW_USER_WINDOW_DAYS` (default: 30).
+- Registered audience edge-case (users):
+  - For audience `users`, eligibility additionally requires that the user's `createdAt` ≤ coupon `createdAt` (المستخدم مسجّل قبل إصدار الكوبون)، لضمان عدم ظهور كوبونات المسجلين لحديثي التسجيل.
+- Feature flag (safe rollout):
+  - `COUPONS_AUDIENCE_ENFORCE=1` (default): يفعّل فرض الأودينس الصارم في مسارات التطبيق.
+
+### Admin UI behavior — Coupons/new
+
+- التحرير عبر الرابط `.../coupons/new?code=CODE` يقوم بقراءة القواعد (Setting) وتطبيع `audience` تلقائياً إلى مفتاح الراديو الصحيح (everyone/new_user/users/guest/club) حتى لو خُزنت القيم بالمرادفات.
+- عند الحفظ:
+  - يتم تطبيع اختيار "المستخدمون الجدد" إلى القيمة المعيارية `new` قبل إرسالها لـ API.
+  - يتم التحقق بصارمة (Zod) لهيكل القواعد مع رفض أي JSON غير صالح برسالة واضحة.
+
+### API behavior — eligibility and apply
+
+- `GET /api/me/coupons`:
+  - يعيد الكوبونات الفعالة (isActive=true) ضمن الفترة الزمنية، مع تصفية audience وفق تعريف المستخدم (new/users/all/guest).
+  - يستثني الكوبونات التي استخدمها المستخدم سابقاً (حسب `CouponUsage`).
+  - يلتقط المرادفات المذكورة أعلاه للأودينس.
+- `POST /api/coupons/apply` و`tRPC applyCoupon`:
+  - يطبّقان نفس تحقق `audience` والجدولة، ويستخدمان معاملة ذرّية لمنع سباقات استخدام الكوبون (`currentUses` ≤ `maxUses`).
+  - رسائل الرفض تشمل: `not_started`, `expired`, `disabled`, `out_of_schedule`, `audience_new_only`, `audience_registered_before_only`, `usage_limit`, إلخ.
+
+### Operational checks (تشغيل آمن)
+
+- إنشاء كوبون جديد للمستخدمين الجدد:
+  1) من لوحة التحكم: حدّد "المستخدمون الجدد" واحفظ.
+  2) تأكّد أن `GET /api/admin/coupons/CODE/rules` يحتوي: `"audience": { "target": "new" }`.
+  3) بحساب mweb جديد (أو بدون طلبات/ضمن النافذة): `GET /api/me/coupons` يجب أن يُظهر الكوبون.
+- إيقاف أي تضارب:
+  - المسارات القديمة (marketing/coupons) تمت إزالتها. إن ظهر توثيق قديم، يُعتبر غير فعّال.
+  - `GET /api/admin/coupons` يعيد 410 ويوجّه إلى `/api/admin/coupons/list`.
+
+### Common pitfalls (أسباب عدم الظهور)
+
+- الحساب ليس "جديداً": لدى المستخدم طلبات سابقة، أو تجاوز نافذة الأيام المحددة.
+- `validFrom/validUntil` خارج النطاق الحالي، أو `isActive=false`.
+- تم ضبط audience إلى `users` والمستخدم مسجّل بعد تاريخ إصدار الكوبون.
+- JSON القواعد غير صالح ولم يُحفظ (تتحقق Zod الآن وتُرجِع سبب الرفض).
 
 ## 🏆 Jeeey Points, Badges, Jeeey Club (Subscriptions), Wallet, FX, Affiliate
 
@@ -1071,88 +1155,997 @@ Trigger: Dispatch “Dev Mirror (HTTPS + NGINX + jeeey.local)” or push to `mai
   - 401 على `/api/me/complete`: تأكد أن الطلب إلى `https://api.jeeey.com` وبرأس Authorization الحديث (من `/otp/verify`). تمت تهيئة الخادم لتفضيل الهيدر وحل تعارض الكوكي.
   - 405 على `/api/me/complete`: يعني أن الطلب وُجِّه إلى `m.jeeey.com` أو مسار ثابت؛ يجب أن يكون إلى `api.jeeey.com`.
 
-## 🧭 لوحة التحكم — الصفحات والعمليات (ملخص عربي)
+## 📌 Nov 2025 — Auth (WhatsApp/Google), Android App Links, Meta Catalog
 
-- المنتجات (Products):
-  - الصفحات: `products/`, `products/new`, `catalog/pdp-meta`, `catalog/pdp-settings`, `catalog/variants-matrix`, `catalog/bundles/[id]`
-  - العمليات: قائمة/بحث/تصفية، إنشاء/تعديل/أرشفة/حذف، تحليل النص/الصور، توليد المنتج/التباينات/الوسائط، رفع الوسائط، ضبط مصفوفة التباينات، إعدادات PDP
-  - REST: `/api/admin/products*`, `/api/admin/products/parse`, `/api/admin/products/generate`, `/api/admin/media*`
+### Auth: WhatsApp OTP without email requirement
+- JWT payload جعل `email` اختيارياً وأضاف `phone` (اختياري). المصادر:
+  - `packages/api/src/utils/jwt.ts`
+  - `packages/api/src/middleware/auth.ts`, `packages/api/src/trpc-setup.ts`, `packages/api/src/context.ts`
+- مسار OTP verify يبقي بريد قاعدة البيانات بالنمط legacy:
+  - `email = phone+<digits>@local` للحسابات الجديدة/القديمة عبر واتساب.
+  - التوكن يُوقَّع بلا اشتراط `email` ويحتوي `{ userId, role, phone }`.
+  - المصدر: `packages/api/src/routers/shop.ts` (POST `/api/auth/otp/verify`).
+- السلوك:
+  - المستخدمون بـ `...@local` يعملون فوراً؛ يتم تحديث `phone` عند الحاجة.
+  - `newUser` يُحسب عبر متغير الوجود بدل الاعتماد على البريد.
 
-- التصنيفات (Categories):
-  - الصفحة: `categories/`
-  - العمليات: CRUD مع SEO وترجمات
-  - الصيانة: `POST /api/admin/maintenance/ensure-category-seo`
+### Auth: Google OAuth callback shim
+- يدعم السيرفر كلا الشكلين ويحوّل تلقائياً:
+  - `/auth/google/callback` → `/api/auth/google/callback`
+  - التعديل في `packages/api/src/index.ts`.
+  - ينصح بضبط Redirect URI في Google إلى: `https://api.jeeey.com/api/auth/google/callback`.
 
-- المخزون (Inventory):
-  - الصفحة: `inventory/`
-  - العمليات: عرض مجمّع، ضبط الكميات، تصدير CSV
-  - REST: `/api/admin/inventory/list`, `/api/admin/inventory/adjust`, `/api/admin/inventory/export/csv`
+### Android App Links (assetlinks.json)
+- mweb (ملف ثابت): `apps/mweb/public/.well-known/assetlinks.json`
+- API (مسار ديناميكي): `GET /.well-known/assetlinks.json` من `packages/api/src/index.ts`
+- المحتوى:
+  - `package_name: com.jeeey.shopin`
+  - `sha256_cert_fingerprints: ["40:44:5A:90:E0:A3:53:B0:B5:D5:F0:A7:E9:04:4B:EE:09:3A:23:32:8A:C6:65:42:2A:A1:BE:8E:A7:59:2B:21"]`
+  - relations: `delegate_permission/common.handle_all_urls`, `delegate_permission/common.get_login_creds`
 
-- الطلبات/المدفوعات/الشحنات:
-  - الصفحات: `orders/`, `orders/[id]`, `shipments/`, `returns/`, `rma/management`
-  - العمليات: عرض/تفاصيل/تصفية، شحن الطلب، استرجاع/إلغاء، فواتير PDF وملصقات الشحن 4×6
-  - REST: `/api/admin/orders/list`, `/api/admin/orders/ship`, `/api/admin/payments/list|refund`, `/api/admin/orders/:id/invoice.pdf`, `/api/admin/shipments/:id/label.pdf`
+### Meta (Facebook) Catalog Sync — إصلاحات
+- زر “مزامنة الكاتالوج الآن” يستدعي: `POST /api/admin/marketing/facebook/catalog/sync`.
+- تنسيق الطلب إلى Graph API (items_batch):
+  - `content-type: application/x-www-form-urlencoded`
+  - الحقول العلوية في الجسم: `item_type=PRODUCT_ITEM`, `allow_upsert=true`, `requests=<JSON>`
+  - كل عنصر في `requests`:
+    - `method: "CREATE"`, `retailer_id`, `item_type: "PRODUCT_ITEM"`
+    - `data`: `{ name, description, image_url, url, price, availability?, brand?, condition?, additional_image_urls?, google_product_category? }`
+- الاعتماديات/المفاتيح:
+  - يقرأ `FB_CATALOG_ID`, `FB_CATALOG_TOKEN` من env؛ وإلا من إعدادات DB: `integrations:meta:settings:mweb` ثم `web`.
+- بناء العناصر:
+  - يصدّر Variants عندما يوجد SKU: `retailer_id = variant.sku` (مع trim/lowercase).
+  - عنصر المنتج الأساسي يُضاف فقط إذا لم يتصادم مع أي SKU تباين.
+  - إزالة تكرارات `retailer_id` عالميًا وداخل كل دفعة (trim+lowercase).
+- الملفات: `packages/api/src/services/fb_catalog.ts` (التشفير، dedup، mapping التباينات، مفاتيح الكاتالوج).
+- التشغيل:
+  - تأكد من `META_ALLOW_EXTERNAL=1` على خدمة الـ API وإعادة التشغيل لتجنّب `simulated: true`.
+  - خطأ `item_type is required` مُعالج بإرسال الحقول كـ form-encoded مع `item_type` العلوي.
+  - خطأ `Duplicate retailer_id` غالباً من بيانات مصدر مكررة (SKU مكرر)؛ الخدمة تزيل المكرر لكن يلزم تنظيف المصدر إن استمر.
 
-- اللوجستيات (Logistics):
-  - الصفحات: `logistics/pickup`, `logistics/warehouse`, `logistics/delivery`
-  - العمليات: حالات الأرجل (Pickup/Inbound/Delivery)، التعيين/التتبع/الإثبات، تصدير CSV/XLS/PDF
-  - الصيانة: `POST /api/admin/maintenance/ensure-logistics`
+### mweb recap بعد OTP
+- بعد `verify`:
+  - يكتب العميل التوكن إلى كوكي `shop_auth_token` (الجذر و`api.`) وإلى `localStorage.shop_token`.
+  - `/api/me` يفضّل الهيدر ثم الكوكيز ثم `?t` لسيناريو عودة OAuth.
+  - حفظ العنوان/الطلب/الكوبونات تعمل مباشرة كمستخدم مسجّل.
 
-- المستخدمون/الصلاحيات/2FA/السجلات:
-  - الصفحات: `users/`, `settings/rbac`, `2fa/`, `audit-logs/`
-  - العمليات: إدارة الأدوار والصلاحيات، تفعيل/تعطيل 2FA، مراجعة السجلات
-  - REST: `/api/admin/users/list|assign-role`, `/api/admin/2fa/enable|verify|disable`
+### 🧭 Navigation & UX Improvements (Nov 2025)
 
-- الموردون/المستودعات/الناقلون/العملات:
-  - الصفحات: `vendors/`, `vendors/[id]`, `warehouses/`, `carriers/`, `currencies/`
-  - العمليات: إدارة بيانات الموردين والمستودعات وشركات الشحن والعملة، رفع كتالوج الموردين
+تم تحسين تجربة التنقل في متجر الويب (Mobile Web) لضمان سلاسة الانتقال بين المنتجات، خاصة عند الضغط على التوصيات:
 
-- الإشعارات/المراجعات/CMS/الوسائط:
-  - الصفحات: `notifications/*`, `reviews/`, `cms/*`, `media/`
-  - العمليات: إرسال/جدولة/استهداف، إقرار المراجعات، تحرير صفحات محتوى، إدارة مكتبة الوسائط
+1. **إصلاح البيانات القديمة (Stale Data Fix):**
+   - تم تحويل المتغير `id` في `Product.vue` إلى خاصية محسوبة (`computed`) بدلاً من ثابت (`const`).
+   - هذا يضمن تحديث جميع العمليات (إضافة للسلة، تتبع الأحداث، الكوبونات) فوراً عند تغيير الرابط، حتى لو أعاد Vue استخدام نفس المكون.
 
-- المالية (Finance):
-  - الصفحات: `finance/expenses` وتقارير PnL/Cashflow/Revenues/Invoices، الحسابات والدليل، القيود اليومية
-  - العمليات: CRUD للمصروفات، تصدير CSV، تقارير ولوائح مالية
+2. **فرض إعادة بناء الصفحة (Force Re-render):**
+   - تم إضافة `:key="$route.fullPath"` إلى `router-view` في `App.vue`.
+   - هذا يجبر المتصفح على هدم وبناء صفحة المنتج من الصفر عند الانتقال لمنتج جديد، مما يضمن "بداية نظيفة" (Fresh Start) لكل زيارة.
 
-- التسويق (Marketing):
-  - الصفحات: `coupons/`, `promotions/[...slug]`
-  - العمليات: إدارة القسائم والحملات وتقارير الأداء
+3. **تحسين التمرير (Scroll Behavior):**
+   - تم إزالة دوال الحفظ والاستعادة اليدوية (`restorePdpCache`) التي كانت تسبب مشاكل في التمرير.
+   - الاعتماد الكامل الآن على `vue-router` لضمان:
+     - التمرير لأعلى الصفحة عند زيارة منتج جديد.
+     - الحفاظ على مكان التمرير عند الضغط على زر "الرجوع" (Back).
 
-- الاندماجات (Integrations):
-  - الصفحات: `integrations/*` (ai/meta/tracking/whatsapp-send)
-  - العمليات: DeepSeek/OpenRouter/Facebook/WhatsApp/Tracking
-  - الصحة: `/api/admin/integrations/openrouter/health`
+## 🛡️ System Stability & Critical Fixes (Nov 2025)
 
-- النسخ الاحتياطي (Backups):
-  - الصفحة: `backups/`
-  - العمليات: تشغيل/قائمة/استعادة/جدولة (retention 30 يومًا)
-  - REST: `/api/admin/backups/run|list|{id}/restore|schedule`
+This section documents critical fixes applied to ensure data integrity, correct billing, and consistent user experience across the platform.
 
-- النظام/الإعدادات (System/Settings):
-  - الصفحات: `settings/*`, `system/*` (monitoring/carts/analytics/shipping-zones/shipping-rates/geo/*)
-  - العمليات: إعدادات عامة، الشحن والمناطق والأسعار، مراقبة وتشخيص
+### 1. Order Variant Image Integrity
+**Problem:** Order details were not displaying the specific variant image (e.g., Red Shirt) selected by the user, defaulting to the main product image.
+**Fix:**
+- **API (`packages/api/src/routers/shop.ts`):** The image enrichment logic in `POST /orders` was refactored to run unconditionally for all order creation methods. It now correctly populates `OrderItemMeta.attributes.image` by looking up the `ProductColor` gallery based on the selected color.
+- **Result:** Order history and admin panels now consistently show the exact variant image purchased.
 
-- أخرى:
-  - POS: `pos/`، Wallet: `wallet/management`، Loyalty/Badges/Points: `loyalty/*`، Affiliates/Subscriptions: `affiliates/*`, `subscriptions/`
-  - Tickets: `tickets/`، Trends/Recommendations: `trends/*`, `recommendations/rules`
+### 2. Shipping Cost Validation & Display
+**Problem:**
+1.  **Backend:** The API accepted client-side shipping costs without validation.
+2.  **Frontend (Admin):** The Admin Panel displayed the base shipping cost (e.g., 800) even for free shipping orders (0 cost) due to a falsy check bug (`val || 800`).
+**Fix:**
+- **Backend (`shop.ts`):** Added server-side re-calculation logic. The API now fetches the `DeliveryRate` and enforces the `freeOverSubtotal` rule. If the subtotal exceeds the threshold, shipping is forced to `0`.
+- **Frontend (`apps/admin/src/app/orders/[id]/page.tsx`):** Updated the display logic to use nullish coalescing (`??`) instead of logical OR (`||`). This ensures that a shipping cost of `0` is treated as a valid value and displayed correctly, rather than falling back to the default price.
 
-الحالة: الصفحات أعلاه مفعلة في الشفرة وجاهزة حسب صلاحيات RBAC.
+### 3. Cart Variant Merging
+**Problem:** Adding different variants of the same product (e.g., Red and Blue) to the cart resulted in them being merged into a single line item with summed quantities, losing the distinction.
+**Fix:**
+- **API (`shop.ts` / `cart.ts`):** Updated the `addToCart` logic to compare `attributes` (JSONB) in addition to `productId`.
+- **Logic:** `findFirst({ where: { productId, attributes: { equals: newAttributes } } })`.
+- **Result:** Distinct variants now appear as separate line items in the cart, preserving their individual attributes.
 
-### مسارات mweb الأساسية
-- الصفحات: `/`, `/categories`, `/products`, `/p`, `/cart`, `/checkout`, `/account`, `/wishlist`, `/orders`, `/order/:id`, `/address`, `/confirm`, `/returns`, `/help`, `/contact`
-- المصادقة: `/register`, `/login`, `/forgot`, `/verify`, `/complete-profile`, `/auth/google/callback`
-- المدفوعات: `/pay/processing`, `/pay/success`, `/pay/failure`
-- قانوني: `/legal/terms`, `/legal/privacy`, `/legal/shipping`, `/legal/returns`
-- أخرى: `/order/track`, `/points`, `/prefs`
-- المصدر: `apps/mweb/src/main.ts`, `apps/mweb/src/routes.generated.ts`
+### 4. Checkout Shipping Auto-Selection
+**Problem:** In the `mweb` checkout, if only one shipping method was available, the user had to manually select it, causing friction.
+**Fix:**
+- **Frontend (`apps/mweb/src/pages/Checkout.vue`):** Added a Vue `watch` effect on the `shippingOptions` array.
+- **Logic:** If `shippingOptions.length === 1` and no option is selected, the system automatically selects the available method.
 
-## 🛒 تدفق الشراء والطلبات (Web/mweb + API)
-- السلة: tRPC `cart.*` (إضافة/تحديث/حذف) في Web/mweb.
-- إنشاء الطلب: tRPC `orders.createOrder` ينقل عناصر السلة إلى `Order` ويعيد الطلب.
-- جلسة الدفع: `POST /api/payments/session` يعيد رابط مزود الدفع (Stripe جاهز عند ضبط المفاتيح).
-- التحويل والويبهوك: الواجهة تعيد توجيه المستخدم؛ الويبهوك `POST /webhooks/stripe` يثبّت الدفع ويحدّث حالة الطلب.
-- الولاء/النقاط: عند الدفع تُسجَّل نقاط الولاء في `PointLedger` تلقائياً.
-- الشحن: تسعير عبر `GET /api/shipping/quote`؛ لوحات الأدمن لإدارة الشحن والتسليم.
-- المستندات: `GET /api/admin/orders/:id/invoice.pdf` للفواتير و`GET /api/admin/shipments/:id/label.pdf` لملصقات الشحن.
-- الإرجاع: إدارة المرتجعات عبر صفحات `returns` و`rma` في الأدمن مع REST المقابل.
+  - `Full Live E2E`: خطوة “WhatsApp test (live)” تُرسل القالب باسم/لغة صحيحين وتتحقق من `messageId`، وتتحرى `DELIVERED/READ` إذا الويبهوك مفعّل.
+  - `Deploy to VPS (SSH)`: فعِّل سر `WHATSAPP_TEST_PHONE` لتعمل خطوة “WhatsApp live smoke (strict)” تلقائيًا بعد النشر.
+
+## 🔁 CI Dev Mirror (jeeey.local over HTTPS)
+
+Workflow: `.github/workflows/dev-mirror.yml`
+
+What it does:
+- Spins up Postgres (service) and builds API/Web/Admin.
+- Starts API on :4000, Web on :3000, Admin on :3001.
+- Generates a self-signed certificate for `jeeey.local` and subdomains (`api.jeeey.local`, `admin.jeeey.local`, `www.jeeey.local`, `m.jeeey.local`).
+- Runs NGINX in Docker mapping 8443→443 (and 8080→80) to proxy these domains to the local services.
+- Executes HTTPS smoke checks via `curl --resolve` to validate cookies/CORS/domains similar to production.
+
+Environment mapping used by the mirror job:
+- `COOKIE_DOMAIN=.jeeey.local`
+- `NEXT_PUBLIC_APP_URL=https://jeeey.local`
+- `NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.local`
+- `NEXT_PUBLIC_API_BASE_URL=https://api.jeeey.local`
+- `NEXT_PUBLIC_TRPC_URL=https://api.jeeey.local/trpc`
+- `VITE_API_BASE=https://api.jeeey.local`
+- `EXPO_PUBLIC_TRPC_URL=https://api.jeeey.local/trpc`
+- `DATABASE_URL`, `DIRECT_URL` → CI Postgres service
+- `JWT_SECRET`, `MAINTENANCE_SECRET` → Secrets if available, else CI defaults
+
+Trigger: Dispatch “Dev Mirror (HTTPS + NGINX + jeeey.local)” or push to `main`.
+
+## 📞 WhatsApp OTP — إعداد مضمون وخالٍ من الأخطاء
+
+- الإعداد (Secrets/Vars):
+  - WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_BUSINESS_ACCOUNT_ID
+  - WHATSAPP_TEMPLATE (الافتراضي: otp_login_code), WHATSAPP_LANGUAGE (الافتراضي: ar)
+  - DEFAULT_COUNTRY_CODE (مثال: +967) لضبط تحويل الأرقام المحلية إلى E.164
+  - WA_OTP_STRICT=1 لتعطيل سقوط النص إذا فشل القالب
+  - OTP_SMS_WITH_WA=1 لإرسال SMS بالتوازي عند نجاح واتساب (اختياري)
+
+- قواعد الرقم (بدون تكرار كود الدولة):
+  - الواجهة (mweb) ترسل `phone` على شكل E.164 مرة واحدة:
+    - إذا أدخل المستخدم محلياً (مثل 777310606) مع اختيار +967: تحوَّل إلى `967777310606` وتُرسل كـ `+967777310606`.
+    - إذا كان الرقم يبدأ بمقدمة الدولة أصلاً (967...): يُضاف `+` فقط دون إلحاق المقدمة مرة ثانية.
+  - الخادم (API) يطبق normalizeE164 ذكي:
+    - إن كانت الأرقام تبدأ بمقدمة الدولة، يعيد `+<digits>` مباشرة (لا يضيف المقدمة مرة أخرى).
+    - إن بدأت بصفر، يزيل الأصفار ويضيف المقدمة مرة واحدة فقط.
+
+- الإرسال:
+  - نقطة المستخدم: `POST /api/auth/otp/request` { phone: "+9677...", channel: "whatsapp|sms|both" }
+  - الخادم يفحص صلاحية جهة الاتصال عبر Contacts API ثم يرسل القالب `otp_login_code` (لغة ar) بمكوّنات تتطابق بالضبط مع تعريف WABA.
+  - لا يحدث سقوط إلى نص إذا WA_OTP_STRICT=1 (موصى به).
+
+- التحقق:
+  - `POST /api/auth/otp/verify` { phone, code } يعيد كوكي/توكن جلسة للمستخدم. الموبايل يكتب كوكي `shop_auth_token` على الجذر والنطاق `api.` لتجنب مشاكل الطرف الثالث.
+
+- سجلات ومتابعة التسليم:
+  - جدول `NotificationLog` يخزن `messageId`/`status`. عند ربط Webhook، ستتحدّث الحالات إلى `SENT/DELIVERED/READ` تلقائياً.
+  - تشخيص مباشر: `POST /api/admin/whatsapp/diagnose` يعيد حالة الوصول (valid/invalid) عبر Contacts API، مع محاولة بديلة لـ `phone_numbers` الخاصة بـ WABA.
+
+- فحوص ما بعد النشر (CI):
+  - خطوة “WhatsApp live smoke (strict)” تعمل إذا كان `WHATSAPP_TEST_PHONE` مضبوطاً، وتفشل النشر فقط عند وجود خطأ حقيقي في الإرسال.
+
+- استكشاف أخطاء شائعة:
+  - «تكرار كود الدولة» في صفحة التحقق: تم حلّه عبر `displayPhone`؛ لا يؤثر على الإرسال، فقط العرض. تأكد من تحديث mweb.
+  - «accepted ولا تصل الرسالة»: فعِّل التشخيص؛ غالباً القالب/اللغة/المكوّنات لا تطابق تعريف WABA. استخدم `send-smart` أو صحّح اسم القالب واللغة إلى `otp_login_code` و`ar`.
+  - «Unsupported (code 100 subcode 33)»: تحقّق من صلاحيات `phone_id`/`waba_id` والاشتراكات، واستخدم قائمة `phone_numbers` لاختيار معرف صحيح تلقائياً.
+
+### OTP Verify & Complete Profile — تدفق مضمون بعد التحقق
+
+- التحقق من الرمز:
+  1) `POST /api/auth/otp/verify` { phone, code } يعيد `{ ok, token, newUser }`.
+  2) العميل (mweb) يحفظ التوكن فوراً:
+     - كوكي `shop_auth_token` (domain الجذر و`api.`)
+     - localStorage: `shop_token`
+     - sessionStorage (احتياطي مؤقت)
+  3) يقرأ `/api/me` ثم يقرر الوجهة:
+     - إن `newUser === true` أو الاسم ناقص → `/complete-profile?return=...`
+     - غير ذلك → `/account`
+
+- إكمال إنشاء الحساب:
+  - `POST /api/me/complete` { fullName, password?, confirm? } مع رأس `Authorization: Bearer <token>`.
+  - عند النجاح يعود `{ ok:true }` ويُحوِّل العميل إلى `/account`.
+
+- سلوك المصادقة على الخادم (منع الدورات و401):
+  - يتم تفضيل Authorization header على الكوكيز عند قراءة التوكن (لتجنب ظلّ كوكي قديم للتوكن الحديث).
+  - `/api/me`: إذا تعذّر التحقق بالتوقيع لحظياً، يُفك شفرة الـ JWT من الهيدر كحلٍ مؤقت لتفادي دورة إعادة تسجيل الدخول.
+  - `/api/me/complete`: يتحقق من الهيدر أولاً، وإن تعذّر، يفك الشفرة كحلٍ مؤقت لإتمام الإجراء بنجاح مباشرة بعد OTP.
+
+- NGINX/CORS:
+  - يسمح بالطرق: `GET, POST, PUT, PATCH, DELETE, OPTIONS` والرؤوس: `Content-Type, Authorization, X-Shop-Client` ويُعيد 204 للـ OPTIONS.
+
+- استكشاف 401/405 بعد التحقق:
+  - 401 على `/api/me/complete`: تأكد أن الطلب إلى `https://api.jeeey.com` وبرأس Authorization الحديث (من `/otp/verify`). تمت تهيئة الخادم لتفضيل الهيدر وحل تعارض الكوكي.
+  - 405 على `/api/me/complete`: يعني أن الطلب وُجِّه إلى `m.jeeey.com` أو مسار ثابت؛ يجب أن يكون إلى `api.jeeey.com`.
+
+## 📌 Nov 2025 — Auth (WhatsApp/Google), Android App Links, Meta Catalog
+
+### Auth: WhatsApp OTP without email requirement
+- JWT payload جعل `email` اختيارياً وأضاف `phone` (اختياري). المصادر:
+  - `packages/api/src/utils/jwt.ts`
+  - `packages/api/src/middleware/auth.ts`, `packages/api/src/trpc-setup.ts`, `packages/api/src/context.ts`
+- مسار OTP verify يبقي بريد قاعدة البيانات بالنمط legacy:
+  - `email = phone+<digits>@local` للحسابات الجديدة/القديمة عبر واتساب.
+  - التوكن يُوقَّع بلا اشتراط `email` ويحتوي `{ userId, role, phone }`.
+  - المصدر: `packages/api/src/routers/shop.ts` (POST `/api/auth/otp/verify`).
+- السلوك:
+  - المستخدمون بـ `...@local` يعملون فوراً؛ يتم تحديث `phone` عند الحاجة.
+  - `newUser` يُحسب عبر متغير الوجود بدل الاعتماد على البريد.
+
+### Auth: Google OAuth callback shim
+- يدعم السيرفر كلا الشكلين ويحوّل تلقائياً:
+  - `/auth/google/callback` → `/api/auth/google/callback`
+  - التعديل في `packages/api/src/index.ts`.
+  - ينصح بضبط Redirect URI في Google إلى: `https://api.jeeey.com/api/auth/google/callback`.
+
+### Android App Links (assetlinks.json)
+- mweb (ملف ثابت): `apps/mweb/public/.well-known/assetlinks.json`
+- API (مسار ديناميكي): `GET /.well-known/assetlinks.json` من `packages/api/src/index.ts`
+- المحتوى:
+  - `package_name: com.jeeey.shopin`
+  - `sha256_cert_fingerprints: ["40:44:5A:90:E0:A3:53:B0:B5:D5:F0:A7:E9:04:4B:EE:09:3A:23:32:8A:C6:65:42:2A:A1:BE:8E:A7:59:2B:21"]`
+  - relations: `delegate_permission/common.handle_all_urls`, `delegate_permission/common.get_login_creds`
+
+### Meta (Facebook) Catalog Sync — إصلاحات
+- زر “مزامنة الكاتالوج الآن” يستدعي: `POST /api/admin/marketing/facebook/catalog/sync`.
+- تنسيق الطلب إلى Graph API (items_batch):
+  - `content-type: application/x-www-form-urlencoded`
+  - الحقول العلوية في الجسم: `item_type=PRODUCT_ITEM`, `allow_upsert=true`, `requests=<JSON>`
+  - كل عنصر في `requests`:
+    - `method: "CREATE"`, `retailer_id`, `item_type: "PRODUCT_ITEM"`
+    - `data`: `{ name, description, image_url, url, price, availability?, brand?, condition?, additional_image_urls?, google_product_category? }`
+- الاعتماديات/المفاتيح:
+  - يقرأ `FB_CATALOG_ID`, `FB_CATALOG_TOKEN` من env؛ وإلا من إعدادات DB: `integrations:meta:settings:mweb` ثم `web`.
+- بناء العناصر:
+  - يصدّر Variants عندما يوجد SKU: `retailer_id = variant.sku` (مع trim/lowercase).
+  - عنصر المنتج الأساسي يُضاف فقط إذا لم يتصادم مع أي SKU تباين.
+  - إزالة تكرارات `retailer_id` عالميًا وداخل كل دفعة (trim+lowercase).
+- الملفات: `packages/api/src/services/fb_catalog.ts` (التشفير، dedup، mapping التباينات، مفاتيح الكاتالوج).
+- التشغيل:
+  - تأكد من `META_ALLOW_EXTERNAL=1` على خدمة الـ API وإعادة التشغيل لتجنّب `simulated: true`.
+  - خطأ `item_type is required` مُعالج بإرسال الحقول كـ form-encoded مع `item_type` العلوي.
+  - خطأ `Duplicate retailer_id` غالباً من بيانات مصدر مكررة (SKU مكرر)؛ الخدمة تزيل المكرر لكن يلزم تنظيف المصدر إن استمر.
+
+### mweb recap بعد OTP
+- بعد `verify`:
+  - يكتب العميل التوكن إلى كوكي `shop_auth_token` (الجذر و`api.`) وإلى `localStorage.shop_token`.
+  - `/api/me` يفضّل الهيدر ثم الكوكيز ثم `?t` لسيناريو عودة OAuth.
+  - حفظ العنوان/الطلب/الكوبونات تعمل مباشرة كمستخدم مسجّل.
+
+### 🧭 Navigation & UX Improvements (Nov 2025)
+
+تم تحسين تجربة التنقل في متجر الويب (Mobile Web) لضمان سلاسة الانتقال بين المنتجات، خاصة عند الضغط على التوصيات:
+
+1.  **إصلاح البيانات القديمة (Stale Data Fix):**
+    - تم تحويل المتغير `id` في `Product.vue` إلى خاصية محسوبة (`computed`) بدلاً من ثابت (`const`).
+    - هذا يضمن تحديث جميع العمليات (إضافة للسلة، تتبع الأحداث، الكوبونات) فوراً عند تغيير الرابط، حتى لو أعاد Vue استخدام نفس المكون.
+
+2.  **فرض إعادة بناء الصفحة (Force Re-render):**
+    - تم إضافة `:key="$route.fullPath"` إلى `router-view` في `App.vue`.
+    - هذا يجبر المتصفح على هدم وبناء صفحة المنتج من الصفر عند الانتقال لمنتج جديد، مما يضمن "بداية نظيفة" (Fresh Start) لكل زيارة.
+
+3.  **تحسين التمرير (Scroll Behavior):**
+    - تم إزالة دوال الحفظ والاستعادة اليدوية (`restorePdpCache`) التي كانت تسبب مشاكل في التمرير.
+    - الاعتماد الكامل الآن على `vue-router` لضمان:
+        - التمرير لأعلى الصفحة عند زيارة منتج جديد.
+        - الحفاظ على مكان التمرير عند الضغط على زر "الرجوع" (Back).
+
+## 🛡️ System Stability & Critical Fixes (Nov 2025)
+
+This section documents critical fixes applied to ensure data integrity, correct billing, and consistent user experience across the platform.
+
+### 1. Order Variant Image Integrity
+**Problem:** Order details were not displaying the specific variant image (e.g., Red Shirt) selected by the user, defaulting to the main product image.
+**Fix:**
+- **API (`packages/api/src/routers/shop.ts`):** The image enrichment logic in `POST /orders` was refactored to run unconditionally for all order creation methods. It now correctly populates `OrderItemMeta.attributes.image` by looking up the `ProductColor` gallery based on the selected color.
+- **Result:** Order history and admin panels now consistently show the exact variant image purchased.
+
+### 2. Shipping Cost Validation & Display
+**Problem:**
+1.  **Backend:** The API accepted client-side shipping costs without validation.
+2.  **Frontend (Admin):** The Admin Panel displayed the base shipping cost (e.g., 800) even for free shipping orders (0 cost) due to a falsy check bug (`val || 800`).
+**Fix:**
+- **Backend (`shop.ts`):** Added server-side re-calculation logic. The API now fetches the `DeliveryRate` and enforces the `freeOverSubtotal` rule. If the subtotal exceeds the threshold, shipping is forced to `0`.
+- **Frontend (`apps/admin/src/app/orders/[id]/page.tsx`):** Updated the display logic to use nullish coalescing (`??`) instead of logical OR (`||`). This ensures that a shipping cost of `0` is treated as a valid value and displayed correctly, rather than falling back to the default price.
+
+### 3. Cart Variant Merging
+**Problem:** Adding different variants of the same product (e.g., Red and Blue) to the cart resulted in them being merged into a single line item with summed quantities, losing the distinction.
+**Fix:**
+- **API (`shop.ts` / `cart.ts`):** Updated the `addToCart` logic to compare `attributes` (JSONB) in addition to `productId`.
+- **Logic:** `findFirst({ where: { productId, attributes: { equals: newAttributes } } })`.
+- **Result:** Distinct variants now appear as separate line items in the cart, preserving their individual attributes.
+
+### 4. Checkout Shipping Auto-Selection
+**Problem:** In the `mweb` checkout, if only one shipping method was available, the user had to manually select it, causing friction.
+**Fix:**
+- **Frontend (`apps/mweb/src/pages/Checkout.vue`):** Added a Vue `watch` effect on the `shippingOptions` array.
+- **Logic:** If `shippingOptions.length === 1` and no option is selected, the system automatically selects the available method.
+
+  - `Full Live E2E`: خطوة “WhatsApp test (live)” تُرسل القالب باسم/لغة صحيحين وتتحقق من `messageId`، وتتحرى `DELIVERED/READ` إذا الويبهوك مفعّل.
+  - `Deploy to VPS (SSH)`: فعِّل سر `WHATSAPP_TEST_PHONE` لتعمل خطوة “WhatsApp live smoke (strict)” تلقائيًا بعد النشر.
+
+## 🔁 CI Dev Mirror (jeeey.local over HTTPS)
+
+Workflow: `.github/workflows/dev-mirror.yml`
+
+What it does:
+- Spins up Postgres (service) and builds API/Web/Admin.
+- Starts API on :4000, Web on :3000, Admin on :3001.
+- Generates a self-signed certificate for `jeeey.local` and subdomains (`api.jeeey.local`, `admin.jeeey.local`, `www.jeeey.local`, `m.jeeey.local`).
+- Runs NGINX in Docker mapping 8443→443 (and 8080→80) to proxy these domains to the local services.
+- Executes HTTPS smoke checks via `curl --resolve` to validate cookies/CORS/domains similar to production.
+
+Environment mapping used by the mirror job:
+- `COOKIE_DOMAIN=.jeeey.local`
+- `NEXT_PUBLIC_APP_URL=https://jeeey.local`
+- `NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.local`
+- `NEXT_PUBLIC_API_BASE_URL=https://api.jeeey.local`
+- `NEXT_PUBLIC_TRPC_URL=https://api.jeeey.local/trpc`
+- `VITE_API_BASE=https://api.jeeey.local`
+- `EXPO_PUBLIC_TRPC_URL=https://api.jeeey.local/trpc`
+- `DATABASE_URL`, `DIRECT_URL` → CI Postgres service
+- `JWT_SECRET`, `MAINTENANCE_SECRET` → Secrets if available, else CI defaults
+
+Trigger: Dispatch “Dev Mirror (HTTPS + NGINX + jeeey.local)” or push to `main`.
+
+## 📞 WhatsApp OTP — إعداد مضمون وخالٍ من الأخطاء
+
+- الإعداد (Secrets/Vars):
+  - WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_BUSINESS_ACCOUNT_ID
+  - WHATSAPP_TEMPLATE (الافتراضي: otp_login_code), WHATSAPP_LANGUAGE (الافتراضي: ar)
+  - DEFAULT_COUNTRY_CODE (مثال: +967) لضبط تحويل الأرقام المحلية إلى E.164
+  - WA_OTP_STRICT=1 لتعطيل سقوط النص إذا فشل القالب
+  - OTP_SMS_WITH_WA=1 لإرسال SMS بالتوازي عند نجاح واتساب (اختياري)
+
+- قواعد الرقم (بدون تكرار كود الدولة):
+  - الواجهة (mweb) ترسل `phone` على شكل E.164 مرة واحدة:
+    - إذا أدخل المستخدم محلياً (مثل 777310606) مع اختيار +967: تحوَّل إلى `967777310606` وتُرسل كـ `+967777310606`.
+    - إذا كان الرقم يبدأ بمقدمة الدولة أصلاً (967...): يُضاف `+` فقط دون إلحاق المقدمة مرة ثانية.
+  - الخادم (API) يطبق normalizeE164 ذكي:
+    - إن كانت الأرقام تبدأ بمقدمة الدولة، يعيد `+<digits>` مباشرة (لا يضيف المقدمة مرة أخرى).
+    - إن بدأت بصفر، يزيل الأصفار ويضيف المقدمة مرة واحدة فقط.
+
+- الإرسال:
+  - نقطة المستخدم: `POST /api/auth/otp/request` { phone: "+9677...", channel: "whatsapp|sms|both" }
+  - الخادم يفحص صلاحية جهة الاتصال عبر Contacts API ثم يرسل القالب `otp_login_code` (لغة ar) بمكوّنات تتطابق بالضبط مع تعريف WABA.
+  - لا يحدث سقوط إلى نص إذا WA_OTP_STRICT=1 (موصى به).
+
+- التحقق:
+  - `POST /api/auth/otp/verify` { phone, code } يعيد كوكي/توكن جلسة للمستخدم. الموبايل يكتب كوكي `shop_auth_token` على الجذر والنطاق `api.` لتجنب مشاكل الطرف الثالث.
+
+- سجلات ومتابعة التسليم:
+  - جدول `NotificationLog` يخزن `messageId`/`status`. عند ربط Webhook، ستتحدّث الحالات إلى `SENT/DELIVERED/READ` تلقائياً.
+  - تشخيص مباشر: `POST /api/admin/whatsapp/diagnose` يعيد حالة الوصول (valid/invalid) عبر Contacts API، مع محاولة بديلة لـ `phone_numbers` الخاصة بـ WABA.
+
+- فحوص ما بعد النشر (CI):
+  - خطوة “WhatsApp live smoke (strict)” تعمل إذا كان `WHATSAPP_TEST_PHONE` مضبوطاً، وتفشل النشر فقط عند وجود خطأ حقيقي في الإرسال.
+
+- استكشاف أخطاء شائعة:
+  - «تكرار كود الدولة» في صفحة التحقق: تم حلّه عبر `displayPhone`؛ لا يؤثر على الإرسال، فقط العرض. تأكد من تحديث mweb.
+  - «accepted ولا تصل الرسالة»: فعِّل التشخيص؛ غالباً القالب/اللغة/المكوّنات لا تطابق تعريف WABA. استخدم `send-smart` أو صحّح اسم القالب واللغة إلى `otp_login_code` و`ar`.
+  - «Unsupported (code 100 subcode 33)»: تحقّق من صلاحيات `phone_id`/`waba_id` والاشتراكات، واستخدم قائمة `phone_numbers` لاختيار معرف صحيح تلقائياً.
+
+### OTP Verify & Complete Profile — تدفق مضمون بعد التحقق
+
+- التحقق من الرمز:
+  1) `POST /api/auth/otp/verify` { phone, code } يعيد `{ ok, token, newUser }`.
+  2) العميل (mweb) يحفظ التوكن فوراً:
+     - كوكي `shop_auth_token` (domain الجذر و`api.`)
+     - localStorage: `shop_token`
+     - sessionStorage (احتياطي مؤقت)
+  3) يقرأ `/api/me` ثم يقرر الوجهة:
+     - إن `newUser === true` أو الاسم ناقص → `/complete-profile?return=...`
+     - غير ذلك → `/account`
+
+- إكمال إنشاء الحساب:
+  - `POST /api/me/complete` { fullName, password?, confirm? } مع رأس `Authorization: Bearer <token>`.
+  - عند النجاح يعود `{ ok:true }` ويُحوِّل العميل إلى `/account`.
+
+- سلوك المصادقة على الخادم (منع الدورات و401):
+  - يتم تفضيل Authorization header على الكوكيز عند قراءة التوكن (لتجنب ظلّ كوكي قديم للتوكن الحديث).
+  - `/api/me`: إذا تعذّر التحقق بالتوقيع لحظياً، يُفك شفرة الـ JWT من الهيدر كحلٍ مؤقت لتفادي دورة إعادة تسجيل الدخول.
+  - `/api/me/complete`: يتحقق من الهيدر أولاً، وإن تعذّر، يفك الشفرة كحلٍ مؤقت لإتمام الإجراء بنجاح مباشرة بعد OTP.
+
+- NGINX/CORS:
+  - يسمح بالطرق: `GET, POST, PUT, PATCH, DELETE, OPTIONS` والرؤوس: `Content-Type, Authorization, X-Shop-Client` ويُعيد 204 للـ OPTIONS.
+
+- استكشاف 401/405 بعد التحقق:
+  - 401 على `/api/me/complete`: تأكد أن الطلب إلى `https://api.jeeey.com` وبرأس Authorization الحديث (من `/otp/verify`). تمت تهيئة الخادم لتفضيل الهيدر وحل تعارض الكوكي.
+  - 405 على `/api/me/complete`: يعني أن الطلب وُجِّه إلى `m.jeeey.com` أو مسار ثابت؛ يجب أن يكون إلى `api.jeeey.com`.
+
+## 📌 Nov 2025 — Auth (WhatsApp/Google), Android App Links, Meta Catalog
+
+### Auth: WhatsApp OTP without email requirement
+- JWT payload جعل `email` اختيارياً وأضاف `phone` (اختياري). المصادر:
+  - `packages/api/src/utils/jwt.ts`
+  - `packages/api/src/middleware/auth.ts`, `packages/api/src/trpc-setup.ts`, `packages/api/src/context.ts`
+- مسار OTP verify يبقي بريد قاعدة البيانات بالنمط legacy:
+  - `email = phone+<digits>@local` للحسابات الجديدة/القديمة عبر واتساب.
+  - التوكن يُوقَّع بلا اشتراط `email` ويحتوي `{ userId, role, phone }`.
+  - المصدر: `packages/api/src/routers/shop.ts` (POST `/api/auth/otp/verify`).
+- السلوك:
+  - المستخدمون بـ `...@local` يعملون فوراً؛ يتم تحديث `phone` عند الحاجة.
+  - `newUser` يُحسب عبر متغير الوجود بدل الاعتماد على البريد.
+
+### Auth: Google OAuth callback shim
+- يدعم السيرفر كلا الشكلين ويحوّل تلقائياً:
+  - `/auth/google/callback` → `/api/auth/google/callback`
+  - التعديل في `packages/api/src/index.ts`.
+  - ينصح بضبط Redirect URI في Google إلى: `https://api.jeeey.com/api/auth/google/callback`.
+
+### Android App Links (assetlinks.json)
+- mweb (ملف ثابت): `apps/mweb/public/.well-known/assetlinks.json`
+- API (مسار ديناميكي): `GET /.well-known/assetlinks.json` من `packages/api/src/index.ts`
+- المحتوى:
+  - `package_name: com.jeeey.shopin`
+  - `sha256_cert_fingerprints: ["40:44:5A:90:E0:A3:53:B0:B5:D5:F0:A7:E9:04:4B:EE:09:3A:23:32:8A:C6:65:42:2A:A1:BE:8E:A7:59:2B:21"]`
+  - relations: `delegate_permission/common.handle_all_urls`, `delegate_permission/common.get_login_creds`
+
+### Meta (Facebook) Catalog Sync — إصلاحات
+- زر “مزامنة الكاتالوج الآن” يستدعي: `POST /api/admin/marketing/facebook/catalog/sync`.
+- تنسيق الطلب إلى Graph API (items_batch):
+  - `content-type: application/x-www-form-urlencoded`
+  - الحقول العلوية في الجسم: `item_type=PRODUCT_ITEM`, `allow_upsert=true`, `requests=<JSON>`
+  - كل عنصر في `requests`:
+    - `method: "CREATE"`, `retailer_id`, `item_type: "PRODUCT_ITEM"`
+    - `data`: `{ name, description, image_url, url, price, availability?, brand?, condition?, additional_image_urls?, google_product_category? }`
+- الاعتماديات/المفاتيح:
+  - يقرأ `FB_CATALOG_ID`, `FB_CATALOG_TOKEN` من env؛ وإلا من إعدادات DB: `integrations:meta:settings:mweb` ثم `web`.
+- بناء العناصر:
+  - يصدّر Variants عندما يوجد SKU: `retailer_id = variant.sku` (مع trim/lowercase).
+  - عنصر المنتج الأساسي يُضاف فقط إذا لم يتصادم مع أي SKU تباين.
+  - إزالة تكرارات `retailer_id` عالميًا وداخل كل دفعة (trim+lowercase).
+- الملفات: `packages/api/src/services/fb_catalog.ts` (التشفير، dedup، mapping التباينات، مفاتيح الكاتالوج).
+- التشغيل:
+  - تأكد من `META_ALLOW_EXTERNAL=1` على خدمة الـ API وإعادة التشغيل لتجنّب `simulated: true`.
+  - خطأ `item_type is required` مُعالج بإرسال الحقول كـ form-encoded مع `item_type` العلوي.
+  - خطأ `Duplicate retailer_id` غالباً من بيانات مصدر مكررة (SKU مكرر)؛ الخدمة تزيل المكرر لكن يلزم تنظيف المصدر إن استمر.
+
+### mweb recap بعد OTP
+- بعد `verify`:
+  - يكتب العميل التوكن إلى كوكي `shop_auth_token` (الجذر و`api.`) وإلى `localStorage.shop_token`.
+  - `/api/me` يفضّل الهيدر ثم الكوكيز ثم `?t` لسيناريو عودة OAuth.
+  - حفظ العنوان/الطلب/الكوبونات تعمل مباشرة كمستخدم مسجّل.
+
+### 🧭 Navigation & UX Improvements (Nov 2025)
+
+تم تحسين تجربة التنقل في متجر الويب (Mobile Web) لضمان سلاسة الانتقال بين المنتجات، خاصة عند الضغط على التوصيات:
+
+1.  **إصلاح البيانات القديمة (Stale Data Fix):**
+    - تم تحويل المتغير `id` في `Product.vue` إلى خاصية محسوبة (`computed`) بدلاً من ثابت (`const`).
+    - هذا يضمن تحديث جميع العمليات (إضافة للسلة، تتبع الأحداث، الكوبونات) فوراً عند تغيير الرابط، حتى لو أعاد Vue استخدام نفس المكون.
+
+2.  **فرض إعادة بناء الصفحة (Force Re-render):**
+    - تم إضافة `:key="$route.fullPath"` إلى `router-view` في `App.vue`.
+    - هذا يجبر المتصفح على هدم وبناء صفحة المنتج من الصفر عند الانتقال لمنتج جديد، مما يضمن "بداية نظيفة" (Fresh Start) لكل زيارة.
+
+3.  **تحسين التمرير (Scroll Behavior):**
+    - تم إزالة دوال الحفظ والاستعادة اليدوية (`restorePdpCache`) التي كانت تسبب مشاكل في التمرير.
+    - الاعتماد الكامل الآن على `vue-router` لضمان:
+        - التمرير لأعلى الصفحة عند زيارة منتج جديد.
+        - الحفاظ على مكان التمرير عند الضغط على زر "الرجوع" (Back).
+
+## 🛡️ System Stability & Critical Fixes (Nov 2025)
+
+This section documents critical fixes applied to ensure data integrity, correct billing, and consistent user experience across the platform.
+
+### 1. Order Variant Image Integrity
+**Problem:** Order details were not displaying the specific variant image (e.g., Red Shirt) selected by the user, defaulting to the main product image.
+**Fix:**
+- **API (`packages/api/src/routers/shop.ts`):** The image enrichment logic in `POST /orders` was refactored to run unconditionally for all order creation methods. It now correctly populates `OrderItemMeta.attributes.image` by looking up the `ProductColor` gallery based on the selected color.
+- **Result:** Order history and admin panels now consistently show the exact variant image purchased.
+
+### 2. Shipping Cost Validation & Display
+**Problem:**
+1.  **Backend:** The API accepted client-side shipping costs without validation.
+2.  **Frontend (Admin):** The Admin Panel displayed the base shipping cost (e.g., 800) even for free shipping orders (0 cost) due to a falsy check bug (`val || 800`).
+**Fix:**
+- **Backend (`shop.ts`):** Added server-side re-calculation logic. The API now fetches the `DeliveryRate` and enforces the `freeOverSubtotal` rule. If the subtotal exceeds the threshold, shipping is forced to `0`.
+- **Frontend (`apps/admin/src/app/orders/[id]/page.tsx`):** Updated the display logic to use nullish coalescing (`??`) instead of logical OR (`||`). This ensures that a shipping cost of `0` is treated as a valid value and displayed correctly, rather than falling back to the default price.
+
+### 3. Cart Variant Merging
+**Problem:** Adding different variants of the same product (e.g., Red and Blue) to the cart resulted in them being merged into a single line item with summed quantities, losing the distinction.
+**Fix:**
+- **API (`shop.ts` / `cart.ts`):** Updated the `addToCart` logic to compare `attributes` (JSONB) in addition to `productId`.
+- **Logic:** `findFirst({ where: { productId, attributes: { equals: newAttributes } } })`.
+- **Result:** Distinct variants now appear as separate line items in the cart, preserving their individual attributes.
+
+### 4. Checkout Shipping Auto-Selection
+**Problem:** In the `mweb` checkout, if only one shipping method was available, the user had to manually select it, causing friction.
+**Fix:**
+- **Frontend (`apps/mweb/src/pages/Checkout.vue`):** Added a Vue `watch` effect on the `shippingOptions` array.
+- **Logic:** If `shippingOptions.length === 1` and no option is selected, the system automatically selects the available method.
+
+  - `Full Live E2E`: خطوة “WhatsApp test (live)” تُرسل القالب باسم/لغة صحيحين وتتحقق من `messageId`، وتتحرى `DELIVERED/READ` إذا الويبهوك مفعّل.
+  - `Deploy to VPS (SSH)`: فعِّل سر `WHATSAPP_TEST_PHONE` لتعمل خطوة “WhatsApp live smoke (strict)” تلقائيًا بعد النشر.
+
+## 🔁 CI Dev Mirror (jeeey.local over HTTPS)
+
+Workflow: `.github/workflows/dev-mirror.yml`
+
+What it does:
+- Spins up Postgres (service) and builds API/Web/Admin.
+- Starts API on :4000, Web on :3000, Admin on :3001.
+- Generates a self-signed certificate for `jeeey.local` and subdomains (`api.jeeey.local`, `admin.jeeey.local`, `www.jeeey.local`, `m.jeeey.local`).
+- Runs NGINX in Docker mapping 8443→443 (and 8080→80) to proxy these domains to the local services.
+- Executes HTTPS smoke checks via `curl --resolve` to validate cookies/CORS/domains similar to production.
+
+Environment mapping used by the mirror job:
+- `COOKIE_DOMAIN=.jeeey.local`
+- `NEXT_PUBLIC_APP_URL=https://jeeey.local`
+- `NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.local`
+- `NEXT_PUBLIC_API_BASE_URL=https://api.jeeey.local`
+- `NEXT_PUBLIC_TRPC_URL=https://api.jeeey.local/trpc`
+- `VITE_API_BASE=https://api.jeeey.local`
+- `EXPO_PUBLIC_TRPC_URL=https://api.jeeey.local/trpc`
+- `DATABASE_URL`, `DIRECT_URL` → CI Postgres service
+- `JWT_SECRET`, `MAINTENANCE_SECRET` → Secrets if available, else CI defaults
+
+Trigger: Dispatch “Dev Mirror (HTTPS + NGINX + jeeey.local)” or push to `main`.
+
+## 📞 WhatsApp OTP — إعداد مضمون وخالٍ من الأخطاء
+
+- الإعداد (Secrets/Vars):
+  - WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_BUSINESS_ACCOUNT_ID
+  - WHATSAPP_TEMPLATE (الافتراضي: otp_login_code), WHATSAPP_LANGUAGE (الافتراضي: ar)
+  - DEFAULT_COUNTRY_CODE (مثال: +967) لضبط تحويل الأرقام المحلية إلى E.164
+  - WA_OTP_STRICT=1 لتعطيل سقوط النص إذا فشل القالب
+  - OTP_SMS_WITH_WA=1 لإرسال SMS بالتوازي عند نجاح واتساب (اختياري)
+
+- قواعد الرقم (بدون تكرار كود الدولة):
+  - الواجهة (mweb) ترسل `phone` على شكل E.164 مرة واحدة:
+    - إذا أدخل المستخدم محلياً (مثل 777310606) مع اختيار +967: تحوَّل إلى `967777310606` وتُرسل كـ `+967777310606`.
+    - إذا كان الرقم يبدأ بمقدمة الدولة أصلاً (967...): يُضاف `+` فقط دون إلحاق المقدمة مرة ثانية.
+  - الخادم (API) يطبق normalizeE164 ذكي:
+    - إن كانت الأرقام تبدأ بمقدمة الدولة، يعيد `+<digits>` مباشرة (لا يضيف المقدمة مرة أخرى).
+    - إن بدأت بصفر، يزيل الأصفار ويضيف المقدمة مرة واحدة فقط.
+
+- الإرسال:
+  - نقطة المستخدم: `POST /api/auth/otp/request` { phone: "+9677...", channel: "whatsapp|sms|both" }
+  - الخادم يفحص صلاحية جهة الاتصال عبر Contacts API ثم يرسل القالب `otp_login_code` (لغة ar) بمكوّنات تتطابق بالضبط مع تعريف WABA.
+  - لا يحدث سقوط إلى نص إذا WA_OTP_STRICT=1 (موصى به).
+
+- التحقق:
+  - `POST /api/auth/otp/verify` { phone, code } يعيد كوكي/توكن جلسة للمستخدم. الموبايل يكتب كوكي `shop_auth_token` على الجذر والنطاق `api.` لتجنب مشاكل الطرف الثالث.
+
+- سجلات ومتابعة التسليم:
+  - جدول `NotificationLog` يخزن `messageId`/`status`. عند ربط Webhook، ستتحدّث الحالات إلى `SENT/DELIVERED/READ` تلقائياً.
+  - تشخيص مباشر: `POST /api/admin/whatsapp/diagnose` يعيد حالة الوصول (valid/invalid) عبر Contacts API، مع محاولة بديلة لـ `phone_numbers` الخاصة بـ WABA.
+
+- فحوص ما بعد النشر (CI):
+  - خطوة “WhatsApp live smoke (strict)” تعمل إذا كان `WHATSAPP_TEST_PHONE` مضبوطاً، وتفشل النشر فقط عند وجود خطأ حقيقي في الإرسال.
+
+- استكشاف أخطاء شائعة:
+  - «تكرار كود الدولة» في صفحة التحقق: تم حلّه عبر `displayPhone`؛ لا يؤثر على الإرسال، فقط العرض. تأكد من تحديث mweb.
+  - «accepted ولا تصل الرسالة»: فعِّل التشخيص؛ غالباً القالب/اللغة/المكوّنات لا تطابق تعريف WABA. استخدم `send-smart` أو صحّح اسم القالب واللغة إلى `otp_login_code` و`ar`.
+  - «Unsupported (code 100 subcode 33)»: تحقّق من صلاحيات `phone_id`/`waba_id` والاشتراكات، واستخدم قائمة `phone_numbers` لاختيار معرف صحيح تلقائياً.
+
+### OTP Verify & Complete Profile — تدفق مضمون بعد التحقق
+
+- التحقق من الرمز:
+  1) `POST /api/auth/otp/verify` { phone, code } يعيد `{ ok, token, newUser }`.
+  2) العميل (mweb) يحفظ التوكن فوراً:
+     - كوكي `shop_auth_token` (domain الجذر و`api.`)
+     - localStorage: `shop_token`
+     - sessionStorage (احتياطي مؤقت)
+  3) يقرأ `/api/me` ثم يقرر الوجهة:
+     - إن `newUser === true` أو الاسم ناقص → `/complete-profile?return=...`
+     - غير ذلك → `/account`
+
+- إكمال إنشاء الحساب:
+  - `POST /api/me/complete` { fullName, password?, confirm? } مع رأس `Authorization: Bearer <token>`.
+  - عند النجاح يعود `{ ok:true }` ويُحوِّل العميل إلى `/account`.
+
+- سلوك المصادقة على الخادم (منع الدورات و401):
+  - يتم تفضيل Authorization header على الكوكيز عند قراءة التوكن (لتجنب ظلّ كوكي قديم للتوكن الحديث).
+  - `/api/me`: إذا تعذّر التحقق بالتوقيع لحظياً، يُفك شفرة الـ JWT من الهيدر كحلٍ مؤقت لتفادي دورة إعادة تسجيل الدخول.
+  - `/api/me/complete`: يتحقق من الهيدر أولاً، وإن تعذّر، يفك الشفرة كحلٍ مؤقت لإتمام الإجراء بنجاح مباشرة بعد OTP.
+
+- NGINX/CORS:
+  - يسمح بالطرق: `GET, POST, PUT, PATCH, DELETE, OPTIONS` والرؤوس: `Content-Type, Authorization, X-Shop-Client` ويُعيد 204 للـ OPTIONS.
+
+- استكشاف 401/405 بعد التحقق:
+  - 401 على `/api/me/complete`: تأكد أن الطلب إلى `https://api.jeeey.com` وبرأس Authorization الحديث (من `/otp/verify`). تمت تهيئة الخادم لتفضيل الهيدر وحل تعارض الكوكي.
+  - 405 على `/api/me/complete`: يعني أن الطلب وُجِّه إلى `m.jeeey.com` أو مسار ثابت؛ يجب أن يكون إلى `api.jeeey.com`.
+
+## 📌 Nov 2025 — Auth (WhatsApp/Google), Android App Links, Meta Catalog
+
+### Auth: WhatsApp OTP without email requirement
+- JWT payload جعل `email` اختيارياً وأضاف `phone` (اختياري). المصادر:
+  - `packages/api/src/utils/jwt.ts`
+  - `packages/api/src/middleware/auth.ts`, `packages/api/src/trpc-setup.ts`, `packages/api/src/context.ts`
+- مسار OTP verify يبقي بريد قاعدة البيانات بالنمط legacy:
+  - `email = phone+<digits>@local` للحسابات الجديدة/القديمة عبر واتساب.
+  - التوكن يُوقَّع بلا اشتراط `email` ويحتوي `{ userId, role, phone }`.
+  - المصدر: `packages/api/src/routers/shop.ts` (POST `/api/auth/otp/verify`).
+- السلوك:
+  - المستخدمون بـ `...@local` يعملون فوراً؛ يتم تحديث `phone` عند الحاجة.
+  - `newUser` يُحسب عبر متغير الوجود بدل الاعتماد على البريد.
+
+### Auth: Google OAuth callback shim
+- يدعم السيرفر كلا الشكلين ويحوّل تلقائياً:
+  - `/auth/google/callback` → `/api/auth/google/callback`
+  - التعديل في `packages/api/src/index.ts`.
+  - ينصح بضبط Redirect URI في Google إلى: `https://api.jeeey.com/api/auth/google/callback`.
+
+### Android App Links (assetlinks.json)
+- mweb (ملف ثابت): `apps/mweb/public/.well-known/assetlinks.json`
+- API (مسار ديناميكي): `GET /.well-known/assetlinks.json` من `packages/api/src/index.ts`
+- المحتوى:
+  - `package_name: com.jeeey.shopin`
+  - `sha256_cert_fingerprints: ["40:44:5A:90:E0:A3:53:B0:B5:D5:F0:A7:E9:04:4B:EE:09:3A:23:32:8A:C6:65:42:2A:A1:BE:8E:A7:59:2B:21"]`
+  - relations: `delegate_permission/common.handle_all_urls`, `delegate_permission/common.get_login_creds`
+
+### Meta (Facebook) Catalog Sync — إصلاحات
+- زر “مزامنة الكاتالوج الآن” يستدعي: `POST /api/admin/marketing/facebook/catalog/sync`.
+- تنسيق الطلب إلى Graph API (items_batch):
+  - `content-type: application/x-www-form-urlencoded`
+  - الحقول العلوية في الجسم: `item_type=PRODUCT_ITEM`, `allow_upsert=true`, `requests=<JSON>`
+  - كل عنصر في `requests`:
+    - `method: "CREATE"`, `retailer_id`, `item_type: "PRODUCT_ITEM"`
+    - `data`: `{ name, description, image_url, url, price, availability?, brand?, condition?, additional_image_urls?, google_product_category? }`
+- الاعتماديات/المفاتيح:
+  - يقرأ `FB_CATALOG_ID`, `FB_CATALOG_TOKEN` من env؛ وإلا من إعدادات DB: `integrations:meta:settings:mweb` ثم `web`.
+- بناء العناصر:
+  - يصدّر Variants عندما يوجد SKU: `retailer_id = variant.sku` (مع trim/lowercase).
+  - عنصر المنتج الأساسي يُضاف فقط إذا لم يتصادم مع أي SKU تباين.
+  - إزالة تكرارات `retailer_id` عالميًا وداخل كل دفعة (trim+lowercase).
+- الملفات: `packages/api/src/services/fb_catalog.ts` (التشفير، dedup، mapping التباينات، مفاتيح الكاتالوج).
+- التشغيل:
+  - تأكد من `META_ALLOW_EXTERNAL=1` على خدمة الـ API وإعادة التشغيل لتجنّب `simulated: true`.
+  - خطأ `item_type is required` مُعالج بإرسال الحقول كـ form-encoded مع `item_type` العلوي.
+  - خطأ `Duplicate retailer_id` غالباً من بيانات مصدر مكررة (SKU مكرر)؛ الخدمة تزيل المكرر لكن يلزم تنظيف المصدر إن استمر.
+
+### mweb recap بعد OTP
+- بعد `verify`:
+  - يكتب العميل التوكن إلى كوكي `shop_auth_token` (الجذر و`api.`) وإلى `localStorage.shop_token`.
+  - `/api/me` يفضّل الهيدر ثم الكوكيز ثم `?t` لسيناريو عودة OAuth.
+  - حفظ العنوان/الطلب/الكوبونات تعمل مباشرة كمستخدم مسجّل.
+
+### 🧭 Navigation & UX Improvements (Nov 2025)
+
+تم تحسين تجربة التنقل في متجر الويب (Mobile Web) لضمان سلاسة الانتقال بين المنتجات، خاصة عند الضغط على التوصيات:
+
+1.  **إصلاح البيانات القديمة (Stale Data Fix):**
+    - تم تحويل المتغير `id` في `Product.vue` إلى خاصية محسوبة (`computed`) بدلاً من ثابت (`const`).
+    - هذا يضمن تحديث جميع العمليات (إضافة للسلة، تتبع الأحداث، الكوبونات) فوراً عند تغيير الرابط، حتى لو أعاد Vue استخدام نفس المكون.
+
+2.  **فرض إعادة بناء الصفحة (Force Re-render):**
+    - تم إضافة `:key="$route.fullPath"` إلى `router-view` في `App.vue`.
+    - هذا يجبر المتصفح على هدم وبناء صفحة المنتج من الصفر عند الانتقال لمنتج جديد، مما يضمن "بداية نظيفة" (Fresh Start) لكل زيارة.
+
+3.  **تحسين التمرير (Scroll Behavior):**
+    - تم إزالة دوال الحفظ والاستعادة اليدوية (`restorePdpCache`) التي كانت تسبب مشاكل في التمرير.
+    - الاعتماد الكامل الآن على `vue-router` لضمان:
+        - التمرير لأعلى الصفحة عند زيارة منتج جديد.
+        - الحفاظ على مكان التمرير عند الضغط على زر "الرجوع" (Back).
+
+## 🛡️ System Stability & Critical Fixes (Nov 2025)
+
+This section documents critical fixes applied to ensure data integrity, correct billing, and consistent user experience across the platform.
+
+### 1. Order Variant Image Integrity
+**Problem:** Order details were not displaying the specific variant image (e.g., Red Shirt) selected by the user, defaulting to the main product image.
+**Fix:**
+- **API (`packages/api/src/routers/shop.ts`):** The image enrichment logic in `POST /orders` was refactored to run unconditionally for all order creation methods. It now correctly populates `OrderItemMeta.attributes.image` by looking up the `ProductColor` gallery based on the selected color.
+- **Result:** Order history and admin panels now consistently show the exact variant image purchased.
+
+### 2. Shipping Cost Validation & Display
+**Problem:**
+1.  **Backend:** The API accepted client-side shipping costs without validation.
+2.  **Frontend (Admin):** The Admin Panel displayed the base shipping cost (e.g., 800) even for free shipping orders (0 cost) due to a falsy check bug (`val || 800`).
+**Fix:**
+- **Backend (`shop.ts`):** Added server-side re-calculation logic. The API now fetches the `DeliveryRate` and enforces the `freeOverSubtotal` rule. If the subtotal exceeds the threshold, shipping is forced to `0`.
+- **Frontend (`apps/admin/src/app/orders/[id]/page.tsx`):** Updated the display logic to use nullish coalescing (`??`) instead of logical OR (`||`). This ensures that a shipping cost of `0` is treated as a valid value and displayed correctly, rather than falling back to the default price.
+
+### 3. Cart Variant Merging
+**Problem:** Adding different variants of the same product (e.g., Red and Blue) to the cart resulted in them being merged into a single line item with summed quantities, losing the distinction.
+**Fix:**
+- **API (`shop.ts` / `cart.ts`):** Updated the `addToCart` logic to compare `attributes` (JSONB) in addition to `productId`.
+- **Logic:** `findFirst({ where: { productId, attributes: { equals: newAttributes } } })`.
+- **Result:** Distinct variants now appear as separate line items in the cart, preserving their individual attributes.
+
+### 4. Checkout Shipping Auto-Selection
+**Problem:** In the `mweb` checkout, if only one shipping method was available, the user had to manually select it, causing friction.
+**Fix:**
+- **Frontend (`apps/mweb/src/pages/Checkout.vue`):** Added a Vue `watch` effect on the `shippingOptions` array.
+- **Logic:** If `shippingOptions.length === 1` and no option is selected, the system automatically selects the available method.
+
+  - `Full Live E2E`: خطوة “WhatsApp test (live)” تُرسل القالب باسم/لغة صحيحين وتتحقق من `messageId`، وتتحرى `DELIVERED/READ` إذا الويبهوك مفعّل.
+  - `Deploy to VPS (SSH)`: فعِّل سر `WHATSAPP_TEST_PHONE` لتعمل خطوة “WhatsApp live smoke (strict)” تلقائيًا بعد النشر.
+
+## 🔁 CI Dev Mirror (jeeey.local over HTTPS)
+
+Workflow: `.github/workflows/dev-mirror.yml`
+
+What it does:
+- Spins up Postgres (service) and builds API/Web/Admin.
+- Starts API on :4000, Web on :3000, Admin on :3001.
+- Generates a self-signed certificate for `jeeey.local` and subdomains (`api.jeeey.local`, `admin.jeeey.local`, `www.jeeey.local`, `m.jeeey.local`).
+- Runs NGINX in Docker mapping 8443→443 (and 8080→80) to proxy these domains to the local services.
+- Executes HTTPS smoke checks via `curl --resolve` to validate cookies/CORS/domains similar to production.
+
+Environment mapping used by the mirror job:
+- `COOKIE_DOMAIN=.jeeey.local`
+- `NEXT_PUBLIC_APP_URL=https://jeeey.local`
+- `NEXT_PUBLIC_ADMIN_URL=https://admin.jeeey.local`
+- `NEXT_PUBLIC_API_BASE_URL=https://api.jeeey.local`
+- `NEXT_PUBLIC_TRPC_URL=https://api.jeeey.local/trpc`
+- `VITE_API_BASE=https://api.jeeey.local`
+- `EXPO_PUBLIC_TRPC_URL=https://api.jeeey.local/trpc`
+- `DATABASE_URL`, `DIRECT_URL` → CI Postgres service
+- `JWT_SECRET`, `MAINTENANCE_SECRET` → Secrets if available, else CI defaults
+
+Trigger: Dispatch “Dev Mirror (HTTPS + NGINX + jeeey.local)” or push to `main`.
+
+## 📞 WhatsApp OTP — إعداد مضمون وخالٍ من الأخطاء
+
+- الإعداد (Secrets/Vars):
+  - WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_BUSINESS_ACCOUNT_ID
+  - WHATSAPP_TEMPLATE (الافتراضي: otp_login_code), WHATSAPP_LANGUAGE (الافتراضي: ar)
+  - DEFAULT_COUNTRY_CODE (مثال: +967) لضبط تحويل الأرقام المحلية إلى E.164
+  - WA_OTP_STRICT=1 لتعطيل سقوط النص إذا فشل القالب
+  - OTP_SMS_WITH_WA=1 لإرسال SMS بالتوازي عند نجاح واتساب (اختياري)
+
+- قواعد الرقم (بدون تكرار كود الدولة):
+  - الواجهة (mweb) ترسل `phone` على شكل E.164 مرة واحدة:
+    - إذا أدخل المستخدم محلياً (مثل 777310606) مع اختيار +967: تحوَّل إلى `967777310606` وتُرسل كـ `+967777310606`.
+    - إذا كان الرقم يبدأ بمقدمة الدولة أصلاً (967...): يُضاف `+` فقط دون إلحاق المقدمة مرة ثانية.
+  - الخادم (API) يطبق normalizeE164 ذكي:
+    - إن كانت الأرقام تبدأ بمقدمة الدولة، يعيد `+<digits>` مباشرة (لا يضيف المقدمة مرة أخرى).
+    - إن بدأت بصفر، يزيل الأصفار ويضيف المقدمة مرة واحدة فقط.
+
+- الإرسال:
+  - نقطة المستخدم: `POST /api/auth/otp/request` { phone: "+9677...", channel: "whatsapp|sms|both" }
+  - الخادم يفحص صلاحية جهة الاتصال عبر Contacts API ثم يرسل القالب `otp_login_code` (لغة ar) بمكوّنات تتطابق بالضبط مع تعريف WABA.
+  - لا يحدث سقوط إلى نص إذا WA_OTP_STRICT=1 (موصى به).
+
+- التحقق:
+  - `POST /api/auth/otp/verify` { phone, code } يعيد كوكي/توكن جلسة للمستخدم. الموبايل يكتب كوكي `shop_auth_token` على الجذر والنطاق `api.` لتجنب مشاكل الطرف الثالث.
+
+- سجلات ومتابعة التسليم:
+  - جدول `NotificationLog` يخزن `messageId`/`status`. عند ربط Webhook، ستتحدّث الحالات إلى `SENT/DELIVERED/READ` تلقائياً.
+  - تشخيص مباشر: `POST /api/admin/whatsapp/diagnose` يعيد حالة الوصول (valid/invalid) عبر Contacts API، مع محاولة بديلة لـ `phone_numbers` الخاصة بـ WABA.
+
+- فحوص ما بعد النشر (CI):
+  - خطوة “WhatsApp live smoke (strict)” تعمل إذا كان `WHATSAPP_TEST_PHONE` مضبوطاً، وتفشل النشر فقط عند وجود خطأ حقيقي في الإرسال.
+
+- استكشاف أخطاء شائعة:
+  - «تكرار كود الدولة» في صفحة التحقق: تم حلّه عبر `displayPhone`؛ لا يؤثر على الإرسال، فقط العرض. تأكد من تحديث mweb.
+  - «accepted ولا تصل الرسالة»: فعِّل التشخيص؛ غالباً القالب/اللغة/المكوّنات لا تطابق تعريف WABA. استخدم `send-smart` أو صحّح اسم القالب واللغة إلى `otp_login_code` و`ar`.
+  - «Unsupported (code 100 subcode 33)»: تحقّق من صلاحيات `phone_id`/`waba_id` والاشتراكات، واستخدم قائمة `phone_numbers` لاختيار معرف صحيح تلقائياً.
+
+### OTP Verify & Complete Profile — تدفق مضمون بعد التحقق
+
+- التحقق من الرمز:
+  1) `POST /api/auth/otp/verify` { phone, code } يعيد `{ ok, token, newUser }`.
+  2) العميل (mweb) يحفظ التوكن فوراً:
+     - كوكي `shop_auth_token` (domain الجذر و`api.`)
+     - localStorage: `shop_token`
+     - sessionStorage (احتياطي مؤقت)
+  3) يقرأ `/api/me` ثم يقرر الوجهة:
+     - إن `newUser === true` أو الاسم ناقص → `/complete-profile?return=...`
+     - غير ذلك → `/account`
+
+- إكمال إنشاء الحساب:
+  - `POST /api/me/complete` { fullName, password?, confirm? } مع رأس `Authorization: Bearer <token>`.
+  - عند النجاح يعود `{ ok:true }` ويُحوِّل العميل إلى `/account`.
+
+- سلوك المصادقة على الخادم (منع الدورات و401):
+  - يتم تفضيل Authorization header على الكوكيز عند قراءة التوكن (لتجنب ظلّ كوكي قديم للتوكن الحديث).
+  - `/api/me`: إذا تعذّر التحقق بالتوقيع لحظياً، يُفك شفرة الـ JWT من الهيدر كحلٍ مؤقت لتفادي دورة إعادة تسجيل الدخول.
+  - `/api/me/complete`: يتحقق من الهيدر أولاً، وإن تعذّر، يفك الشفرة كحلٍ مؤقت لإتمام الإجراء بنجاح مباشرة بعد OTP.
+
+- NGINX/CORS:
+  - يسمح بالطرق: `GET, POST, PUT, PATCH, DELETE, OPTIONS` والرؤوس: `Content-Type, Authorization, X-Shop-Client` ويُعيد 204 للـ OPTIONS.
+
+- استكشاف 401/405 بعد التحقق:
+  - 401 على `/api/me/complete`: تأكد أن الطلب إلى `https://api.jeeey.com` وبرأس Authorization الحديث (من `/otp/verify`). تمت تهيئة الخادم لتفضيل الهيدر وحل تعارض الكوكي.
+  - 405 على `/api/me/complete`: يعني أن الطلب وُجِّه إلى `m.jeeey.com` أو مسار ثابت؛ يجب أن يكون إلى `api.jeeey.com`.
+
+## 📌 Nov 2025 — Auth (WhatsApp/Google), Android App Links, Meta Catalog
+
+### Auth: WhatsApp OTP without email requirement
+- JWT payload جعل `email` اختيارياً وأضاف `phone` (اختياري). المصادر:
+  - `packages/api/src/utils/jwt.ts`
+  - `packages/api/src/middleware/auth.ts`, `packages/api/src/trpc-setup.ts`, `packages/api/src/context.ts`
+- مسار OTP verify يبقي بريد قاعدة البيانات بالنمط legacy:
+  - `email = phone+<digits>@local` للحسابات الجديدة/القديمة عبر واتساب.
+  - التوكن يُوقَّع بلا اشتراط `email` ويحتوي `{ userId, role, phone }`.
+  - المصدر: `packages/api/src/routers/shop.ts` (POST `/api/auth/otp/verify`).
+- السلوك:
+  - المستخدمون بـ `...@local` يعملون فوراً؛ يتم تحديث `phone` عند الحاجة.
+  - `newUser` يُحسب عبر متغير الوجود بدل الاعتماد على البريد.
+
+### Auth: Google OAuth callback shim
+- يدعم السيرفر كلا الشكلين ويحوّل تلقائياً:
+  - `/auth/google/callback` → `/api/auth/google/callback`
+  - التعديل في `packages/api/src/index.ts`.
+  - ينصح بضبط Redirect URI في Google إلى: `https://api.jeeey.com/api/auth/google/callback`.
+
+### Android App Links (assetlinks.json)
+- mweb (ملف ثابت): `apps/mweb/public/.well-known/assetlinks.json`
+- API (مسار ديناميكي): `GET /.well-known/assetlinks.json` من `packages/api/src/index.ts`
+- المحتوى:
+  - `package_name: com.jeeey.shopin`
+  - `sha256_cert_fingerprints: ["40:44:5A:90:E0:A3:53:B0:B5:D5:F0:A7:E9:04:4B:EE:09:3A:23:32:8A:C6:65:42:2A:A1:BE:8E:A7:59:2B:21"]`
+  - relations: `delegate_permission/common.handle_all_urls`, `delegate_permission/common.get_login_creds`
+
+### Meta (Facebook) Catalog Sync — إصلاحات
+- زر “مزامنة الكاتالوج الآن” يستدعي: `POST /api/admin/marketing/facebook/catalog/sync`.
+- تنسيق الطلب إلى Graph API (items_batch):
+  - `content-type: application/x-www-form-urlencoded`
+  - الحقول العلوية في الجسم: `item_type=PRODUCT_ITEM`, `allow_upsert=true`, `requests=<JSON>`
+  - كل عنصر في `requests`:
+    - `method: "CREATE"`, `retailer_id`, `item_type: "PRODUCT_ITEM"`
+    - `data`: `{ name, description, image_url, url, price, availability?, brand?, condition?, additional_image_urls?, google_product_category? }`
+- الاعتماديات/المفاتيح:
+  - يقرأ `FB_CATALOG_ID`, `FB_CATALOG_TOKEN` من env؛ وإلا من إعدادات DB: `integrations:meta:settings:mweb` ثم `web`.
+- بناء العناصر:
+  - يصدّر Variants عندما يوجد SKU: `retailer_id = variant.sku` (مع trim/lowercase).
+  - عنصر المنتج الأساسي يُضاف فقط إذا لم يتصادم مع أي SKU تباين.
+  - إزالة تكرارات `retailer_id` عالميًا وداخل كل دفعة (trim+lowercase).
+- الملفات: `packages/api/src/services/fb_catalog.ts` (التشفير، dedup، mapping التباينات، مفاتيح الكاتالوج).
+- التشغيل:
+  - تأكد من `META_ALLOW_EXTERNAL=1` على خدمة الـ API وإعادة التشغيل لتجنّب `simulated: true`.
+  - خطأ `item_type is required` مُعالج بإرسال الحقول كـ form-encoded مع `item_type` العلوي.
+  - خطأ `Duplicate retailer_id` غالباً من بيانات مصدر مكررة (SKU مكرر)؛ الخدمة تزيل المكرر لكن يلزم تنظيف المصدر إن استمر.
+
+### mweb recap بعد OTP
+- بعد `verify`:
+  - يكتب العميل التوكن إلى كوكي `shop_auth_token` (الجذر و`api.`) وإلى `localStorage.shop_token`.
+  - `/api/me` يفضّل الهيدر ثم الكوكيز ثم `?t` لسيناريو عودة OAuth.
+  - حفظ العنوان/الطلب/الكوبونات تعمل مباشرة كمستخدم مسجّل.
+
+### 🧭 Navigation & UX Improvements (Nov 2025)
+
+تم تحسين تجربة التنقل في متجر الويب (Mobile Web) لضمان سلاسة الانتقال بين المنتجات، خاصة عند الضغط على التوصيات:
+
+1.  **إصلاح البيانات القديمة (Stale Data Fix):**
+    - تم تحويل المتغير `id` في `Product.vue` إلى خاصية محسوبة (`computed`) بدلاً من ثابت (`const`).
+    - هذا يضمن تحديث جميع العمليات (إضافة للسلة، تتبع الأحداث، الكوبونات) فوراً عند تغيير الرابط، حتى لو أعاد Vue استخدام نفس المكون.
+
+2.  **فرض إعادة بناء الصفحة (Force Re-render):**
+    - تم إضافة `:key="$route.fullPath"` إلى `router-view` في `App.vue`.
+    - هذا يجبر المتصفح على هدم وبناء صفحة المنتج من الصفر عند الانتقال لمنتج جديد، مما يضمن "بداية نظيفة" (Fresh Start) لكل زيارة.
+
+3.  **تحسين التمرير (Scroll Behavior):**
+    - تم إزالة دوال الحفظ والاستعادة اليدوية (`restorePdpCache`) التي كانت تسبب مشاكل في التمرير.
+    - الاعتماد الكامل الآن على `vue-router` لضمان:
+        - التمرير لأعلى الصفحة عند زيارة منتج جديد.
+        - الحفاظ على مكان التمرير عند الضغط على زر "الرجوع" (Back).
+
+## 🛡️ System Stability & Critical Fixes (Nov 2025)
+
+This section documents critical fixes applied to ensure data integrity, correct billing, and consistent user experience across the platform.
+
+### 1. Order Variant Image Integrity
+**Problem:** Order details were not displaying the specific variant image (e.g., Red Shirt) selected by the user, defaulting to the main product image.
+**Fix:**
+- **API (`packages/api/src/routers/shop.ts`):** The image enrichment logic in `POST /orders` was refactored to run unconditionally for all order creation methods. It now correctly populates `OrderItemMeta.attributes.image` by looking up the `ProductColor` gallery based on the selected color.
+- **Result:** Order history and admin panels now consistently show the exact variant image purchased.
+
+### 2. Shipping Cost Validation & Display
+**Problem:**
+1.  **Backend:** The API accepted client-side shipping costs without validation.
+2.  **Frontend (Admin):** The Admin Panel displayed the base shipping cost (e.g., 800) even for free shipping orders (0 cost) due to a falsy check bug (`val || 800`).
+**Fix:**
+- **Backend (`shop.ts`):** Added server-side re-calculation logic. The API now fetches the `DeliveryRate` and enforces the `freeOverSubtotal` rule. If the subtotal exceeds the threshold, shipping is forced to `0`.
+- **Frontend (`apps/admin/src/app/orders/[id]/page.tsx`):** Updated the display logic to use nullish coalescing (`??`) instead of logical OR (`||`). This ensures that a shipping cost of `0` is treated as a valid value and displayed correctly, rather than falling back to the default price.
+
+### 3. Cart Variant Merging
+**Problem:** Adding different variants of the same product (e.g., Red and Blue) to the cart resulted in them being merged into a single line item with summed quantities, losing the distinction.
+**Fix:**
+- **API (`shop.ts` / `cart.ts`):** Updated the `addToCart` logic to compare `attributes` (JSONB) in addition to `productId`.
+- **Logic:** `findFirst({ where: { productId, attributes: { equals: newAttributes } } })`.
+- **Result:** Distinct variants now appear as separate line items in the cart, preserving their individual attributes.
+
+### 4. Checkout Shipping Auto-Selection
+**Problem:** In the `mweb` checkout, if only one shipping method was available, the user had to manually select it, causing friction.
+**Fix:**
+- **Frontend (`apps/mweb/src/pages/Checkout.vue`):** Added a Vue `watch` effect on the `shippingOptions` array.
+- **Logic:** If `shippingOptions.length === 1` and no option is selected, the system automatically selects the available method.
+
+### 5. References & Technical Notes
+- **OrderItemMeta:** This table is the source of truth for snapshotting variant data (color, size, image) at the time of purchase.
+- **DeliveryRate:** Free shipping rules are defined here (`freeOverSubtotal`). The API now strictly enforces these rules server-side.
+- **Admin Display:** Always use `??` when displaying financial values to correctly handle `0` (free/discounted items).
+
+### 6. Checkout Address Selection & Snapshot
+**Problem:**
+1.  Selecting a non-default address was ignored (FK violation).
+2.  Order Details page (both Customer & Admin) was missing the recipient's Name and Phone because the `Address` table lacks these columns.
+3.  **Admin Panel:** Empty address fields (e.g., no district) were being overridden by the default address's values due to incorrect fallback logic (`||`).
+**Fix:**
+- **API (`shop.ts` & `admin-rest.ts`):**
+    1.  Updated `POST /orders` to **upsert** the selected address from `AddressBook` into the user's `Address` record.
+    2.  Added logic to persist the full `shippingAddressSnapshot` (JSONB) to the `Order` table to preserve Name/Phone.
+    3.  Updated `GET /orders/:id` (Customer) and `GET /api/admin/orders/:id` (Admin) to return this snapshot.
+- **Frontend (`mweb` & `admin`):**
+    1.  Updated Order Detail pages to prioritize displaying data from the snapshot.
+    2.  **Admin Panel:** Switched from logical OR (`||`) to nullish coalescing (`??`) for address fields to respect empty strings in the snapshot.
+- **Result:** The correct address is linked, and the recipient's full details (Name, Phone) are correctly displayed in both Customer and Admin panels, respecting empty fields.
+
+### 7. Admin Address Display Fix
+**Problem:** The Admin Panel was not displaying the "District" (Area) field in the order details address section, even when it was present in the snapshot.
+**Fix:**
+- **Frontend (`apps/admin/src/app/orders/[id]/page.tsx`):** Added the `area` field to the address display array.
+- **Result:** The full address, including the district, is now correctly shown to administrators.
+
+### 8. Mweb Address Area Selection Fix
+**Problem:** In the "My Address" page, selecting a Governorate (which acts as a City in the user's data model) would sometimes fail to load the associated Areas. This was because the system was trying to resolve a specific "City ID" from the first city found, which filtered out areas linked to other city records sharing the same governorate name.
+**Fix:**
+- **Frontend (`apps/mweb/src/pages/Address.vue`):** Updated the `selectGovernorate` logic to search by **Governorate Name** instead of locking to a specific City ID.
+- **Backend (`packages/api/src/routers/shop.ts`):** Confirmed that the `/geo/areas` endpoint supports searching by `governorate` name, which correctly aggregates areas from all matching city records.
+- **Result:** All areas belonging to the selected Governorate are now correctly displayed and selectable.
+
+### 9. 📍 Address System Overhaul (Nov 2025) — إصلاحات نظام العناوين
+
+**Problem:**
+1.  **Area/Landmarks Mixing:** "Area" (District) was being saved concatenated with "Landmarks" in the `details` field, causing display issues and data duplication.
+2.  **Display Inconsistency:** "Area" was missing from Checkout and Order Details pages, or appearing twice (once as Area, once inside Landmarks).
+3.  **Governorate Linking:** Frontend "Governorate" was not correctly mapped to Backend "City", causing issues with Area fetching.
+
+**Fix:**
+- **Data Model Strategy:**
+    - **Governorate (Frontend) = City (Backend):** The frontend "Governorate" selection now correctly maps to the backend `City` entity.
+    - **Area (Frontend) = City Column (Backend):** The "Area" selected by the user is now stored in the `city` column of the `AddressBook` table (previously unused/empty).
+    - **Landmarks (Frontend) = Details Column (Backend):** "Landmarks" are stored exclusively in the `details` column.
+- **Normalization Logic (Smart Parsing):**
+    - Implemented robust parsing logic in `Address.vue` (User), `Checkout.vue` (User), and `OrderDetail.vue` (User & Admin).
+    - **New Format:** If `city` column has data, it is treated as the "Area".
+    - **Old Format:** If `city` is empty, "Area" is extracted from the start of the `details` string (before the first ' - ').
+    - **Deduplication:** Added safety logic to strip the "Area" string from "Landmarks" if it appears as a prefix, ensuring clean display for all records.
+
+**Affected Files:**
+- `apps/mweb/src/pages/Address.vue` (Saving & Loading)
+- `apps/mweb/src/pages/Checkout.vue` (Display)
+- `apps/mweb/src/pages/OrderDetail.vue` (Display)
+- `apps/admin/src/app/orders/[id]/page.tsx` (Admin Display)
+
+### 10. ✏️ Address Management Improvements (Nov 2025) — تحسينات إدارة العناوين
+
+**Problem:**
+1.  **Duplicate on Edit:** Editing an address was creating a new record instead of updating the existing one.
+2.  **Missing Delete Button:** Users could not delete addresses because the delete button was missing/invisible.
+3.  **Delete Failure:** Even when invoked, the delete action failed because the backend endpoint was incorrect.
+4.  **Poor UX:** The delete confirmation was a native browser alert, and the icon was outdated.
+
+**Fix:**
+- **Update Logic (Upsert):**
+    - **Backend (`shop.ts`):** Updated `POST /addresses` to accept an `id`. If provided and valid, it performs an `UPDATE` instead of `INSERT`.
+    - **Frontend (`Address.vue`):** Updated `onSave` to send the `editingId` when modifying an address.
+- **Delete Functionality:**
+    - **Backend (`shop.ts`):** Fixed `DELETE /addresses/:id` to correctly target the `AddressBook` table using the address ID and User ID.
+    - **Frontend (`Address.vue`):** Added `apiDelete` helper and updated `removeAddress` to call the correct endpoint.
+- **UI/UX Enhancements:**
+    - **Modern Icon:** Replaced the old SVG with a modern, outlined "Trash Can" icon (Lucide style).
+    - **Custom Modal:** Replaced the native `confirm()` dialog with a custom, styled Vue modal for delete confirmation.
+
+**Affected Files:**
+- `packages/api/src/routers/shop.ts` (API Logic)
+- `apps/mweb/src/pages/Address.vue` (UI & Logic)
+- `apps/mweb/src/lib/api.ts` (Added apiDelete helper)
+
+### 11. 📦 Orders Page Redesign & Fixes (Nov 2025) — إعادة تصميم صفحة الطلبات
+
+**Goal:**
+Redesign the "My Orders" page to match a specific "SHEIN-style" visual reference, improve data visibility, and fix display issues.
+
+**Changes & Fixes:**
+
+1.  **Frontend Redesign (`Orders.vue`):**
+    -   **Custom Header:** Replaced the generic header with a custom white header featuring a Back button, centered Title ("طلباتي"), and Cart icon.
+    -   **Tabbed Interface:** Added a sticky tab bar to filter orders by status (All, Unpaid, Processing, Shipped, Review).
+    -   **Card Layout:**
+        -   **Header:** Status label (with colored dot) on the Right, Order Code on the Left.
+        -   **Body:** Horizontal scrollable list of product thumbnails.
+        -   **Footer:** Total price and item count.
+    -   **"Pay Now" Logic:** The "Pay Now" button is now **conditional**:
+        -   **Visible:** Only for `PENDING` orders where the payment method is **NOT** "Cash on Delivery" (COD).
+        -   **Hidden:** For COD orders or paid orders.
+    -   **Navigation:** Clicking anywhere on the order card now navigates to the Order Details page.
+    -   **Styling:** Removed side margins for a full-width design and fixed header overlap issues.
+
+2.  **Backend Updates (`shop.ts`):**
+    -   **Data Enrichment:** Updated `GET /orders/me` to include:
+        -   `items` with product details (name, image, price).
+        -   `paymentMethod` (essential for the "Pay Now" button logic).
+    -   **Bug Fix (Order Code):** The `code` field (e.g., "013...") was missing from the Prisma schema, causing it to return `undefined`.
+        -   **Fix:** Implemented a `db.$queryRawUnsafe` call to manually fetch the `code` column from the database and map it to the response.
+
+**Affected Files:**
+-   `apps/mweb/src/pages/Orders.vue` (Complete Rewrite)
+-   `packages/api/src/routers/shop.ts` (`GET /orders/me` logic)

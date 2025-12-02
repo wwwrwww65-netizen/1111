@@ -32,17 +32,19 @@ r.get('/categories/tree', async (_req, res) => {
 r.post('/categories', async (req, res) => {
   try {
     const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations } = req.body || {};
-    const created = await db.category.create({ data: {
-      name,
-      description: description || null,
-      image: image || null,
-      parentId: parentId || null,
-      slug: slug || null,
-      seoTitle: seoTitle || null,
-      seoDescription: seoDescription || null,
-      seoKeywords: Array.isArray(seoKeywords) ? seoKeywords : [],
-      translations: translations || undefined,
-    }});
+    const created = await db.category.create({
+      data: {
+        name,
+        description: description || null,
+        image: image || null,
+        parentId: parentId || null,
+        slug: slug || null,
+        seoTitle: seoTitle || null,
+        seoDescription: seoDescription || null,
+        seoKeywords: Array.isArray(seoKeywords) ? seoKeywords : [],
+        translations: translations || undefined,
+      }
+    });
     res.json({ category: created });
   } catch (e: any) { res.status(500).send(e?.message || 'Failed to create'); }
 });
@@ -51,17 +53,19 @@ r.patch('/categories/:id', async (req, res) => {
   try {
     const id = String(req.params.id);
     const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations } = req.body || {};
-    const updated = await db.category.update({ where: { id }, data: {
-      name,
-      description: description ?? undefined,
-      image: image ?? undefined,
-      parentId: parentId === null ? null : parentId ?? undefined,
-      slug: slug ?? undefined,
-      seoTitle: seoTitle ?? undefined,
-      seoDescription: seoDescription ?? undefined,
-      seoKeywords: Array.isArray(seoKeywords) ? seoKeywords : undefined,
-      translations: translations ?? undefined,
-    }});
+    const updated = await db.category.update({
+      where: { id }, data: {
+        name,
+        description: description ?? undefined,
+        image: image ?? undefined,
+        parentId: parentId === null ? null : parentId ?? undefined,
+        slug: slug ?? undefined,
+        seoTitle: seoTitle ?? undefined,
+        seoDescription: seoDescription ?? undefined,
+        seoKeywords: Array.isArray(seoKeywords) ? seoKeywords : undefined,
+        translations: translations ?? undefined,
+      }
+    });
     res.json({ category: updated });
   } catch (e) { res.status(500).json({ error: 'Failed to update' }); }
 });
@@ -97,7 +101,7 @@ r.get('/products/:id', async (req, res) => {
 r.post('/products/:id/status', async (req, res) => {
   try {
     const id = String(req.params.id);
-    const status = String((req.body||{}).status||'').toUpperCase();
+    const status = String((req.body || {}).status || '').toUpperCase();
     const isActive = status === 'PUBLISHED';
     const product = await db.product.update({ where: { id }, data: { isActive } });
     res.json({ ok: true, product });
@@ -109,7 +113,7 @@ r.post('/media/upload', async (req, res) => {
   try {
     const { base64, filename, contentType } = req.body || {};
     if (typeof base64 === 'string' && base64.startsWith('data:')) return res.json({ url: base64, filename, contentType });
-    if (typeof base64 === 'string') return res.json({ url: `data:${contentType||'application/octet-stream'};base64,${base64.split(',').pop()}` });
+    if (typeof base64 === 'string') return res.json({ url: `data:${contentType || 'application/octet-stream'};base64,${base64.split(',').pop()}` });
     return res.status(400).json({ error: 'No data' });
   } catch { res.status(500).json({ error: 'Upload failed' }); }
 });
@@ -131,7 +135,7 @@ r.get('/finance/summary', async (_req, res) => {
 r.get('/finance/invoices', async (_req, res) => {
   try {
     const orders = await db.order.findMany({ include: { payment: true, user: true }, take: 50, orderBy: { createdAt: 'desc' } });
-    const invoices = orders.map((o: any) => ({ number: o.id.slice(0,8), orderId: o.id, customer: o.userId, amount: o.total, status: o.payment?.status==='COMPLETED'?'PAID':'DUE', dueDate: o.createdAt }));
+    const invoices = orders.map((o: any) => ({ number: o.id.slice(0, 8), orderId: o.id, customer: o.userId, amount: o.total, status: o.payment?.status === 'COMPLETED' ? 'COMPLETED' : 'DUE', dueDate: o.createdAt }));
     res.json({ invoices });
   } catch { res.status(500).json({ error: 'Failed to list invoices' }); }
 });
@@ -150,8 +154,8 @@ r.post('/finance/payments', async (req, res) => {
     let { method } = req.body || {};
     if (!orderId || !amount) return res.status(400).json({ error: 'orderId, amount required' });
     // Normalize method to Prisma enum
-    const m = String(method||'').toUpperCase();
-    const map: Record<string,string> = { 'CASH':'CASH_ON_DELIVERY', 'COD':'CASH_ON_DELIVERY', 'CASH_ON_DELIVERY':'CASH_ON_DELIVERY', 'STRIPE':'STRIPE', 'PAYPAL':'PAYPAL' };
+    const m = String(method || '').toUpperCase();
+    const map: Record<string, string> = { 'CASH': 'CASH_ON_DELIVERY', 'COD': 'CASH_ON_DELIVERY', 'CASH_ON_DELIVERY': 'CASH_ON_DELIVERY', 'STRIPE': 'STRIPE', 'PAYPAL': 'PAYPAL' };
     const normalized = (map[m] || 'CASH_ON_DELIVERY') as any;
     const p = await db.payment.upsert({ where: { orderId }, update: { amount, method: normalized, status: 'COMPLETED' }, create: { orderId, amount, method: normalized, status: 'COMPLETED', currency: 'USD' } });
     res.json({ payment: p });
@@ -168,8 +172,8 @@ r.get('/notifications/logs', async (_req, res) => {
 r.post('/notifications/manual', async (req, res) => {
   try {
     const { title, body, channel, scheduleAt, segment } = req.body || {};
-    const id = (require('crypto').randomUUID as ()=>string)();
-    await db.$executeRawUnsafe('INSERT INTO "NotificationLog" (id, channel, target, title, body, status) VALUES ($1,$2,$3,$4,$5,$6)', id, channel||'EMAIL', segment||null, title||'', body||'', scheduleAt? 'QUEUED':'SENT');
+    const id = (require('crypto').randomUUID as () => string)();
+    await db.$executeRawUnsafe('INSERT INTO "NotificationLog" (id, channel, target, title, body, status) VALUES ($1,$2,$3,$4,$5,$6)', id, channel || 'EMAIL', segment || null, title || '', body || '', scheduleAt ? 'QUEUED' : 'SENT');
     res.json({ ok: true });
   } catch { res.status(500).json({ error: 'Failed to enqueue' }); }
 });
@@ -181,17 +185,19 @@ r.post('/drivers/ping', async (req, res) => {
   try {
     const { driverId, name, phone, lat, lng, status } = req.body || {};
     if (!driverId) return res.status(400).json({ error: 'driverId required' });
-    const d = await db.driver.upsert({ where: { id: driverId }, update: {
-      name: name ?? undefined,
-      phone: phone ?? undefined,
-      lat: typeof lat === 'number' ? lat : undefined,
-      lng: typeof lng === 'number' ? lng : undefined,
-      status: status ?? undefined,
-      lastSeenAt: new Date(),
-    }, create: {
-      id: driverId, name: name || 'Driver', phone: phone || null,
-      isActive: true, status: status || 'AVAILABLE', lat: lat || null, lng: lng || null,
-    }});
+    const d = await db.driver.upsert({
+      where: { id: driverId }, update: {
+        name: name ?? undefined,
+        phone: phone ?? undefined,
+        lat: typeof lat === 'number' ? lat : undefined,
+        lng: typeof lng === 'number' ? lng : undefined,
+        status: status ?? undefined,
+        lastSeenAt: new Date(),
+      }, create: {
+        id: driverId, name: name || 'Driver', phone: phone || null,
+        isActive: true, status: status || 'AVAILABLE', lat: lat || null, lng: lng || null,
+      }
+    });
     res.json({ driver: d });
   } catch { res.status(500).json({ error: 'Failed to ping' }); }
 });
@@ -268,7 +274,7 @@ r.get('/affiliates/payouts', async (_req, res) => {
   try {
     // Stub payouts from payments grouped monthly
     const payments = await db.payment.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
-    const payouts = payments.map((p: any) => ({ id: p.id, email: 'affiliate@example.com', period: `${p.createdAt.getFullYear()}-${String(p.createdAt.getMonth()+1).padStart(2,'0')}`, amount: Math.round((p.amount * 0.05) * 100) / 100, status: p.status==='COMPLETED'?'PAID':'PENDING' }));
+    const payouts = payments.map((p: any) => ({ id: p.id, email: 'affiliate@example.com', period: `${p.createdAt.getFullYear()}-${String(p.createdAt.getMonth() + 1).padStart(2, '0')}`, amount: Math.round((p.amount * 0.05) * 100) / 100, status: p.status === 'COMPLETED' ? 'COMPLETED' : 'PENDING' }));
     res.json({ payouts });
   } catch { res.status(500).json({ error: 'Failed to list payouts' }); }
 });
@@ -283,7 +289,7 @@ r.get('/affiliates/settings', async (_req, res) => {
 r.post('/affiliates/settings', async (req, res) => {
   try {
     const { enabled, cookieDays, baseRate } = req.body || {};
-    const s = await db.setting.upsert({ where: { key: 'affiliates.settings' }, update: { value: { enabled: !!enabled, cookieDays: Number(cookieDays||0), baseRate: Number(baseRate||0) } }, create: { key: 'affiliates.settings', value: { enabled: !!enabled, cookieDays: Number(cookieDays||0), baseRate: Number(baseRate||0) } } });
+    const s = await db.setting.upsert({ where: { key: 'affiliates.settings' }, update: { value: { enabled: !!enabled, cookieDays: Number(cookieDays || 0), baseRate: Number(baseRate || 0) } }, create: { key: 'affiliates.settings', value: { enabled: !!enabled, cookieDays: Number(cookieDays || 0), baseRate: Number(baseRate || 0) } } });
     res.json({ settings: s.value });
   } catch { res.status(500).json({ error: 'Failed to save settings' }); }
 });

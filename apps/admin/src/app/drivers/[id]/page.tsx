@@ -77,6 +77,7 @@ export default function DriverDetail({ params }: { params: { id: string } }): JS
   const d = data?.driver;
   const k = data?.kpis || {};
   const orders: Array<{id:string;status:string;total:number;createdAt:string}> = data?.orders || [];
+  const pickups: Array<{poId:string;orderId:string;status:string;createdAt:string;updatedAt:string}> = data?.pickups || [];
   async function saveStatus(){
     await fetch(`${apiBase}/api/admin/drivers/${id}`, { method:'PATCH', headers:{ 'content-type': 'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ status: statusSel, isActive: active }) });
     const j = await (await fetch(`${apiBase}/api/admin/drivers/${id}/overview`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' })).json(); setData(j);
@@ -154,6 +155,17 @@ export default function DriverDetail({ params }: { params: { id: string } }): JS
               {orders.length ? orders.map(o => (
                 <tr key={o.id}><td>{o.id}</td><td>{o.status}</td><td>${Number(o.total||0).toFixed(2)}</td><td>{String(o.createdAt).slice(0,10)}</td><td><a className="btn btn-sm" href={`/orders/${o.id}`}>عرض</a></td></tr>
               )) : (<tr><td colSpan={5}>لا توجد طلبات</td></tr>)}
+            </tbody>
+          </table>
+        </div>
+        <div className="panel" style={{ marginTop:12 }}>
+          <h3 style={{ marginTop:0 }}>استلامات من المورد (أحدث 10)</h3>
+          <table className="table">
+            <thead><tr><th>PO</th><th>رقم الطلب</th><th>الحالة</th><th>التاريخ</th><th></th></tr></thead>
+            <tbody>
+              {pickups.length ? pickups.map((p:any, idx:number)=> (
+                <tr key={(p.poId||'po')+':'+idx}><td>{p.poId}</td><td>{p.orderId}</td><td>{p.status}</td><td>{String(p.createdAt).slice(0,10)}</td><td><a className="btn btn-sm" href={`/logistics/pickup/${encodeURIComponent(String(p.poId||''))}`}>عرض</a></td></tr>
+              )) : (<tr><td colSpan={5}>لا توجد استلامات</td></tr>)}
             </tbody>
           </table>
         </div>

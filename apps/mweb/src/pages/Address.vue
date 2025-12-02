@@ -57,10 +57,10 @@
               <span class="text-[12px] text-gray-900">{{ addr.isDefault ? 'رئيسي' : 'أجعله افتراضيًا' }}</span>
             </button>
             <div class="flex items-center gap-3">
-              <button v-if="returnTo" class="px-3 py-1 text-[12px] border border-[#8a1538] text-[#8a1538]" @click.stop="selectAndReturn()">اختيار</button>
-              <button class="text-gray-700" @click.stop="removeAddress(idx)" aria-label="حذف">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M6 7h12v2H6zM9 10h2v7H9zM13 10h2v7h-2zM10 4h4v2h5v2H5V6h5z"/>
+              <button v-if="returnTo" class="px-3 py-1 text-[12px] border border-[#8a1538] text-[#8a1538]" @click.stop="selectAndReturn(idx)">اختيار</button>
+              <button class="text-gray-700 hover:text-red-600" @click.stop="removeAddress(idx)" aria-label="حذف">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
               </button>
             </div>
@@ -118,16 +118,17 @@
                         <!-- الحاوية الثانية -->
             <section class="mt-2 bg-white border-t border-b px-4 py-3">
               <!-- زر تحديد الموقع -->
-              <button class="w-full flex items-center justify-between bg-white border px-3 py-2 text-[13px]"
-                      style="border-radius:0; border-color:#ccc" @click="openMapClick">
-                <span class="text-gray-900">حدد موقعك عبر الخريطة</span>
-                <!-- أيقونة حديثة -->
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-[#8a1538]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a5 5 0 110 10 5 5 0 010-10z"/>
-                </svg>
-              </button>
-              <p class="mt-1 text-[11px] text-gray-600">اضغط لتحديد موقعك على الخريطة.</p>
+              <div style="display:none">
+                <button class="w-full flex items-center justify-between bg-white border px-3 py-2 text-[13px]"
+                        style="border-radius:0; border-color:#ccc" @click="openMapClick">
+                  <span class="text-gray-900">حدد موقعك عبر الخريطة</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-[#8a1538]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a5 5 0 110 10 5 5 0 010-10z"/>
+                  </svg>
+                </button>
+                <p class="mt-1 text-[11px] text-gray-600">اضغط لتحديد موقعك على الخريطة.</p>
+              </div>
 
               <!-- الدولة -->
               <div class="mt-3">
@@ -277,7 +278,7 @@
               </div>
               <div class="flex-1 overflow-y-auto">
                 <ul class="divide-y">
-                  <li v-for="gov in governorates" :key="gov.name" class="px-4 py-3 text-sm cursor-pointer hover:bg-gray-50" @click="selectGovernorate(gov.name)">
+                  <li v-for="gov in governorates" :key="gov.name" class="px-4 py-3 text-sm cursor-pointer hover:bg-gray-50" @click="selectGovernorate(gov)">
                     {{ gov.name }}
                   </li>
                 </ul>
@@ -310,13 +311,39 @@
         </transition>
       </div>
     </transition>
+
+    <!-- نافذة تأكيد الحذف -->
+    <transition name="fade">
+      <div v-if="showDeleteModal" class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50" @click="cancelDelete"></div>
+        <div class="relative bg-white rounded-lg shadow-xl w-full max-w-sm p-6 text-center">
+          <div class="mb-4">
+            <div class="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">حذف العنوان</h3>
+            <p class="text-sm text-gray-600">هل أنت متأكد أنك تريد حذف هذا العنوان؟ لا يمكن التراجع عن هذا الإجراء.</p>
+          </div>
+          <div class="flex gap-3">
+            <button @click="cancelDelete" class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+              إلغاء
+            </button>
+            <button @click="confirmDelete" class="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">
+              حذف
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { apiGet, apiPost } from '@/lib/api'
+import { apiGet, apiPost, apiDelete } from '@/lib/api'
 
 const router = useRouter()
 const route = useRoute()
@@ -340,6 +367,9 @@ const gmapsKey = ref<string>('')
 const gmapsLoading = ref<boolean>(false)
 const gmapsError = ref<string>('')
 
+const showDeleteModal = ref(false)
+const addressToDelete = ref<string|null>(null)
+
 const form = ref({
   fullName: '',
   phone: '',
@@ -360,9 +390,29 @@ const openGovPicker = ref(false)
 const openCityPicker = ref(false)
 const openAreaPicker = ref(false)
 
-const governorates = ref<Array<{ name: string }>>([])
+const governorates = ref<Array<{ id: string; name: string }>>([])
 const cities = ref<Array<{ id: string; name: string }>>([])
 const areas = ref<Array<{ id: string; name: string }>>([])
+const adminCountryId = ref<string|null>(null)
+
+// ترتيب بحسب أول إدخال: createdAt (أقدم أولاً)، ثم id تصاعدياً كبديل
+function sortByInserted(items: any[]): any[] {
+  try{
+    return [...items].sort((a:any, b:any)=>{
+      const ta = Date.parse(String(a?.createdAt||a?.created_at||'')) || NaN
+      const tb = Date.parse(String(b?.createdAt||b?.created_at||'')) || NaN
+      const hasTa = Number.isFinite(ta); const hasTb = Number.isFinite(tb)
+      if (hasTa && hasTb) return ta - tb
+      if (hasTa && !hasTb) return -1
+      if (!hasTa && hasTb) return 1
+      const ia = parseInt(String(a?.id||a?._id||''), 10)
+      const ib = parseInt(String(b?.id||b?._id||''), 10)
+      const hasIa = !Number.isNaN(ia); const hasIb = !Number.isNaN(ib)
+      if (hasIa && hasIb) return ia - ib
+      return 0
+    })
+  }catch{ return items }
+}
 
 function closeDrawer(){ openDrawer.value = false }
 
@@ -389,19 +439,22 @@ const canSave = computed(()=>{
   )
 })
 
+const editingId = ref<string|null>(null)
+
 function onSave(){
   if (!canSave.value) return
   // حفظ على الخادم
   apiPost('/api/addresses', {
+    id: editingId.value,
     fullName: form.value.fullName,
     phone: form.value.phone,
     altPhone: form.value.altPhone,
     country: form.value.country,
     province: selectedGovernorate.value,
-    // المدينة مخفية، سنخزن الحي/المنطقة كمدينة عند توافرها
-    city: selectedArea.value || '',
+    // Store Area in 'city' column (backend) to keep it distinct from landmarks
+    city: selectedArea.value,
     street: form.value.street,
-    details: [selectedArea.value, form.value.landmarks].filter(Boolean).join(' - '),
+    details: form.value.landmarks,
     postalCode: '',
     lat: mapSelection.value?.lat,
     lng: mapSelection.value?.lng,
@@ -415,6 +468,7 @@ function onSave(){
     selectedCityName.value = null
     selectedArea.value = null
     isDefault.value = false
+    editingId.value = null
     errors.value = {}
     // العودة للصفحة السابقة إذا كانت مطلوبة
     if (returnTo.value) router.push(returnTo.value)
@@ -428,19 +482,35 @@ function togglePrimary(idx: number){
 }
 
 function removeAddress(idx: number){
-  // حذف من الخادم ثم التحديث محلياً
   const id = addresses.value[idx]?.id
-  apiPost('/api/addresses/delete', id? { id } : {}).finally(()=>{ loadAddresses() })
+  if (!id) return
+  addressToDelete.value = id
+  showDeleteModal.value = true
+}
+
+function confirmDelete(){
+  if (!addressToDelete.value) return
+  apiDelete(`/api/addresses/${addressToDelete.value}`).finally(()=>{
+    loadAddresses()
+    cancelDelete()
+  })
+}
+
+function cancelDelete(){
+  showDeleteModal.value = false
+  addressToDelete.value = null
 }
 
 function editAddress(idx: number){
   const a = addresses.value[idx]
+  editingId.value = a.id || null
   form.value.fullName = a.fullName
   form.value.phone = a.phone
   form.value.altPhone = a.altPhone
   form.value.country = a.country
   selectedGovernorate.value = a.governorate
-  selectedCityName.value = a.city
+  // Since we treat Governorate as City, selectedCityName should reflect the governorate name
+  selectedCityName.value = a.governorate
   selectedCityId.value = a.cityId || null
   selectedArea.value = a.area || null
   form.value.street = a.street
@@ -469,10 +539,12 @@ async function confirmMapLocation(){
   })
 }
 
-function selectGovernorate(gov: string){
-  selectedGovernorate.value = gov
-  selectedCityId.value = null
-  selectedCityName.value = null
+function selectGovernorate(gov: { id: string; name: string }){
+  selectedGovernorate.value = gov.name
+  // Use the ID from the selected governorate (City) to ensure correct area filtering
+  selectedCityId.value = gov.id
+  selectedCityName.value = gov.name
+  
   selectedArea.value = null
   openGovPicker.value = false
   validateField('governorate')
@@ -492,8 +564,15 @@ function selectArea(name: string){
 }
 
 async function loadGovernorates(){
-  const r = await apiGet<{ items: Array<{ name: string }> }>('/api/geo/governorates?country=YE')
-  governorates.value = Array.isArray(r?.items) ? r!.items : []
+  // Public: يعكس Cities من لوحة التحكم عبر API المتجر
+  try{
+    const r:any = await apiGet<any>('/api/geo/governorates?country=YE')
+    const items = Array.isArray(r?.items) ? r.items : []
+    // العناصر مرتبة من الباك-إند حسب أول إدخال؛ نطبعها مباشرة
+    governorates.value = items.map((x:any)=> ({ id: String(x.id||''), name: String(x.name||'').trim() })).filter((x:any)=> x.name)
+  }catch{
+    governorates.value = []
+  }
 }
 
 async function loadCities(){
@@ -507,13 +586,15 @@ async function loadCities(){
 
 async function loadAreas(){
   areas.value = []
-  let url = ''
-  if (selectedCityId.value) url = `/api/geo/areas?cityId=${encodeURIComponent(String(selectedCityId.value))}`
-  else if (selectedCityName.value) url = `/api/geo/areas?city=${encodeURIComponent(String(selectedCityName.value))}`
-  else if (selectedGovernorate.value) url = `/api/geo/areas?governorate=${encodeURIComponent(String(selectedGovernorate.value))}`
-  if (!url) return
-  const r = await apiGet<{ items: Array<{ id: string; name: string }> }>(url)
-  areas.value = Array.isArray(r?.items) ? r!.items : []
+  if (!selectedGovernorate.value) return
+  try{
+    const url = selectedCityId.value
+      ? `/api/geo/areas?country=YE&cityId=${encodeURIComponent(String(selectedCityId.value))}`
+      : `/api/geo/areas?country=YE&governorate=${encodeURIComponent(String(selectedGovernorate.value))}`
+    const r:any = await apiGet<any>(url)
+    const items = Array.isArray(r?.items) ? r.items : []
+    areas.value = items.map((x:any)=> ({ id: String(x.id||''), name: String(x.name||'').trim() })).filter((x:any)=> x.name)
+  }catch{ areas.value = [] }
 }
 
 function openGovernorates(){ openGovPicker.value = true; if (!governorates.value.length) loadGovernorates() }
@@ -524,20 +605,33 @@ async function loadAddresses(){
   // واجهة API تُعيد مصفوفة عناوين (متعددة لكل مستخدم)
   const r = await apiGet<any[]>('/api/addresses')
   const list = Array.isArray(r) ? r : []
-  addresses.value = list.map((a:any)=> ({
-    id: a.id,
-    fullName: a.fullName || form.value.fullName || '',
-    phone: a.phone || form.value.phone || '',
-    altPhone: a.altPhone || '',
-    country: a.country || 'اليمن',
-    governorate: a.state || a.province || '',
-    city: a.city || '',
-    cityId: a.cityId || null,
-    area: (a.details || '').split(' - ')[0] || '',
-    street: a.street || '',
-    landmarks: a.details || '',
-    isDefault: !!a.isDefault
-  }))
+  addresses.value = list.map((a:any)=> {
+    // New format: Area is stored in 'city' column. Old format: Area is in 'details' (Area - Landmark)
+    // If a.city is present, we assume it's the Area (new format).
+    const isNewFormat = !!a.city
+    const realArea = isNewFormat ? a.city : (a.details || '').split(' - ')[0]
+    let realLandmarks = isNewFormat ? a.details : (a.details || '').split(' - ').slice(1).join(' - ')
+
+    // Safety: Strip Area from Landmarks if it's duplicated (e.g. hybrid data state)
+    if (realArea && realLandmarks && String(realLandmarks).trim().startsWith(String(realArea).trim() + ' - ')) {
+      realLandmarks = String(realLandmarks).trim().substring((String(realArea).trim() + ' - ').length)
+    }
+
+    return {
+      id: a.id,
+      fullName: a.fullName || '',
+      phone: a.phone || '',
+      altPhone: a.altPhone || '',
+      country: a.country || 'اليمن',
+      governorate: a.state || a.province || '',
+      city: '', // Keep empty for frontend display to avoid duplicating Area (since we store Area in city column now)
+      cityId: a.cityId || null,
+      area: realArea || '',
+      street: a.street || '',
+      landmarks: realLandmarks || '',
+      isDefault: !!a.isDefault
+    }
+  })
 }
 
 function prefillFromMap(){
@@ -571,11 +665,12 @@ onMounted(()=>{
   if (open === '1') openDrawer.value = true
 })
 
-function selectAndReturn(){
-  // اضبط العنوان المحدد كافتراضي قبل العودة
+async function selectAndReturn(idx?: number){
   try{
-    const a = addresses.value.find(x=> x.isDefault) || addresses.value[0]
-    if (a?.id) apiPost('/api/addresses/default', { id: a.id }).catch(()=>{})
+    const a = (typeof idx==='number' ? addresses.value[idx] : null) || addresses.value.find(x=> x.isDefault) || addresses.value[0]
+    if (a?.id){
+      try{ sessionStorage.setItem('checkout_selected_address_id', String(a.id)) }catch{}
+    }
   }catch{}
   if (returnTo.value) router.push(returnTo.value)
 }
@@ -652,6 +747,7 @@ async function loadLeaflet(): Promise<void>{
       const s = document.createElement('script')
       s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
       s.async = true
+      s.crossOrigin = 'anonymous'
       s.onload = ()=> resolve()
       s.onerror = ()=> reject(new Error('leaflet load failed'))
       document.head.appendChild(s)
@@ -846,4 +942,8 @@ function pinCenter(){
 .drawer-left-leave-active { transition: transform 0.28s ease; }
 .drawer-left-enter-from,
 .drawer-left-leave-to { transform: translateX(-100%); }
+.fade-enter-active,
+.fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from,
+.fade-leave-to { opacity: 0; }
 </style>

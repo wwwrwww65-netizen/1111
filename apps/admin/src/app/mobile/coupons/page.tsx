@@ -14,7 +14,7 @@ export default function MobileCoupons(): JSX.Element {
   const load = React.useCallback(async ()=>{
     setLoading(true); setError(null);
     try{
-      const u = new URL(`${resolveApiBase()}/api/admin/coupons`);
+      const u = new URL(`${resolveApiBase()}/api/admin/coupons/list`);
       if (q.trim()) u.searchParams.set('q', q.trim());
       const r = await fetch(u.toString(), { headers:{ 'accept':'application/json' }, credentials:'include' });
       if(!r.ok) throw new Error('HTTP '+r.status);

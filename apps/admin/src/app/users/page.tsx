@@ -128,6 +128,7 @@ export default function UsersPage(): JSX.Element {
             { key:'name', title:'الاسم', minWidth:160 },
             { key:'phone', title:'الهاتف', minWidth:140 },
             { key:'role', title:'الدور', minWidth:120 },
+            { key:'fit', title:'Fit (الطول/الوزن/العرض)', minWidth:180 },
             { key:'actions', title:'إجراءات', minWidth:200 },
           ]}
           renderCard={(u:any)=> (
@@ -155,6 +156,7 @@ export default function UsersPage(): JSX.Element {
               <td>{u.name}</td>
               <td>{u.phone||'-'}</td>
               <td>{u.role}</td>
+              <td><FitCell userId={u.id} apiBase={apiBase} authHeaders={authHeaders} /></td>
               <td>
                 <div style={{ display:'flex', gap:6, alignItems:'center' }}>
                   <select value={roleName} onChange={(e)=>setRoleName(e.target.value)} className="select">
@@ -273,6 +275,15 @@ function GenericAccountForm({ role, onDone, apiBase, authHeaders }: { role:'USER
       </div>
     </form>
   );
+}
+function FitCell({ userId, apiBase, authHeaders }: { userId: string; apiBase: string; authHeaders:()=>Record<string,string> }){
+  const [p, setP] = React.useState<{ heightCm?: number|null; weightKg?: number|null; widthCm?: number|null }|null>(null);
+  React.useEffect(()=>{ (async()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/users/${userId}/fit-profile`, { credentials:'include', headers:{ ...authHeaders() } })).json(); setP(j?.profile||null);} catch{} })(); },[userId, apiBase]);
+  if (!p) return <span className="muted">—</span>;
+  const h = p.heightCm!=null? `${p.heightCm}`:'—';
+  const w = p.weightKg!=null? `${p.weightKg}`:'—';
+  const wd = p.widthCm!=null? `${p.widthCm}`:'—';
+  return (<span>{h}/{w}/{wd}</span>);
 }
 
 function VendorAccountForm({ onDone, apiBase, authHeaders }: { onDone: ()=>Promise<void>|void; apiBase:string; authHeaders:()=>Record<string,string> }){

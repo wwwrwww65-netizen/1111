@@ -24,6 +24,10 @@ async function onSubmit(){
   const res = await apiPost('/api/support/tickets', { name: name.value, email: email.value, message: message.value })
   ok.value = !!res
   msg.value = ok.value ? 'تم استقبال رسالتك' : 'تعذّر الإرسال'
+  try{
+    const { trackEvent } = await import('@/lib/track')
+    await trackEvent('Contact', { email: email.value })
+  }catch{}
 }
 </script>
 

@@ -19,7 +19,7 @@
           <input
             v-for="(_, i) in length"
             :key="i"
-            ref="setInputRef"
+            :ref="(el)=> setInputRef(el, i)"
             inputmode="numeric"
             maxlength="1"
             :value="code[i]"
@@ -75,10 +75,6 @@
       بتسجيل الدخول إلى حسابك، فإنك توافق على سياسة الخصوصية وملفات تعريف الارتباط والشروط والأحكام الخاصة بنا.
     </footer>
 
-    <style scoped>
-    @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
-    .animate-shake{ animation: shake .45s ease-in-out; }
-    </style>
   </div>
 </template>
 
@@ -109,8 +105,8 @@ function editNumber(){ router.push('/login') }
 
 const length = 6
 const code = ref<string[]>(Array.from({ length }, ()=>''))
-const inputsRef = ref<Array<HTMLInputElement|null>>([])
-function setInputRef(el: any){ if (el) inputsRef.value.push(el as HTMLInputElement) }
+const inputsRef = ref<Array<HTMLInputElement|null>>(Array.from({ length }, ()=> null))
+function setInputRef(el: any, idx:number){ if (el) inputsRef.value[idx] = el as HTMLInputElement }
 
 const timeLeft = ref<number>(60)
 const canResend = ref<boolean>(false)
@@ -120,7 +116,7 @@ const shake = ref<boolean>(false)
 const errorText = ref<string>('')
 const verifying = ref<boolean>(false)
 
-onMounted(()=>{ tick() })
+onMounted(()=>{ tick(); try{ inputsRef.value[0]?.focus() }catch{} })
 // Auto request on arrive if query auto=1
 onMounted(async ()=>{
   const auto = String(route.query.auto||'') === '1'
@@ -166,6 +162,10 @@ function onPaste(e: ClipboardEvent){
   const next = [...code.value]
   for (let i=0;i<length;i++) next[i] = pasted[i]||''
   code.value = next
+  // move focus to first empty or last
+  const firstEmpty = next.findIndex(c=> !c)
+  const pos = firstEmpty === -1 ? length-1 : firstEmpty
+  try{ inputsRef.value[pos]?.focus() }catch{}
 }
 
 const codeFilled = computed(()=> code.value.every(c=> c.length===1))
@@ -226,13 +226,34 @@ async function onSubmit(){
     const dial = String(countryDial.value||'').replace(/\D/g,'')
     const e164 = local.startsWith(dial) ? local : (dial + local)
     const r: any = await apiPost('/api/auth/otp/verify', { phone: e164, code: code.value.join('') })
-    if (r && r.ok){
+      if (r && r.ok){
       // If token returned, persist locally to avoid any Set-Cookie timing issues
       if (r.token) {
         writeCookie('auth_token', r.token)
         writeCookie('shop_auth_token', r.token)
         try{ localStorage.setItem('shop_token', r.token) }catch{}
       }
+        // Link anonymous session to user for analytics continuity
+        try{
+          const sid = localStorage.getItem('sid_v1') || ''
+          const me = await meWithRetry(2)
+          const uid = me?.user?.id || ''
+          if (uid && sid){
+            await apiPost('/api/analytics/link', { sessionId: sid })
+          }
+        }catch{}
+      // Complete pending claim if any (prefer query, fallback to sessionStorage) against API_BASE with auth header
+      try{
+        let claimTok = String(route.query.claimToken||'')
+        if (!claimTok){
+          try{ claimTok = sessionStorage.getItem('claim_token') || '' }catch{}
+        }
+        if (claimTok){
+          const { API_BASE, getAuthHeader } = await import('@/lib/api')
+          await fetch(`${API_BASE}/api/promotions/claim/complete`, { method:'POST', headers:{ 'content-type':'application/json', ...getAuthHeader() }, credentials:'include', body: JSON.stringify({ token: claimTok }) })
+          try{ sessionStorage.removeItem('claim_token') }catch{}
+        }
+      }catch{}
       // Fetch session and hydrate user store before redirect
       const me = await meWithRetry(2)
       const ret = String(route.query.return || '/account')
@@ -243,6 +264,18 @@ async function onSubmit(){
         }
         const rawName = String(me.user.name||'').trim()
         const incomplete = !rawName || rawName.length < 2 || /^\d+$/.test(rawName)
+        try{ const { trackEvent } = await import('@/lib/track'); if (r.newUser || incomplete) await trackEvent('CompleteRegistration', {}) }catch{}
+        try{ const { trackEvent } = await import('@/lib/track'); if (circleChecked.value) await trackEvent('Subscribe', { email: me?.user?.email, phone: me?.user?.phone }) }catch{}
+        // Merge local cart into server, then hydrate cart from server so items persist across devices
+        try{
+          const { useCart } = await import('@/store/cart')
+          const cart = useCart()
+          const items = Array.isArray(cart.items) ? cart.items.map(i=>({ productId: i.id, quantity: i.qty })) : []
+          if (items.length) await apiPost('/api/cart/merge', { items })
+          // Force hydration from server so cart persists across devices and after login
+          await cart.syncFromServer(true)
+          cart.saveLocal()
+        }catch{}
         if (r.newUser || incomplete) router.push({ path: '/complete-profile', query: { return: ret } })
         else router.push(ret)
       } else {
@@ -254,4 +287,9 @@ async function onSubmit(){
   } catch { errorText.value = 'خطأ في الشبكة' } finally { verifying.value = false }
 }
 </script>
+
+<style scoped>
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+.animate-shake{ animation: shake .45s ease-in-out; }
+</style>
 

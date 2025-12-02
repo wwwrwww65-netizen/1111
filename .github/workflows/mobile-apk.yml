@@ -18,9 +18,10 @@ jobs:
   build-android-apk:
     runs-on: ubuntu-latest
     env:
-      EXPO_PUBLIC_TRPC_URL: ${{ secrets.EXPO_PUBLIC_TRPC_URL || vars.EXPO_PUBLIC_TRPC_URL }}
+      # keep these simple and let them be empty if secrets not provided
+      EXPO_PUBLIC_TRPC_URL: ${{ secrets.EXPO_PUBLIC_TRPC_URL }}
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID || vars.EAS_PROJECT_ID }}
+      EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,16 +37,9 @@ jobs:
           node-version: 20
           cache: 'pnpm'
 
-      - name: Install dependencies (no frozen lockfile)
+      - name: Install dependencies
         run: |
-          pnpm config set frozen-lockfile false
           pnpm install --no-frozen-lockfile
-
-      - name: Remove native folders to force EAS Prebuild
-        working-directory: apps/mobile
-        run: |
-          rm -rf android ios
-          echo "Ensured no prebuilt native folders before EAS build"
 
       - name: Type check (mobile)
         working-directory: apps/mobile
@@ -67,15 +61,28 @@ jobs:
         run: |
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Expo prebuild (android)
+      - name: Ensure gradle.properties has RN paths
         working-directory: apps/mobile
-        run: pnpm dlx expo prebuild --platform android --clean
+        run: |
+          GP=android/gradle.properties
+          if [ ! -f "$GP" ]; then
+            cat > "$GP" <<'EOF'
+org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+org.gradle.daemon=true
+org.gradle.parallel=true
+reactNativeDir=../../../node_modules/react-native
+REACT_NATIVE_NPM_PACKAGE=../../../node_modules/@react-native/gradle-plugin
+EOF
+          else
+            echo "gradle.properties already exists — showing tail:"
+            tail -n 40 "$GP" || true
+          fi
 
       - name: Read Gradle version from wrapper
         id: read_gradle_version
         working-directory: apps/mobile
         run: |
-          VER=$(sed -n "s#.*gradle-\([0-9.]*\)-bin.zip#\1#p" android/gradle/wrapper/gradle-wrapper.properties | head -n1)
+          VER=$(sed -n 's#.*gradle-\([0-9.]*\)-bin.zip#\1#p' android/gradle/wrapper/gradle-wrapper.properties | head -n1)
           echo "Detected Gradle version: $VER"
           echo "gradle_version=$VER" >> $GITHUB_OUTPUT
 
@@ -90,20 +97,16 @@ jobs:
         run: |
           PROPS=android/gradle/wrapper/gradle-wrapper.properties
           URL=$(grep '^distributionUrl=' "$PROPS" | cut -d'=' -f2- | tr -d '\r')
-          # Unescape gradle URL (https\:// -> https://)
           URL=$(echo "$URL" | sed 's#\\://#://#g')
-          # Switch to Gradle CDN mirror for higher reliability
           URL=$(echo "$URL" | sed 's#https://services.gradle.org/distributions/#https://downloads.gradle-dn.com/distributions/#g')
           FILE=$(basename "$URL")
           DEST=$(pwd)/android/gradle/wrapper/$FILE
-          echo "Gradle URL: $URL"
-          echo "Downloading to: $DEST"
           curl -fL --retry 5 --retry-all-errors --connect-timeout 30 --max-time 600 -o "$DEST" "$URL"
           NEW_URL="file://$DEST"
           sed -i "s#^distributionUrl=.*#distributionUrl=${NEW_URL}#" "$PROPS"
           if grep -q '^networkTimeout=' "$PROPS"; then sed -i 's/^networkTimeout=.*/networkTimeout=600000/' "$PROPS"; else echo 'networkTimeout=600000' >> "$PROPS"; fi
           if ! grep -q '^validateDistributionUrl=' "$PROPS"; then echo 'validateDistributionUrl=true' >> "$PROPS"; fi
-          echo "Updated $PROPS:" && cat "$PROPS"
+          echo "Updated $PROPS:" && sed -n '1,200p' "$PROPS"
 
       - name: Unzip Gradle distribution for local CLI
         working-directory: apps/mobile
@@ -119,26 +122,13 @@ jobs:
           echo "Using GRADLE_BIN=$GRADLE_BIN"
           echo "gradle_bin=$GRADLE_BIN" >> $GITHUB_OUTPUT
 
-      - name: Ensure gradle.properties has RN paths
-        working-directory: apps/mobile
-        run: |
-          GP=android/gradle.properties
-          {
-            echo "REACT_NATIVE_NPM_PACKAGE=../node_modules/@react-native/gradle-plugin"
-            echo "reactNativeDir=../node_modules/react-native"
-            echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
-            echo "org.gradle.daemon=true"
-            echo "org.gradle.parallel=true"
-          } >> "$GP"
-          echo "Wrote $GP:" && tail -n 20 "$GP" | cat
-
       - name: Assemble release (Gradle CLI)
         working-directory: apps/mobile
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'"
         run: |
           for attempt in 1 2 3; do \
-            "${{ steps.unzip_gradle.outputs.gradle_bin }}" -p android -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -PreactNativeDir=../node_modules/react-native -PREACT_NATIVE_NPM_PACKAGE=../node_modules/@react-native/gradle-plugin :app:clean :app:assembleRelease --no-daemon --stacktrace && break || { \
+            "${{ steps.unzip_gradle.outputs.gradle_bin }}" -p android -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -PreactNativeDir=../../../node_modules/react-native -PREACT_NATIVE_NPM_PACKAGE=../../../node_modules/@react-native/gradle-plugin :app:clean :app:assembleRelease --no-daemon --stacktrace && break || { \
               echo "Gradle attempt $attempt failed"; \
               if [ "$attempt" -lt 3 ]; then sleep $((attempt*15)); else exit 1; fi; \
             }; \

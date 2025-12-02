@@ -17,6 +17,179 @@ function useAuthHeaders(){
   }, []);
 }
 
+function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange, options }:{ value: string[]; onChange:(ids:string[])=>void; primaryId: string; onPrimaryChange:(id:string)=>void; options: Array<{id:string;name:string}> }): JSX.Element {
+  const authHeaders = useAuthHeaders();
+  const [open, setOpen] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [tree, setTree] = React.useState<any[]>([]);
+  const [filter, setFilter] = React.useState('');
+  const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
+  const containerRef = React.useRef<HTMLDivElement|null>(null);
+  const panelRef = React.useRef<HTMLDivElement|null>(null);
+
+  const selectedSet = React.useMemo(()=> new Set(value||[]), [value]);
+  const nameOf = React.useCallback((id?:string)=> options.find(o=>o.id===id)?.name || id || '', [options]);
+
+  React.useEffect(()=>{
+    function onEsc(e: KeyboardEvent){
+      if (!open) return;
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('keydown', onEsc as any, true);
+    return ()=> {
+      document.removeEventListener('keydown', onEsc as any, true);
+    };
+  }, [open]);
+
+  async function loadTree(){
+    try{
+      setLoading(true);
+      const r = await fetch(`/api/admin/categories/tree`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
+      const j = await r.json().catch(()=>({}));
+      setTree(Array.isArray(j?.tree) ? j.tree : []);
+    } finally { setLoading(false); }
+  }
+
+  function filtered(nodes: any[], q: string): any[] {
+    const t = String(q||'').trim().toLowerCase();
+    if (!t) return nodes;
+    const matchNode = (n:any): boolean => String(n?.name||'').toLowerCase().includes(t);
+    const dfs = (arr:any[]): any[] => {
+      const out:any[] = [];
+      for (const n of (arr as any[] || [])){
+        const kids = Array.isArray((n as any).children)? (n as any).children : [];
+        const fk = dfs(kids);
+        if (matchNode(n) || fk.length){
+          out.push({ ...(n as any), children: fk });
+        }
+      }
+      return out;
+    };
+    return dfs(nodes);
+  }
+
+  function toggleExpand(id: string){
+    setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+    try {
+      const p = panelRef.current;
+      const top = p?.scrollTop || 0;
+      requestAnimationFrame(()=> { try { if (panelRef.current) panelRef.current.scrollTop = top; } catch {} });
+    } catch {}
+  }
+  function toggleSelect(id: string){
+    const next = new Set(selectedSet);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    const arr = Array.from(next);
+    onChange(arr);
+    if (!primaryId && arr.length) onPrimaryChange(arr[0]);
+    if (primaryId && !next.has(primaryId)) onPrimaryChange(arr[0] || '');
+  }
+
+  function Node({ node, depth }:{ node:any; depth:number }): JSX.Element {
+    const kids = Array.isArray(node.children)? node.children : [];
+    const hasKids = kids.length>0;
+    const isOpen = !!filter || !!expanded[node.id];
+    return (
+      <div onMouseDown={(e)=> e.stopPropagation()}>
+        <div
+          onClick={(e)=> {
+            const tag = (e.target as HTMLElement).tagName.toLowerCase();
+            if (tag === 'input' || tag === 'button' || tag === 'svg' || tag === 'path') return;
+            if (hasKids) toggleExpand(node.id);
+            else toggleSelect(node.id);
+          }}
+          style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320', cursor: hasKids? 'pointer':'default' }}
+        >
+          {/* Leading chevron to indicate children */}
+          {hasKids ? (
+            <span role="button" aria-label={isOpen? 'طيّ':'توسيع'} onClick={(e)=>{ e.stopPropagation(); toggleExpand(node.id); }} style={{ width:20, height:20, display:'grid', placeItems:'center' }}>
+              <svg viewBox="0 0 24 24" width="14" height="14" style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)' }} aria-hidden="true">
+                <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </span>
+          ) : (<span style={{ width:20 }} />)}
+          <input
+            type="checkbox"
+            checked={selectedSet.has(node.id)}
+            onClick={(e)=>{ e.stopPropagation(); toggleSelect(node.id); }}
+            onChange={()=>{}}
+          />
+          <div style={{ display:'flex', alignItems:'center', gap:6, flex:1 }}>
+            <span>{node.name}</span>
+            {primaryId === node.id ? (
+              <span className="badge">رئيسي</span>
+            ) : selectedSet.has(node.id) ? (
+              <button type="button" className="btn btn-outline" onClick={()=> onPrimaryChange(node.id)} style={{ padding:'2px 6px', fontSize:12 }}>تعيين كرئيسي</button>
+            ) : null}
+          </div>
+          <span style={{ width:18 }} />
+        </div>
+        {hasKids && isOpen && kids.map((k:any)=> (<Node key={k.id} node={k} depth={depth+1} />))}
+      </div>
+    );
+  }
+
+  const summary = React.useMemo(()=>{
+    if (!value || value.length===0) return 'اختر فئة';
+    const primaryName = nameOf(primaryId) || nameOf(value[0]);
+    const extraCount = value.filter(id=> id && id!==primaryId).length;
+    return extraCount>0 ? `${primaryName} +${extraCount}` : (primaryName || `${value.length} تصنيف(ات)`);
+  }, [value, primaryId, nameOf]);
+
+  const shown = React.useMemo(()=> filtered(tree, filter), [tree, filter]);
+
+  return (
+    <div ref={containerRef} style={{ position:'relative' }}>
+      <button type="button" className="select" onClick={()=>{ if (!open) { setOpen(true); loadTree(); } }} aria-haspopup="listbox" aria-expanded={open} style={{ width:'100%', textAlign:'start' }}>
+        {summary}
+      </button>
+      {Array.isArray(value) && value.length > 0 && (
+        <div style={{ marginTop:6, display:'flex', flexWrap:'wrap', gap:6 }}>
+          {value.map((id)=> (
+            <span key={id} className="badge" style={{ display:'inline-flex', alignItems:'center', gap:6, background:'#111827', border:'1px solid #1c2333' }}>
+              <span>{nameOf(id)}</span>
+              <button type="button" className="icon-btn" onClick={(e)=>{ e.stopPropagation(); toggleSelect(id); }} aria-label="إزالة">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      {open && (
+        <>
+          {/* Backdrop to capture outside clicks without relying on document listeners */}
+          <div
+            style={{ position:'fixed', inset:0, zIndex:59, background:'transparent' }}
+            onMouseDown={()=> setOpen(false)}
+          />
+        <div
+          ref={panelRef}
+          className="panel"
+          role="listbox"
+          style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:60, width:'min(560px, 96vw)', maxHeight:420, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}
+          onPointerDown={(e)=> e.stopPropagation()}
+          onMouseDown={(e)=> e.stopPropagation()}
+          onClick={(e)=> e.stopPropagation()}
+        >
+          <div style={{ position:'sticky', top:0, background:'#0b0e14', display:'flex', gap:8, marginBottom:8, alignItems:'center', paddingBottom:8 }}>
+            <input value={filter} onChange={(e)=> setFilter(e.target.value)} placeholder="بحث عن تصنيف" className="input" />
+            <button type="button" className="btn btn-outline" onClick={()=> setFilter('')}>مسح</button>
+            <div style={{ marginInlineStart:'auto', display:'flex', gap:8 }}>
+              <button type="button" className="btn btn-outline" onClick={()=> setOpen(false)}>إغلاق</button>
+            </div>
+          </div>
+          {loading ? (
+            <div className="skeleton" style={{ height:140 }} />
+          ) : (
+            <div>
+              {shown.length ? shown.map((n:any)=> (<Node key={n.id} node={n} depth={0} />)) : (<div style={{ color:'#94a3b8', padding:8 }}>لا توجد نتائج</div>)}
+            </div>
+          )}
+        </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function AdminProductCreate(): JSX.Element {
   const router = useRouter();
   const search = useSearchParams();
@@ -65,6 +238,11 @@ export default function AdminProductCreate(): JSX.Element {
           setName(String(p.name||''));
           setDescription(String(p.description||''));
           setCategoryId(String(p.categoryId||''));
+          try {
+            const extra: string[] = Array.isArray((j?.additionalCategoryIds||p?.additionalCategoryIds)) ? (j?.additionalCategoryIds||p?.additionalCategoryIds) : [];
+            const all = Array.from(new Set([String(p.categoryId||'')].concat(extra).filter(Boolean)));
+            setSelectedCategoryIds(all);
+          } catch {}
           setVendorId(String(p.vendorId||''));
           setSku(String(p.sku||''));
           if (typeof p.price === 'number') setSalePrice(p.price);
@@ -74,6 +252,13 @@ export default function AdminProductCreate(): JSX.Element {
           setSeoTitle(String(p.seoTitle||''));
           setSeoDescription(String(p.seoDescription||''));
           setDraft(!Boolean(p.isActive));
+          // Loyalty fields
+          try{
+            setPointsFixed(p.pointsFixed!=null ? String(p.pointsFixed) : '');
+            setPointsPercent(p.pointsPercent!=null ? String(p.pointsPercent) : '');
+            setLoyaltyMultiplier(p.loyaltyMultiplier!=null ? String(p.loyaltyMultiplier) : '');
+            setExcludeFromPoints(!!p.excludeFromPoints);
+          }catch{}
           // Restore purchase price from tags or variants if available
           try {
             const tag = (Array.isArray(p.tags)? p.tags: []).find((t:any)=> String(t||'').startsWith('purchase:'));
@@ -128,7 +313,8 @@ export default function AdminProductCreate(): JSX.Element {
                 const imgs: string[] = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
                 const urlIndex = (u?:string)=> imgs.findIndex(x=> x===u);
                 const cards = (colorNames as string[]).map((c:string)=> {
-                  const mapped = (mapping||{})[c];
+                  // Use any existing review.mapping if available; mapping below is defined later
+                  const mapped = (((review as any)?.mapping)||{})[c];
                   const idx = mapped ? urlIndex(mapped) : -1;
                   return { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: c, selectedImageIdxs: [], primaryImageIdx: idx>=0? idx : undefined };
                 });
@@ -225,6 +411,19 @@ export default function AdminProductCreate(): JSX.Element {
             isActive: !!p.isActive,
             mapping,
           });
+          // Load PDP meta for model section
+          try {
+            const gr = await fetch(`${apiBase}/api/admin/pdp/meta/${encodeURIComponent(id)}`, { credentials:'include', headers:{ ...authHeaders() } });
+            const gj = await gr.json().catch(()=>({}));
+            const meta = (gj?.meta && typeof gj.meta==='object') ? gj.meta : {};
+            if (typeof meta.modelEnabled === 'boolean') setModelEnabled(!!meta.modelEnabled);
+            const mm = (meta as any).model || {};
+            if (mm && typeof mm === 'object') {
+              setModelImageUrl(String(mm.imageUrl||''));
+              const fields = Array.isArray(mm.fields) ? mm.fields : [];
+              setModelFields(fields.map((f:any)=> ({ label: String(f?.label||''), value: String(f?.value||'') })).filter((f:any)=> f.label || f.value));
+            }
+          } catch {}
         }
       } finally { setLoadingExisting(false); }
     })();
@@ -545,6 +744,9 @@ export default function AdminProductCreate(): JSX.Element {
       map.clear();
     };
   }, []);
+
+  // Existing product images parsed from the comma-separated field for edit mode and UI preview
+  // (reverted: no existingImageUrlsUI memo)
 
   function generateStrictName(clean: string): string {
     // Reuse makeSeoName baseline then enforce 8–12 words, avoid marketing
@@ -1608,7 +1810,13 @@ export default function AdminProductCreate(): JSX.Element {
   const [sku, setSku] = React.useState('');
   const [supplier, setSupplier] = React.useState('');
   const [brand, setBrand] = React.useState('');
+  // Loyalty fields
+  const [pointsFixed, setPointsFixed] = React.useState<string>('');
+  const [pointsPercent, setPointsPercent] = React.useState<string>('');
+  const [loyaltyMultiplier, setLoyaltyMultiplier] = React.useState<string>('');
+  const [excludeFromPoints, setExcludeFromPoints] = React.useState<boolean>(false);
   const [categoryId, setCategoryId] = React.useState('');
+  const [selectedCategoryIds, setSelectedCategoryIds] = React.useState<string[]>([]);
   const [vendorId, setVendorId] = React.useState('');
   const [categoryOptions, setCategoryOptions] = React.useState<Array<{id:string;name:string}>>([]);
   const [vendorOptions, setVendorOptions] = React.useState<Array<{id:string;name:string;vendorCode?:string}>>([]);
@@ -1629,6 +1837,10 @@ export default function AdminProductCreate(): JSX.Element {
   const [showImagesInput, setShowImagesInput] = React.useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = React.useState<number[]>([]);
   const [dragOver, setDragOver] = React.useState<boolean>(false);
+  // Model section (runway measurements)
+  const [modelEnabled, setModelEnabled] = React.useState<boolean>(false);
+  const [modelImageUrl, setModelImageUrl] = React.useState<string>("");
+  const [modelFields, setModelFields] = React.useState<Array<{ label:string; value:string }>>([]);
   const [variantRows, setVariantRows] = React.useState<Array<{
     name: string;
     value: string;
@@ -1694,6 +1906,8 @@ export default function AdminProductCreate(): JSX.Element {
       } catch {}
     })();
   }, [apiBase]);
+
+  // removed multi-select categories logic (reverted)
   async function loadSizesForType(typeId: string): Promise<Array<{id:string;name:string}>> {
     try{
       const r = await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
@@ -1710,6 +1924,23 @@ export default function AdminProductCreate(): JSX.Element {
     if (exists) return;
     const sizes = await loadSizesForType(typeId);
     setSelectedSizeTypes(prev => [...prev, { id: typeId, name: getTypeNameById(typeId), sizes, selectedSizes: [] }]);
+  }
+  function removeSizeType(typeId: string) {
+    // Remove from selected list
+    setSelectedSizeTypes(prev => prev.filter(t => t.id !== typeId));
+    // Prune the label from each variant row's composite size string and option_values
+    const label = getTypeNameById(typeId);
+    if (!label) return;
+    setVariantRows(prev => prev.map((r) => {
+      const parts = parseCompositeSizes(r.size);
+      if (Object.prototype.hasOwnProperty.call(parts, label)) {
+        delete parts[label];
+      }
+      const comp = Object.entries(parts).filter(([k,v])=> (k && v)).map(([k,v])=> `${k}:${v}`).join('|');
+      const nextOv = Array.isArray(r.option_values) ? r.option_values.filter(o => o.name !== 'size') : [];
+      const withSize = comp ? nextOv.concat([{ name:'size', value: comp }]) : nextOv;
+      return { ...r, size: comp, option_values: withSize };
+    }).filter(r => true));
   }
   function toggleSizeForType(typeId: string, sizeName: string) {
     setSelectedSizeTypes(prev => prev.map(t => {
@@ -1885,6 +2116,43 @@ export default function AdminProductCreate(): JSX.Element {
       urlStrings,
       ...fileUrls
     ]));
+  }
+
+  function remapColorCardIndicesAfterChange(oldUrls: string[], newUrls: string[]): void {
+    try {
+      setColorCards(prev => prev.map(card => {
+        const oldSel = Array.isArray(card.selectedImageIdxs) ? card.selectedImageIdxs : [];
+        const selectedUrls = oldSel.map(i => oldUrls[i]).filter(Boolean);
+        const newIdxs = Array.from(new Set(selectedUrls.map(u => newUrls.indexOf(u)).filter(i => i >= 0)));
+        let nextPrimary: number | undefined = undefined;
+        if (typeof card.primaryImageIdx === 'number') {
+          const oldPrimaryUrl = oldUrls[card.primaryImageIdx];
+          const mapped = newUrls.indexOf(oldPrimaryUrl);
+          nextPrimary = mapped >= 0 ? mapped : undefined;
+        }
+        return { ...card, selectedImageIdxs: newIdxs, primaryImageIdx: nextPrimary };
+      }));
+    } catch {}
+  }
+
+  function removeImageAt(index: number): void {
+    const oldUrls = allProductImageUrls();
+    const urlStrings = (images || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (index < urlStrings.length) {
+      // remove from existing URL list
+      const nextUrlStrings = urlStrings.filter((_, i) => i !== index);
+      const newUrls = Array.from(new Set([...nextUrlStrings, ...fileUrls]));
+      remapColorCardIndicesAfterChange(oldUrls, newUrls);
+      setImages(nextUrlStrings.join(', '));
+    } else {
+      // remove from local files
+      const fileIdx = index - urlStrings.length;
+      const nextFiles = files.filter((_, i) => i !== fileIdx);
+      const nextFileUrls = fileUrls.filter((_, i) => i !== fileIdx);
+      const newUrls = Array.from(new Set([...urlStrings, ...nextFileUrls]));
+      remapColorCardIndicesAfterChange(oldUrls, newUrls);
+      setFiles(nextFiles);
+    }
   }
 
   // Build color→image mapping from selected color cards
@@ -2168,7 +2436,13 @@ export default function AdminProductCreate(): JSX.Element {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!name || !categoryId || salePrice === '' || salePrice === undefined) {
+    // Derive primary category from selection if missing
+    let primaryCategoryId = categoryId;
+    if (!primaryCategoryId && selectedCategoryIds.length) {
+      primaryCategoryId = selectedCategoryIds[0];
+      setCategoryId(primaryCategoryId);
+    }
+    if (!name || !primaryCategoryId || salePrice === '' || salePrice === undefined) {
       setError('يرجى تعبئة الاسم، التصنيف، وسعر البيع');
       showToast('أكمل الحقول المطلوبة', 'err');
       return;
@@ -2212,11 +2486,17 @@ export default function AdminProductCreate(): JSX.Element {
       description,
       price: Number(salePrice || 0),
       images: baseImages,
-      categoryId,
+      categoryId: primaryCategoryId,
+      // Send full selection; backend already excludes primary when inserting links
+      additionalCategoryIds: Array.from(new Set(selectedCategoryIds.filter(id => !!id))),
       vendorId: vendorId || null,
       stockQuantity: (stockQuantity === '' ? 999999 : Number(stockQuantity || 0)),
       sku: sku || undefined,
       brand: brand || undefined,
+      pointsFixed: pointsFixed===''? undefined : Number(pointsFixed||0),
+      pointsPercent: pointsPercent===''? undefined : Number(pointsPercent||0),
+      loyaltyMultiplier: loyaltyMultiplier===''? undefined : Number(loyaltyMultiplier||0),
+      excludeFromPoints: excludeFromPoints || undefined,
       tags: (()=>{
         const base = [supplier ? `supplier:${supplier}` : '', purchasePrice!=='' ? `purchase:${purchasePrice}` : ''].filter(Boolean) as string[];
         const colorTags = buildColorTagsFromState(baseImages);
@@ -2272,7 +2552,7 @@ export default function AdminProductCreate(): JSX.Element {
     try {
       if (editId) {
         // PATCH existing product with variants in one request
-        const body = { ...productPayload, ...(normalizedVariants.length? { variants: normalizedVariants } : {}) };
+        const body = { ...productPayload, ...(normalizedVariants.length? { /* do not send variants here; we will replace after */ } : {}) };
         res = await fetch(`${apiBase}/api/admin/products/${editId}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(body) });
       } else {
         res = await fetch(`${apiBase}/api/admin/products`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(productPayload) });
@@ -2296,22 +2576,50 @@ export default function AdminProductCreate(): JSX.Element {
     }
     const j = await res.json().catch(()=>({}));
     const productId = editId || j?.product?.id;
-    if (!editId && type === 'variable' && productId && normalizedVariants.length) {
+    // Replace variants to persist edits and deletions robustly (even when switching to simple -> send empty list)
+    if (productId) {
       try {
-        await fetch(`${apiBase}/api/admin/products/${productId}/variants`, {
-          method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
-          body: JSON.stringify({ variants: normalizedVariants })
+        const list = type === 'variable' ? (Array.isArray(normalizedVariants) ? normalizedVariants : []) : [];
+        // Normalize stock field name for API (expects `stock`, UI uses `stockQuantity`)
+        const listForApi = list.map((v:any)=> {
+          const hasStock = typeof (v as any).stock === 'number' && Number.isFinite((v as any).stock);
+          const hasStockQty = typeof (v as any).stockQuantity === 'number' && Number.isFinite((v as any).stockQuantity);
+          const stock = hasStock ? Number((v as any).stock) : (hasStockQty ? Number((v as any).stockQuantity) : 0);
+          return { ...v, stock };
+        });
+        await fetch(`${apiBase}/api/admin/products/${encodeURIComponent(productId)}/variants/replace`, {
+          method:'PUT', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
+          body: JSON.stringify({ variants: listForApi })
         });
       } catch {}
     }
+    // Persist PDP meta (merge first)
+    try{
+      if (productId){
+        let baseMeta:any = {};
+        try{ const gr = await fetch(`${apiBase}/api/admin/pdp/meta/${encodeURIComponent(productId)}`, { credentials:'include', headers:{ ...authHeaders() } }); const gj = await gr.json(); baseMeta = (gj?.meta && typeof gj.meta==='object')? gj.meta : {}; }catch{}
+        const nextMeta = Object.assign({}, baseMeta, { modelEnabled: modelEnabled, model: { imageUrl: modelImageUrl || undefined, fields: modelFields.filter(f=> f.label && f.value) } });
+        await fetch(`${apiBase}/api/admin/pdp/meta/${encodeURIComponent(productId)}`, { method:'PUT', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(nextMeta) });
+      }
+    }catch{}
     if (uploadedOrBase64.length) {
       setImages(baseImages.join(', '));
       setFiles([]);
     }
     setBusy(false);
     showToast(editId? 'تم تحديث المنتج بنجاح' : 'تم إنشاء المنتج بنجاح', 'ok');
-    // بعد الحفظ، الانتقال مباشرة لقائمة المنتجات
-    router.replace('/products');
+    // بعد الحفظ، العودة إلى نفس صفحة الجدول (الصف/الفلاتر) إن وُجِدت
+    try{
+      const params = new URLSearchParams();
+      const bp = search?.get('backPage'); if (bp) params.set('page', bp);
+      const bs = search?.get('backStatus'); if (bs) params.set('status', bs);
+      const bq = search?.get('backSearch'); if (bq) params.set('search', bq);
+      const bc = search?.get('backCategoryId'); if (bc) params.set('categoryId', bc);
+      const qs = params.toString();
+      router.replace(qs ? `/products?${qs}` : '/products');
+    } catch {
+      router.replace('/products');
+    }
   }
 
   return (
@@ -2319,7 +2627,20 @@ export default function AdminProductCreate(): JSX.Element {
     <main className="panel" style={{ padding:16 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 12 }}>
         <h1 style={{ margin:0 }}>إنشاء منتج</h1>
-        <a href="/products" className="btn btn-outline">رجوع</a>
+        {(() => {
+          try{
+            const params = new URLSearchParams();
+            const bp = search?.get('backPage'); if (bp) params.set('page', bp);
+            const bs = search?.get('backStatus'); if (bs) params.set('status', bs);
+            const bq = search?.get('backSearch'); if (bq) params.set('search', bq);
+            const bc = search?.get('backCategoryId'); if (bc) params.set('categoryId', bc);
+            const qs = params.toString();
+            const href = qs ? `/products?${qs}` : '/products';
+            return <a href={href} className="btn btn-outline">رجوع</a>;
+          }catch{
+            return <a href="/products" className="btn btn-outline">رجوع</a>;
+          }
+        })()}
       </div>
 
       <Section
@@ -2484,21 +2805,27 @@ export default function AdminProductCreate(): JSX.Element {
               </label>
               <div style={{ fontSize:12, marginTop:8 }}>يدعم السحب والإفلات والاختيار من المعرض</div>
             </div>
-            {files.length > 0 && (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:12, marginTop:10 }}>
-                {files.map((f, idx) => (
-                  <div key={idx} className="panel" style={{ padding:0 }}>
-                    <img src={fileUrls[idx]} alt={f.name} style={{ width:'100%', height:120, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
-                    <div style={{ padding:8, textAlign:'right' }}>
-                    <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i!==idx))} className="icon-btn">إزالة</button>
+            {(() => {
+              const urls = allProductImageUrls();
+              return urls.length > 0 ? (
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:12, marginTop:10, maxWidth:'100%' }}>
+                  {urls.map((u, idx) => (
+                    <div key={`${u}__${idx}`} className="panel" style={{ padding:0, overflow:'hidden', borderRadius:8 }}>
+                      <img src={u} alt={`img-${idx}`} style={{ display:'block', width:'100%', height:120, objectFit:'cover' }} />
+                      <div style={{ padding:8, textAlign:'right', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                        <span className="muted" style={{ fontSize:12, direction:'ltr', textAlign:'left', maxWidth:'70%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u}</span>
+                        <button type="button" onClick={() => removeImageAt(idx)} className="icon-btn">إزالة</button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              ) : null;
+            })()}
           </div>
         </div>
       </Section>
+
+      
 
       <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 20, alignItems:'start' }}>
         {/* Left main column span 8 */}
@@ -2543,12 +2870,26 @@ export default function AdminProductCreate(): JSX.Element {
             </select>
           </label>
           <label>التصنيف
-            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required className="select">
-              <option value="">اختر تصنيفاً</option>
-              {categoryOptions.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <CategoryMultiTreeDropdown
+              value={selectedCategoryIds}
+              onChange={(ids)=>{
+                const uniq = Array.from(new Set(ids));
+                setSelectedCategoryIds(uniq);
+                if (!uniq.includes(categoryId)) {
+                  setCategoryId(uniq[0] || '');
+                }
+              }}
+              primaryId={categoryId}
+              onPrimaryChange={(pid)=>{
+                setCategoryId(pid);
+                setSelectedCategoryIds(prev=>{
+                  const set = new Set(prev);
+                  if (pid) set.add(pid);
+                  return Array.from(set);
+                });
+              }}
+              options={categoryOptions}
+            />
           </label>
           <label>المخزون
             <input type="text" inputMode="numeric" value={formatThousands(stockQuantity)} onChange={(e) => {
@@ -2568,6 +2909,23 @@ export default function AdminProductCreate(): JSX.Element {
               setSalePrice(e.target.value.trim()==='' ? '' : (typeof v==='number' && Number.isFinite(v) ? v : (salePrice||'')));
             }} required className="input" />
           </label>
+          {/* Loyalty configuration */}
+          <label>
+            نقاط ثابتة (لكل قطعة)
+            <input className="input" placeholder="مثلاً 10" value={pointsFixed} onChange={(e)=> setPointsFixed(e.target.value.replace(/[^0-9]/g,''))} />
+          </label>
+          <label>
+            نسبة من السعر ← نقاط
+            <input className="input" placeholder="مثلاً 0.05" value={pointsPercent} onChange={(e)=> setPointsPercent(e.target.value)} />
+          </label>
+          <label>
+            مضاعف النقاط (للمنتج)
+            <input className="input" placeholder="مثلاً 1.5" value={loyaltyMultiplier} onChange={(e)=> setLoyaltyMultiplier(e.target.value)} />
+          </label>
+          <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
+            <input type="checkbox" checked={excludeFromPoints} onChange={(e)=> setExcludeFromPoints(e.target.checked)} />
+            <span>استثناء هذا المنتج من النقاط</span>
+          </label>
           {type === 'variable' && (
             <>
               <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr', gap:12 }}>
@@ -2582,7 +2940,10 @@ export default function AdminProductCreate(): JSX.Element {
                   <div style={{ display:'grid', gap:10, marginTop:10 }}>
                     {selectedSizeTypes.map((t)=>(
                       <div key={t.id} className="panel" style={{ padding:10 }}>
-                        <div style={{ marginBottom:6, fontWeight:600 }}>{t.name}</div>
+                        <div style={{ marginBottom:6, fontWeight:600, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                          <span>{t.name}</span>
+                          <button type="button" className="btn btn-outline" onClick={()=> removeSizeType(t.id)}>إزالة النوع</button>
+                        </div>
                         <div style={{ display:'flex', flexWrap:'wrap', gap:10 }}>
                           {t.sizes.map(s=> (
                             <label key={s.id} style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
@@ -2642,7 +3003,7 @@ export default function AdminProductCreate(): JSX.Element {
                                       setColorCards(prev => prev.map((c,i)=>{
                                         if (i!==idx) return c;
                                         const have = c.selectedImageIdxs.includes(imgIdx);
-                                        const sel = have ? c.selectedImageIdxs.filter(x=>x!==imgIdx) : [...c.selectedImageIdxs, imgIdx];
+                                        const sel = have ? c.selectedImageIdxs.filter(x=>x!==imgIdx) : [...(c.selectedImageIdxs||[]), imgIdx];
                                         let primaryImageIdx = c.primaryImageIdx;
                                         if (primaryImageIdx!==undefined && !sel.includes(primaryImageIdx)) primaryImageIdx = undefined;
                                         return { ...c, selectedImageIdxs: sel, primaryImageIdx };
@@ -2829,12 +3190,56 @@ export default function AdminProductCreate(): JSX.Element {
             <span className="badge">{type==='variable' ? 'متعدد' : 'بسيط'}</span>
           </div>
           <div style={{ fontWeight:700, marginTop:6 }}>{name || '— بدون اسم —'}</div>
-          <div style={{ color:'var(--sub)', fontSize:12 }}>{categoryOptions.find(c=>c.id===categoryId)?.name || 'بدون تصنيف'}</div>
+          <div style={{ color:'var(--sub)', fontSize:12 }}>
+            {(() => {
+              const primaryName = categoryOptions.find(c=>c.id===categoryId)?.name;
+              const extraCount = Math.max(0, (selectedCategoryIds||[]).filter(id=> id && id!==categoryId).length);
+              if (!primaryName && (!selectedCategoryIds || !selectedCategoryIds.length)) return 'بدون تصنيف';
+              return primaryName ? (extraCount>0 ? `${primaryName} +${extraCount}` : primaryName) : `${selectedCategoryIds.length} تصنيف(ات)`;
+            })()}
+          </div>
           <div className="panel" style={{ padding:10, marginTop:8 }}>
             <div style={{ marginBottom:6, color:'#9ca3af' }}>SEO</div>
             <div className="grid" style={{ gridTemplateColumns:'1fr', gap:8 }}>
               <input className="input" placeholder="SEO Title" value={seoTitle} onChange={(e)=> setSeoTitle(e.target.value)} />
               <input className="input" placeholder="SEO Description" value={seoDescription} onChange={(e)=> setSeoDescription(e.target.value)} />
+            </div>
+          </div>
+          {/* Model section moved here and compacted */}
+          <div className="panel" style={{ padding:10, marginTop:8 }}>
+            <div style={{ marginBottom:6, color:'#9ca3af' }}>عارضة الأزياء</div>
+            <div style={{ display:'grid', gap:12 }}>
+              <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
+                <input type="checkbox" checked={modelEnabled} onChange={(e)=> setModelEnabled(e.target.checked)} />
+                <span>تفعيل ظهور هذا القسم</span>
+              </label>
+              <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 160px', gap:12, alignItems:'start' }}>
+                <div>
+                  <div style={{ marginBottom:6, color:'#9ca3af' }}>حقول القياسات</div>
+                  <div style={{ display:'grid', gap:8 }}>
+                    {modelFields.map((f, idx)=> (
+                      <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:8 }}>
+                        <input className="input" placeholder="العنوان" value={f.label} onChange={(e)=> setModelFields((arr)=> arr.map((x,i)=> i===idx? ({ ...x, label: e.target.value }): x))} />
+                        <input className="input" placeholder="القيمة" value={f.value} onChange={(e)=> setModelFields((arr)=> arr.map((x,i)=> i===idx? ({ ...x, value: e.target.value }): x))} />
+                        <button type="button" className="btn btn-outline" onClick={()=> setModelFields((arr)=> arr.filter((_,i)=> i!==idx))}>حذف</button>
+                      </div>
+                    ))}
+                    <button type="button" className="btn" onClick={()=> setModelFields((arr)=> [...arr, { label:'', value:'' }])}>+ إضافة حقل</button>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ marginBottom:6, color:'#9ca3af' }}>صورة العارضة</div>
+                  <ImageDropdown
+                    value={modelImageUrl}
+                    options={(images||'').split(',').map(s=> s.trim()).filter(Boolean)}
+                    onChange={(v)=> setModelImageUrl(v||'')}
+                    placeholder="(من الصور الرئيسية)"
+                  />
+                  <div style={{ marginTop:8, width:120, height:120, borderRadius:12, overflow:'hidden', border:'1px solid #1c2333', display:'grid', placeItems:'center' }}>
+                    {modelImageUrl? (<img src={modelImageUrl} alt="model" className="thumb" style={{ width:'100%', height:'100%', objectFit:'cover' }} />) : (<span className="muted">(معاينة)</span>)}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <div style={{ display:'flex', gap:12, marginTop:6 }}>
@@ -2854,4 +3259,3 @@ export default function AdminProductCreate(): JSX.Element {
     </div>
   );
 }
-

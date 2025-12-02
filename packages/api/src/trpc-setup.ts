@@ -11,7 +11,8 @@ export const middleware = t.middleware;
 
 const JWTPayloadSchema = z.object({
 	userId: z.string(),
-	email: z.string().email(),
+	email: z.string().email().optional(),
+	phone: z.string().optional(),
 	role: z.enum(['USER', 'ADMIN']),
 	iat: z.number(),
 	exp: z.number(),

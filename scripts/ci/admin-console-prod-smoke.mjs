@@ -1,17 +1,28 @@
 #!/usr/bin/env node
 import fetch from 'node-fetch';
 
-async function fetchWithRetry(url, opts = {}, attempts = 5, baseDelayMs = 500) {
+const DEFAULT_ATTEMPTS = Number(process.env.SMOKE_ATTEMPTS||5);
+const DEFAULT_TIMEOUT_MS = Number(process.env.SMOKE_TIMEOUT_MS||20000);
+async function fetchWithRetry(url, opts = {}, attempts = DEFAULT_ATTEMPTS, baseDelayMs = 700) {
   let err;
   for (let i = 0; i < attempts; i++) {
     try {
       const ctl = new AbortController();
-      const t = setTimeout(() => ctl.abort(), 8000);
-      const res = await fetch(url, { ...opts, signal: ctl.signal });
-      clearTimeout(t);
+      const t = setTimeout(() => ctl.abort(), DEFAULT_TIMEOUT_MS);
+      const started = Date.now();
+      let res;
+      try {
+        res = await fetch(url, { ...opts, signal: ctl.signal });
+      } finally {
+        clearTimeout(t);
+      }
+      if (!res) throw new Error('no_response');
       return res;
     } catch (e) {
       err = e;
+      const delay = baseDelayMs * Math.pow(2, i);
+      // Log transient failures for debugging
+      try { console.warn(`[smoke-retry] ${url} attempt ${i+1}/${attempts} failed: ${e?.name||e} → retrying in ${delay}ms`); } catch {}
       await new Promise(r => setTimeout(r, baseDelayMs * Math.pow(2, i)));
     }
   }
@@ -29,9 +40,10 @@ async function check(url, expect = 200) {
 }
 
 async function login(apiBase, email, password) {
+  const origin = process.env.ADMIN_URL || 'https://admin.jeeey.com';
   const res = await fetchWithRetry(`${apiBase}/api/admin/auth/login`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'origin': origin },
     body: JSON.stringify({ email, password, remember: true }),
     redirect: 'manual',
   });

@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-0 z-50 overscroll-contain" dir="rtl">
+  <div class="fixed inset-0 z-[110] overscroll-contain" dir="rtl">
     <!-- خلفية -->
     <button
       class="absolute inset-0 bg-black/40"
@@ -10,7 +10,7 @@
     />
 
     <!-- اللوحة -->
-    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-[12px] shadow-lg p-4 pb-3">
+    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-[12px] shadow-lg p-4 pb-3" style="padding-bottom: max(12px, env(safe-area-inset-bottom))">
       <!-- زر إغلاق خارج الإطار عند إخفاء العنوان -->
       <button v-if="hideTitle" @click="onClose" aria-label="إغلاق" class="absolute top-0 left-5 -translate-x-1/2 -translate-y-1/2 z-10 bg-white rounded-full shadow p-1">
         <X class="w-4 h-4 text-gray-700" />
@@ -41,7 +41,7 @@
               class="w-[164px] h-[218px] rounded-[8px] overflow-hidden shrink-0 bg-gray-100"
             >
               <img
-                :src="src"
+                :src="buildThumbUrl(src, 384)"
                 :alt="`صورة ${idx + 1}`"
                 class="w-full h-full object-cover"
                 loading="lazy"
@@ -71,7 +71,7 @@
       </div>
 
       <!-- الألوان -->
-      <div class="mb-4">
+      <div class="mb-4" v-if="productColors.length">
         <div class="text-[12px] text-gray-700 mb-2 text-right">اللون: {{ selectedColor || '—' }}</div>
         <div class="flex items-center gap-2 overflow-x-auto no-scrollbar justify-start">
           <template v-if="!loading">
@@ -84,7 +84,7 @@
               }`"
             >
               <img
-                :src="color.img"
+                :src="buildThumbUrl(color.img, 128)"
                 :alt="color.label"
                 class="w-full h-full object-cover"
                 loading="lazy"
@@ -99,7 +99,7 @@
       </div>
 
       <!-- المقاسات -->
-      <div class="mb-3">
+      <div class="mb-3" v-if="productGroups.length || productSizes.length">
         <!-- Render groups in separate rows when available -->
         <template v-if="productGroups.length">
           <div class="space-y-3">
@@ -167,6 +167,7 @@
 <script setup lang="ts">
 import { ref, computed, watchEffect, watch } from 'vue'
 import { X, Heart as HeartIcon } from 'lucide-vue-next'
+import { buildThumbUrl } from '@/lib/media'
 
 const props = defineProps<{
   onClose: () => void
@@ -183,7 +184,7 @@ const props = defineProps<{
   wishlistActive?: boolean
 }>()
 
-const selectedColor = ref(props.selectedColor || 'أبيض')
+const selectedColor = ref(props.selectedColor || '')
 const selectedSize = ref('')
 const groupValues = ref<Record<string,string>>({})
 const notice = ref(false)

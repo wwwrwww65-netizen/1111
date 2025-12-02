@@ -9,11 +9,9 @@
         </svg>
       </button>
       <h1 class="text-lg font-semibold text-gray-900">تأكيد الطلب ({{ totalItems }})</h1>
-      <!-- أيقونة سماعة -->
-      <button>
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
-        </svg>
+      <!-- أيقونة سماعة كمبيوتر → خدمة العملاء -->
+      <button @click="goSupport" aria-label="خدمة العملاء">
+        <Headset class="w-6 h-6 text-gray-700" />
       </button>
     </header>
 
@@ -45,10 +43,10 @@
             <div class="text-sm text-gray-800">{{ item.title }}</div>
             <div class="text-xs text-gray-500 mt-1">
               <span v-if="item.variantColor">اللون: {{ item.variantColor }}</span>
-              <span v-if="item.variantSize" class="mr-2">المقاس: {{ item.variantSize }}</span>
+              <span v-if="item.variantSize" class="mr-2">{{ item.variantSize }}</span>
             </div>
             <div class="flex justify-between items-center mt-2">
-              <span class="text-[#8a1538] font-semibold">{{ Number(item.price).toFixed(2) }} {{ currencySymbol }}</span>
+              <span class="text-[#8a1538] font-semibold">{{ Math.round(Number(afterOf(item) ?? item.price)) }} {{ currencySymbol }}</span>
               <!-- عداد -->
               <div class="flex items-center border rounded">
                 <button class="px-2" @click="decreaseQty(idx)">-</button>
@@ -78,13 +76,11 @@
             <div class="flex-1">
               <div class="flex items-center gap-2">
                 <svg class="w-5 h-5 text-[#8a1538]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path v-if="ship.name === 'شحن مجاني'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                  <path v-else-if="ship.name === 'شحن سريع'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                  <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 17l4 4 4-4m-4-5v9m0-13a4 4 0 00-4 4v1a2 2 0 002 2h4a2 2 0 002-2V8a4 4 0 00-4-4z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                 </svg>
-                <span>{{ ship.name }}</span>
+                <span>{{ ship.offerTitle || ship.name }}</span>
               </div>
-              <div class="text-xs text-gray-600 ml-7">{{ ship.desc }} - {{ Number(ship.price||0).toFixed(2) }} {{ currencySymbol }}</div>
+              <div class="text-xs text-gray-600 ml-7">{{ formatEtaRange(ship.etaMinHours, ship.etaMaxHours) }} • {{ Number(ship.price||0).toFixed(2) }} {{ currencySymbol }}</div>
             </div>
           </div>
         </div>
@@ -104,14 +100,14 @@
         </div>
         <div class="divide-y divide-gray-300 text-sm">
           <label v-for="(pay, i) in paymentOptions" :key="i" class="flex items-center gap-2 py-3">
-            <input type="radio" :value="pay.id" v-model="selectedPayment"/>
+            <input type="radio" name="payment" :value="pay.id" v-model="selectedPayment"/>
             <svg class="w-5 h-5 text-[#8a1538]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path v-if="pay.id === 'cod'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
               <path v-else-if="pay.name === 'خدمة حاسب عبر الكريمي'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
               <path v-else-if="pay.name === 'محفظة جوالي'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
               <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
             </svg>
-            <span>{{ pay.name }}</span>
+               <span>{{ pay.id==='cod' ? 'الدفع عند الاستلام' : pay.name }}</span>
           </label>
         </div>
       </section>
@@ -120,7 +116,7 @@
       <!-- الخصومات -->
       <section class="bg-white px-4 py-3 mb-2">
         <div class="divide-y divide-gray-300 text-sm">
-          <button class="w-full text-right py-3 flex justify-between" @click="openCouponDrawer"><span>رمز القسيمة</span><span class="text-lg">›</span></button>
+          <button class="w-full text-right py-3 flex justify-between" @click="openCouponDrawer"><span>رمز القسيمة</span><span class="text-lg flex items-center gap-2"><span v-if="discountFromCoupon>0" class="text-red-500 text-[14px]">-{{ discountFromCoupon.toFixed(2) }} {{ currencySymbol }}</span> ›</span></button>
           <button class="w-full text-right py-3 flex justify-between" @click="openGiftDrawer"><span>بطاقة هدية</span><span class="text-lg">›</span></button>
           <button class="w-full text-right py-3 flex justify-between" @click="openWalletSheet"><span>المحفظة</span><span class="text-lg">›</span></button>
           <button class="w-full text-right py-3 flex justify-between" @click="openPointsSheet">
@@ -132,7 +128,7 @@
       
     <!-- الأسعار -->
       <section class="bg-white px-4 py-3 space-y-2">
-        <div class="flex justify-between text-sm"><span>المجموع</span><span>{{ subtotal.toFixed(2) }} {{ currencySymbol }}</span></div>
+        <div class="flex justify-between text-sm"><span>المجموع</span><span>{{ subtotalOriginal.toFixed(2) }} {{ currencySymbol }}</span></div>
         <div class="flex justify-between text-sm"><span>الشحن</span><span>{{ shippingPrice.toFixed(2) }} {{ currencySymbol }}</span></div>
 
         <!-- الخصم -->
@@ -170,20 +166,11 @@
       </section>
 
       <!-- نقاط المكافأة -->
-      <section class="bg-white px-4 py-3 mt-2">
-       <!-- عملة ذهبية دائرية -->
-       <span
-       role="img"
-       aria-label="عملة ذهبية"
-       class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-b from-yellow-300 via-yellow-400 to-yellow-600 text-yellow-900 font-extrabold shadow-md ring-1 ring-yellow-700/30"
-       >
-       j
-       </span>
-
-       <span class="text-red-600 font-semibold">31</span>
-       <span class="text-sm">نقاط مكافأة</span>
-
-       <button @click="showPointsInfo = true" class="ml-auto w-5 h-5 flex items-center justify-center rounded-full border text-gray-400">?</button>
+      <section v-if="showRewards" class="bg-white px-4 py-3 mt-2">
+        <span role="img" aria-label="عملة ذهبية" class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-b from-yellow-300 via-yellow-400 to-yellow-600 text-yellow-900 font-extrabold shadow-md ring-1 ring-yellow-700/30">j</span>
+        <span class="text-red-600 font-semibold">{{ points }}</span>
+        <span class="text-sm">نقاط مكافأة</span>
+        <button @click="showPointsInfo = true" class="ml-auto w-5 h-5 flex items-center justify-center rounded-full border text-gray-400">?</button>
       </section>
 
       <!-- منبثق نقاط المكافأة -->
@@ -297,83 +284,236 @@
 
     <!-- زر الدفع -->
     <div class="fixed bottom-0 left-0 right-0 bg-white border-t px-4 py-3">
-      <button class="w-full bg-[#8a1538] text-white font-semibold py-2 text-sm" @click="placeOrder">تأكيد الطلب</button>
+      <button
+        class="w-full bg-[#8a1538] text-white font-semibold py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        :disabled="placing || !selectedPayment || !selectedShipping || items.length===0"
+        @click="placeOrder"
+      >
+        <span v-if="!placing">تأكيد الطلب</span>
+        <span v-else>جاري المعالجة…</span>
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiGet, apiPost } from '@/lib/api'
 
 const router = useRouter()
+import { Headset } from 'lucide-vue-next'
 function goBack(){ router.back() }
+function goSupport(){ router.push('/help') }
 
 const items = ref<any[]>([])
-let selectedIds: string[] = []
+let selectedUids: string[] = []
 
 function increaseQty(idx:number){ items.value[idx].qty++ }
 function decreaseQty(idx:number){ if(items.value[idx].qty>1) items.value[idx].qty-- }
 
 const totalItems = computed(()=> items.value.reduce((s,i)=>s+i.qty,0))
 
-const shippingOptions = ref<Array<{ id:string; name:string; desc:string; price:number }>>([])
+const shippingOptions = ref<Array<{ id:string; name:string; desc:string; price:number; offerTitle?: string; etaMinHours?:number; etaMaxHours?:number }>>([])
 const selectedShipping = ref('')
 
 const paymentOptions = ref<Array<{ id:string; name:string }>>([])
 const selectedPayment = ref('')
+const placing = ref(false)
 const currencySymbol = ref('ر.س')
+function formatEtaRange(minH:number|undefined|null, maxH:number|undefined|null): string {
+  const min = Number(minH||0); const max = Number(maxH||0)
+  if (max<=0 && min<=0) return ''
+  const a = Math.max(0, min||max)
+  const b = Math.max(a, max)
+  if (b >= 24) {
+    const da = Math.ceil(a/24)
+    const db = Math.ceil(b/24)
+    return da===db ? `${db} أيام` : `${da}-${db} أيام`
+  }
+  return `${a}-${b} ساعات`
+}
 
 const showPointsInfo = ref(false)
+const showRewards = ref(false)
 
 const addr = ref<any>(null)
 const addrNameDisplay = computed(()=> addr?.value?.fullName || addr?.value?.name || '—')
 const addrPhoneDisplay = computed(()=> addr?.value?.phone || '—')
-const addrLineDisplay = computed(()=> [addr.value?.state||addr.value?.province, addr.value?.city, addr.value?.street].filter(Boolean).join('، '))
+const addrLineDisplay = computed(()=> [addr.value?.state||addr.value?.province, addr.value?.area, addr.value?.street, addr.value?.landmarks].filter(Boolean).join('، '))
 const shippingPrice = computed(()=> {
   const m = (shippingOptions.value||[]).find(x=> x.id===selectedShipping.value)
   return m ? Number(m.price||0) : 0
 })
-const subtotal = computed(()=> items.value.reduce((s,i)=> s + Number(i.price||0)*Number(i.qty||1), 0))
+const subtotalOriginal = computed(()=> items.value.reduce((s,i)=> s + Number(i.price||0)*Number(i.qty||1), 0))
+const subtotalAfterCoupons = computed(()=> items.value.reduce((s,i)=> s + Number((afterById.value[String(i.id)] ?? i.price)||0)*Number(i.qty||1), 0))
+const couponAutoDiscount = computed(()=> Math.max(0, subtotalOriginal.value - subtotalAfterCoupons.value))
 const discountFromPromo = ref(0)
 const discountFromCoupon = ref(0)
 const walletApplied = ref(0)
 const pointsApplied = ref(0)
 const promoTotal = computed(()=> discountFromPromo.value + walletApplied.value + pointsApplied.value)
-const savingAll = computed(()=> (promoTotal.value + discountFromCoupon.value))
-const totalAll = computed(()=> Math.max(0, subtotal.value + shippingPrice.value - savingAll.value))
+watch([subtotalOriginal, subtotalAfterCoupons], ()=>{ try{ discountFromCoupon.value = couponAutoDiscount.value }catch{} })
+const savingAll = computed(()=> (promoTotal.value + (discountFromCoupon.value || 0)))
+const totalAll = computed(()=> Math.max(0, subtotalOriginal.value + shippingPrice.value - savingAll.value))
 
 async function loadCart(){
   try{
     const { useCart } = await import('@/store/cart');
     const c = useCart();
-    try{ const raw = sessionStorage.getItem('checkout_selected_ids'); selectedIds = raw ? (JSON.parse(raw)||[]) : [] }catch{ selectedIds = [] }
-    const idsSet = new Set((selectedIds||[]).map(String))
+    try{ const raw = sessionStorage.getItem('checkout_selected_uids'); selectedUids = raw ? (JSON.parse(raw)||[]) : [] }catch{ selectedUids = [] }
+    const uidsSet = new Set((selectedUids||[]).map(String))
     const all = c.items
-    items.value = idsSet.size? all.filter((it:any)=> idsSet.has(String(it.id))) : all
+    items.value = uidsSet.size? all.filter((it:any)=> uidsSet.has(String(it.uid))) : all
   }catch{ items.value = [] }
 }
 async function loadAddress(){
   const list = await apiGet<any[]>('/api/addresses')
-  addr.value = Array.isArray(list) ? (list.find((x:any)=>x.isDefault) || list[0] || null) : null
+  let chosen: any = null
+  try{
+    const sel = sessionStorage.getItem('checkout_selected_address_id')
+    if (sel && Array.isArray(list)) chosen = list.find((x:any)=> String(x.id)===String(sel)) || null
+  }catch{}
+  const raw = chosen || (Array.isArray(list) ? (list.find((x:any)=>x.isDefault) || list[0] || null) : null)
+  if (raw) {
+    // Normalize address to extract Area and Landmarks correctly
+    const isNewFormat = !!raw.city
+    const realArea = isNewFormat ? raw.city : (raw.details || '').split(' - ')[0]
+    
+    let realLandmarks = isNewFormat ? raw.details : (raw.details || '').split(' - ').slice(1).join(' - ')
+    // Safety: Strip Area from Landmarks if it's duplicated
+    if (realArea && realLandmarks && String(realLandmarks).trim().startsWith(String(realArea).trim() + ' - ')) {
+      realLandmarks = String(realLandmarks).trim().substring((String(realArea).trim() + ' - ').length)
+    }
+
+    addr.value = { ...raw, area: realArea, landmarks: realLandmarks }
+  } else {
+    addr.value = null
+  }
 }
-async function loadShipping(){ const r = await apiGet<{ items:any[] }>(`/api/shipping/methods?city=${encodeURIComponent(addr.value?.city||'')}`); shippingOptions.value = r?.items||[]; if (!selectedShipping.value && shippingOptions.value[0]) selectedShipping.value = shippingOptions.value[0].id }
-async function loadPayments(){ const r = await apiGet<{ items:any[] }>(`/api/payments/methods`); paymentOptions.value = r?.items?.map((x:any)=>({ id:x.id, name:x.name }))||[]; if (!selectedPayment.value && paymentOptions.value[0]) selectedPayment.value = paymentOptions.value[0].id }
+async function loadShipping(){
+  const city = String(addr.value?.city||'').trim()
+  const state = String(addr.value?.state||addr.value?.province||'').trim()
+  const area = String(addr.value?.area||'').trim()
+  const country = String(addr.value?.country||'').trim()
+  const sub = Number(subtotalAfterCoupons.value||subtotalOriginal.value||0)
+  const qs = new URLSearchParams({ city, state, area, country, subtotal: String(sub) }).toString()
+  const r = await apiGet<{ items:any[] }>(`/api/shipping/methods?${qs}`)
+  shippingOptions.value = r?.items||[]
+  if (!selectedShipping.value && shippingOptions.value[0]) selectedShipping.value = shippingOptions.value[0].id
+}
+async function loadPayments(){
+  const r = await apiGet<{ items:any[] }>(`/api/payments/methods`)
+  paymentOptions.value = r?.items?.filter((x:any)=> x && x.isActive !== false).sort((a:any,b:any)=> Number(a.sortOrder||0)-Number(b.sortOrder||0)).map((x:any)=>({ id:String(x.id), name:String(x.name) }))||[]
+  if (!selectedPayment.value && paymentOptions.value[0]) selectedPayment.value = paymentOptions.value[0].id
+}
+
+// Re-evaluate shipping when subtotal changes (affects free-over thresholds)
+watch(subtotalAfterCoupons, ()=>{ void loadShipping() })
+
+watch(shippingOptions, (opts) => {
+  if (!opts || !opts.length) return
+  // If only 1 option, select it automatically
+  if (opts.length === 1) {
+    selectedShipping.value = opts[0].id
+    return
+  }
+  // If multiple options, ensure selected is valid; otherwise fallback to first
+  if (selectedShipping.value && !opts.find(x => x.id === selectedShipping.value)) {
+    selectedShipping.value = opts[0].id
+  }
+  // If nothing selected, select first
+  if (!selectedShipping.value) {
+    selectedShipping.value = opts[0].id
+  }
+})
 
 function openAddressPicker(){ const ret = encodeURIComponent('/checkout'); router.push(`/address?return=${ret}`) }
 async function placeOrder(){
-  // إنشاء الطلب من السلة مع الشحن والخصومات
-  const payload = { shippingPrice: shippingPrice.value, discount: savingAll.value, selectedIds }
-  const ord = await apiPost('/api/orders', payload)
-  if (ord && (ord as any).order?.id){
-    // الدفع عند الاستلام: لا توجد بوابة دفع، انتقل مباشرةً لتأكيد الطلب/تفاصيله
-    if (selectedPayment.value === 'cod') { router.push(`/order/${(ord as any).order.id}`); return }
-    // إنشاء جلسة دفع (اختصار عبر /api/payments/session الجاهزة في API)
-    const session = await apiPost('/api/payments/session', { amount: totalAll.value, currency: (window as any).__CURRENCY_CODE__||'SAR', method: selectedPayment.value, returnUrl: location.origin + '/pay/success', cancelUrl: location.origin + '/pay/failure', ref: (ord as any).order.id })
-    if (session && (session as any).redirectUrl){ location.href = (session as any).redirectUrl; return }
-    // إن لم يكن هناك إعادة توجيه، انتقل لصفحة المعالجة
-    router.push('/pay/processing')
+  if (placing.value || !selectedPayment.value || !selectedShipping.value || items.value.length===0) return
+  placing.value = true
+  try{
+    // Build explicit lines to avoid server-side ambiguity when multiple variants share the same productId
+    const lines = (items.value||[]).map((it:any)=> ({
+      productId: String(it.id),
+      quantity: Number(it.qty||1),
+      meta: { uid: String(it.uid||''), color: it.variantColor||undefined, size: it.variantSize||undefined }
+    }))
+    // احتفاظ محلي لمعاينة تفاصيل الطلب (لعرض العنوان والصور المختارة في صفحة التفاصيل مباشرة بعد الشراء)
+    try{
+      const linesPreview = (items.value||[]).map((it:any)=> ({
+        productId: String(it.id),
+        quantity: Number(it.qty||1),
+        attributes: { color: it.variantColor||undefined, size: it.variantSize||undefined, image: it.img||undefined }
+      }))
+      sessionStorage.setItem('last_checkout_lines', JSON.stringify(linesPreview))
+    }catch{}
+    const addrSnap = addr.value ? {
+      id: addr.value.id,
+      fullName: addr.value.fullName||addr.value.name||'',
+      phone: addr.value.phone||'',
+      altPhone: addr.value.altPhone||'',
+      country: addr.value.country||'اليمن',
+      state: addr.value.state||addr.value.province||'',
+      city: addr.value.city||'',
+      area: addr.value.area||'',
+      street: addr.value.street||'',
+      details: addr.value.landmarks||addr.value.details||'',
+      postalCode: addr.value.postal||'',
+      lat: addr.value.lat||null,
+      lng: addr.value.lng||null
+    } : null
+    try{ sessionStorage.setItem('last_checkout_address', JSON.stringify(addrSnap||{})) }catch{}
+    const payload = {
+      shippingPrice: shippingPrice.value,
+      discount: savingAll.value,
+      selectedUids,
+      paymentMethod: selectedPayment.value,
+      shippingMethodId: selectedShipping.value,
+      shippingAddressId: addr.value?.id,
+      shippingAddressSnapshot: addrSnap,
+      lines
+    }
+    const ord = await apiPost('/api/orders', payload)
+    if (ord && (ord as any).order?.id){
+      // Track OrderCreated (COD policy: intent only; Purchase يُرسل عند الدفع/التأكيد)
+      try{
+        const { trackEvent } = await import('@/lib/track')
+        const currency = (window as any).__CURRENCY_CODE__||'YER'
+        const contents = (items.value||[]).map((it:any)=> ({ id: String(it.id), quantity: Number(it.qty||1), item_price: Number(it.price||0) }))
+        await trackEvent('OrderCreated', { order_id: String((ord as any).order.id), value: Number(totalAll.value||0), currency, content_ids: contents.map(c=> c.id), content_type:'product_group', contents })
+      }catch{}
+      // Prepare payload for possible client-side Purchase if needed later (we currently rely on CAPI for Purchase)
+      try{
+        const currency = (window as any).__CURRENCY_CODE__||'YER'
+        const contents = (items.value||[]).map((it:any)=> ({ id: String(it.id), quantity: Number(it.qty||1), item_price: Number(it.price||0) }))
+        const value = Number(totalAll.value||0)
+        const data = { value, currency, contents, content_ids: Array.from(new Set(contents.map((c:any)=> String(c.id)))), order_id: String((ord as any).order.id) }
+        sessionStorage.setItem('last_purchase', JSON.stringify(data))
+      }catch{}
+      // بعد نجاح إنشاء الطلب: نظّف عناصر السلة المحددة محلياً وعلى الخادم
+      try{
+        const { useCart } = await import('@/store/cart')
+        const cart = useCart()
+        const toRemove = (selectedUids && selectedUids.length)
+          ? new Set((selectedUids||[]).map((u:string)=> String(u)))
+          : new Set((items.value||[]).map((it:any)=> String(it.uid)))
+        const removed = cart.items.filter((it:any)=> toRemove.has(String(it.uid)))
+        cart.items = cart.items.filter((it:any)=> !toRemove.has(String(it.uid)))
+        try{ cart.saveLocal() }catch{}
+        try{
+          const ids = Array.from(new Set(removed.map((r:any)=> String(r.id))))
+          for (const pid of ids){ apiPost('/api/cart/remove', { productId: pid }).catch(()=>{}) }
+        }catch{}
+        try{ sessionStorage.removeItem('checkout_selected_uids') }catch{}
+      }catch{}
+      if (selectedPayment.value === 'cod') { router.push(`/order/${(ord as any).order.id}`); return }
+      const session = await apiPost('/api/payments/session', { amount: totalAll.value, currency: (window as any).__CURRENCY_CODE__||'SAR', method: selectedPayment.value, returnUrl: location.origin + '/pay/success', cancelUrl: location.origin + '/pay/failure', ref: (ord as any).order.id })
+      if (session && (session as any).redirectUrl){ location.href = (session as any).redirectUrl; return }
+      router.push('/pay/processing')
+    }
+  } finally {
+    placing.value = false
   }
 }
 
@@ -383,6 +523,15 @@ onMounted(async ()=>{
   await Promise.all([loadShipping(), loadPayments()])
   await loadBalances()
   try{ const c = await apiGet<any>('/api/currency'); if (c && c.symbol) { currencySymbol.value = c.symbol; (window as any).__CURRENCY_CODE__ = c.code; (window as any).__CURRENCY_SYMBOL__ = c.symbol } }catch{}
+})
+
+// Track AddPaymentInfo when user selects payment method
+watch(selectedPayment, async (v)=>{
+  try{
+    if (!v) return
+    const { trackEvent } = await import('@/lib/track')
+    await trackEvent('AddPaymentInfo', { value: Number(totalAll.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', payment_method: String(v) })
+  }catch{}
 })
 
 // خصومات ومحفظة/نقاط
@@ -397,6 +546,42 @@ const walletOpen = ref(false)
 const pointsOpen = ref(false)
 const walletAmount = ref(0)
 const pointsAmount = ref(0)
+
+// ===== كوبونات لعناصر صفحة الدفع =====
+type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
+const couponsCache = ref<SimpleCoupon[]>([])
+const afterById = ref<Record<string, number>>({})
+
+async function fetchCouponsList(): Promise<SimpleCoupon[]> {
+  const { API_BASE } = await import('@/lib/api')
+  const tryFetch = async (path: string) => {
+    try{
+      const creds = path.startsWith('/api/coupons/public')? 'omit':'include'
+      const { getAuthHeader } = await import('@/lib/api')
+      const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json', ...getAuthHeader() } })
+      if(!r.ok) return null; return await r.json()
+    }catch{ return null }
+  }
+  let data: any = await tryFetch('/api/me/coupons')
+  if (data){
+    const itemsArr = Array.isArray(data.items) ? data.items : []
+    const couponsArr = Array.isArray(data.coupons) ? data.coupons : []
+    const merged = [...itemsArr, ...couponsArr]
+    if (merged.length>0) return normalizeCoupons(merged)
+  }
+  // لا تستخدم مسارات المشرف من الواجهة العامة
+  return []
+}
+function normalizeCoupons(list:any[]): SimpleCoupon[] { return (list||[]).map((c:any)=> ({ code:c.code, discountType: (String(c.discountType||'PERCENTAGE').toUpperCase()==='FIXED'?'FIXED':'PERCENTAGE'), discountValue:Number(c.discountValue||c.discount||0), audience:c.audience?.target||c.audience||undefined, kind:c.kind||undefined, rules: { includes: c.includes || c.rules?.includes || [], excludes: c.excludes || c.rules?.excludes || [], min: c.minOrderAmount || c.rules?.min } })) }
+function priceAfterCoupon(base:number, cup: SimpleCoupon): number { if(!Number.isFinite(base)||base<=0) return base; const v=Number(cup.discountValue||0); return cup.discountType==='FIXED'? Math.max(0, base-v) : Math.max(0, base*(1-v/100)) }
+function isCouponSitewide(c: SimpleCoupon): boolean { return String(c.kind||'').toLowerCase()==='sitewide' || !Array.isArray(c?.rules?.includes) }
+function eligibleByTokens(prod:any, c: SimpleCoupon): boolean { const inc=Array.isArray(c?.rules?.includes)?c.rules!.includes!:[]; const exc=Array.isArray(c?.rules?.excludes)?c.rules!.excludes!:[]; const tokens:string[]=[]; if(prod?.categoryId) tokens.push(`category:${prod.categoryId}`); if(Array.isArray(prod?.categoryIds)) { prod.categoryIds.forEach((cid:string) => tokens.push(`category:${cid}`)) } if(prod?.id) tokens.push(`product:${prod.id}`); if(prod?.brand) tokens.push(`brand:${prod.brand}`); if(prod?.sku) tokens.push(`sku:${prod.sku}`); const hasInc=!inc.length||inc.some(t=>tokens.includes(t)); const hasExc=exc.length&&exc.some(t=>tokens.includes(t)); return hasInc&&!hasExc }
+async function ensureProductMeta(id:string, item:any){ try{ const d = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`); if(!d) return { id, categoryId:null, brand:item?.brand, sku:item?.sku }; return { id, categoryId: d.categoryId||d.category?.id||d.category||null, categoryIds: Array.isArray(d.categoryIds)?d.categoryIds.map(String):undefined, brand: d.brand||item?.brand, sku: d.sku||item?.sku } }catch{ return { id, categoryId:null } }
+}
+async function hydrateAfterCoupons(){ try{ if(!couponsCache.value.length) couponsCache.value = await fetchCouponsList(); const cups=couponsCache.value||[]; if(!cups.length) return; const ids = Array.from(new Set(items.value.map(i=> String(i.id)))) ; for (const pid of ids){ const it = items.value.find(i=> String(i.id)===String(pid)); const base=Number(it?.price||0); if(!base) continue; const site = cups.find(isCouponSitewide); if(site){ afterById.value[pid]=priceAfterCoupon(base, site); continue } const meta=await ensureProductMeta(pid, it); const match=cups.find(c=> eligibleByTokens(meta,c)); if(match){ afterById.value[pid]=priceAfterCoupon(base, match) } } }catch{} }
+onMounted(()=>{ hydrateAfterCoupons().catch(()=>{}) })
+watch(items, ()=>{ hydrateAfterCoupons().catch(()=>{}) }, { deep:true })
+function afterOf(it:any): number | null { const v = afterById.value[String(it.id)]; return (typeof v==='number')? v : null }
 
 function openCouponDrawer(){ couponOpen.value = true }
 function openGiftDrawer(){ giftOpen.value = true }
@@ -414,18 +599,28 @@ async function applyGift(){
   const r = await apiPost('/api/giftcards/apply', { code: giftCode.value })
   if (r && (r as any).ok) { discountFromPromo.value += Number((r as any).giftcard?.value || 0); giftOpen.value = false }
 }
+function onApplyGift(){ applyGift() }
 async function loadBalances(){
   try{ const w = await apiGet<{ balance:number }>('/api/wallet/balance'); walletBalance.value = Number(w?.balance||0) }catch{}
   try{ const p = await apiGet<{ points:number }>('/api/points/balance'); points.value = Number(p?.points||0) }catch{}
+  try{
+    const settings = await apiGet<any>('/api/policies/rewards/settings')
+    showRewards.value = !!settings?.enabled
+  }catch{ showRewards.value = false }
 }
-function applyWallet(){
-  const amt = Math.max(0, Math.min(walletAmount.value||0, walletBalance.value, subtotal.value))
-  walletApplied.value = amt
+async function applyWallet(){
+  try{
+    const r:any = await apiPost('/api/checkout/apply-wallet', { amount: Number(walletAmount.value||0), subtotal: Number(subtotalOriginal.value||0) })
+    walletApplied.value = Number(r?.allowed||0)
+  }catch{}
   walletOpen.value = false
 }
-function applyPoints(){
-  const amt = Math.max(0, Math.min(pointsAmount.value||0, points.value, subtotal.value))
-  pointsApplied.value = amt
+async function applyPoints(){
+  try{
+    const r:any = await apiPost('/api/checkout/apply-points', { points: Number(pointsAmount.value||0), subtotal: Number(subtotalOriginal.value||0) })
+    const amt = Number(r?.amount||0)
+    pointsApplied.value = amt
+  }catch{}
   pointsOpen.value = false
 }
 </script>

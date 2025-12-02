@@ -1,25 +1,7 @@
-pluginManagement {
-  includeBuild("../node_modules/@react-native/gradle-plugin")
-  includeBuild(new File(rootDir, "../node_modules/expo-modules-autolinking/android/expo-gradle-plugin").absolutePath)
-}
-
-plugins {
-  id("com.facebook.react.settings")
-  id("expo-autolinking-settings")
-}
-
-extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
-  if (System.getenv('EXPO_USE_COMMUNITY_AUTOLINKING') == '1') {
-    ex.autolinkLibrariesFromCommand()
-  } else {
-    ex.autolinkLibrariesFromCommand(expoAutolinking.rnConfigCommand)
-  }
-}
-expoAutolinking.useExpoModules()
-
+// settings.gradle — minimal (no Expo, no plugins block)
 rootProject.name = 'E-commerce Mobile App'
-
-expoAutolinking.useExpoVersionCatalog()
-
 include ':app'
-if (expoAutolinking.reactNativeGradlePlugin != null) { includeBuild(expoAutolinking.reactNativeGradlePlugin) }
+
+// IMPORTANT:
+// - لا تضع هنا أي `plugins { id("com.facebook.react.settings") ... }`
+// - هذا الملف مقصود لتفادي محاولات Gradle لحل plugin عبر pluginManagement
