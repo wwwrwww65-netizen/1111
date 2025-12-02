@@ -96,10 +96,18 @@ app.use((_req, res, next) => {
   const originalJson = res.json.bind(res);
   (res as any).json = (payload: any) => {
     try {
+      if (payload === undefined) return originalJson(payload);
       const safe = JSON.parse(JSON.stringify(payload, (_k, v) => typeof v === 'bigint' ? Number(v) : v));
       return originalJson(safe);
-    } catch {
-      return originalJson(payload);
+    } catch (e) {
+      console.error('JSON serialization error:', e);
+      // Fallback: try to send original payload, if that fails, send error
+      try {
+        return originalJson(payload);
+      } catch (err) {
+        console.error('Fallback JSON serialization failed:', err);
+        return res.status(500).send('Internal Server Error: Serialization Failed');
+      }
     }
   };
   next();
@@ -446,7 +454,7 @@ app.get('/mobile/config/nav.json', (_req, res) => {
   const out = {
     header: {
       title: 'Jeeey',
-      actions: [ { icon: 'search', link: '/search' }, { icon: 'cart', link: '/cart' } ]
+      actions: [{ icon: 'search', link: '/search' }, { icon: 'cart', link: '/cart' }]
     },
     tabs: [
       { key: 'home', title: 'الرئيسية', icon: 'home', link: '/' },
@@ -479,7 +487,7 @@ app.get('/mobile/config/categories.json', (_req, res) => {
   const out = {
     layout: { columns: 3, gap: 8 },
     showImages: true,
-    filters: [ 'price', 'brand', 'size', 'color' ]
+    filters: ['price', 'brand', 'size', 'color']
   };
   res.json(out);
 });
@@ -489,7 +497,7 @@ app.get('/mobile/config/cart.json', (_req, res) => {
   const out = {
     showThumb: true,
     showVendor: false,
-    totals: [ 'subtotal', 'shipping', 'discounts', 'total' ]
+    totals: ['subtotal', 'shipping', 'discounts', 'total']
   };
   res.json(out);
 });
@@ -497,8 +505,8 @@ app.get('/mobile/config/cart.json', (_req, res) => {
 // Checkout manifest
 app.get('/mobile/config/checkout.json', (_req, res) => {
   const out = {
-    steps: [ 'address', 'shipping', 'payment', 'review' ],
-    paymentProviders: [ 'stripe' ],
+    steps: ['address', 'shipping', 'payment', 'review'],
+    paymentProviders: ['stripe'],
     successLink: '/pay/success',
     failureLink: '/pay/failure'
   };
@@ -520,10 +528,10 @@ app.get('/mobile/config/offers.json', (_req, res) => {
 // Pages manifest (arbitrary screens by path)
 app.get('/mobile/config/pages.json', (_req, res) => {
   const out = {
-    '/account': { path: '/account', title: 'حسابي', blocks: [ { type: 'heading', text: 'الحساب' }, { type: 'button', text: 'تسجيل الدخول / OTP', props: { action: 'openLogin' } } ] },
-    '/settings': { path: '/settings', title: 'الإعدادات', blocks: [ { type: 'heading', text: 'الإعدادات' } ] },
-    '/address': { path: '/address', title: 'العناوين', blocks: [ { type: 'heading', text: 'العنوان' }, { type: 'addressForm' } ] },
-    '/search': { path: '/search', title: 'بحث', blocks: [ { type: 'searchBar' }, { type: 'searchResults' } ] },
+    '/account': { path: '/account', title: 'حسابي', blocks: [{ type: 'heading', text: 'الحساب' }, { type: 'button', text: 'تسجيل الدخول / OTP', props: { action: 'openLogin' } }] },
+    '/settings': { path: '/settings', title: 'الإعدادات', blocks: [{ type: 'heading', text: 'الإعدادات' }] },
+    '/address': { path: '/address', title: 'العناوين', blocks: [{ type: 'heading', text: 'العنوان' }, { type: 'addressForm' }] },
+    '/search': { path: '/search', title: 'بحث', blocks: [{ type: 'searchBar' }, { type: 'searchResults' }] },
   };
   res.json(out);
 });

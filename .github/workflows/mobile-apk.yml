@@ -1,9 +1,6 @@
 name: Mobile - Build Android APK
 
 on:
-  push:
-    branches:
-      - '**'
   workflow_dispatch:
     inputs:
       profile:

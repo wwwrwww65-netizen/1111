@@ -6592,3 +6592,35 @@ shop.get('/search/suggest', async (req, res) => {
     res.json({ items: rows.map(r => r.name) })
   } catch { res.status(500).json({ items: [] }) }
 })
+
+// Check if user exists by phone (for login flow UI)
+shop.get('/auth/check-user', async (req: any, res) => {
+  try {
+    const phone = String(req.query.phone || '').trim();
+    if (!phone) return res.json({ exists: false });
+
+    const normalized = phone.replace(/\s+/g, '');
+    const digitsOnly = normalized.replace(/\D/g, '');
+
+    // Legacy internal email check (try both with original and digits only)
+    const emailLegacy1 = `phone+${normalized}@local`;
+    const emailLegacy2 = `phone+${digitsOnly}@local`;
+
+    let user = await db.user.findFirst({
+      where: {
+        OR: [
+          { email: emailLegacy1 },
+          { email: emailLegacy2 },
+          { phone: normalized },
+          { phone: digitsOnly },
+          { phone: `+${digitsOnly}` },
+          { phone: `00${digitsOnly}` }
+        ]
+      }
+    } as any);
+
+    return res.json({ exists: !!user, name: user?.name || null });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message || 'failed' });
+  }
+});

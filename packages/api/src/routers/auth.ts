@@ -26,8 +26,13 @@ const registerSchema = z.object({
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
   password: z.string(),
+});
+
+const setPasswordSchema = z.object({
+  newPassword: z.string().min(8),
 });
 
 const updateProfileSchema = z.object({
@@ -84,22 +89,45 @@ export const authRouter = router({
   login: publicProcedure
     .input(loginSchema)
     .mutation(async ({ input, ctx }) => {
-      const { email, password } = input;
+      const { email, phone, password } = input;
 
-      // Find user
-      const user = await db.user.findUnique({
-        where: { email },
-        select: { id: true, email: true, password: true, name: true, role: true, isVerified: true },
-      });
+      let user: any = null;
+
+      if (email) {
+        user = await db.user.findUnique({
+          where: { email },
+          select: { id: true, email: true, password: true, name: true, role: true, isVerified: true },
+        });
+      }
+
+      if (!user && phone) {
+        const normalized = phone.replace(/\s+/g, '');
+        const digitsOnly = normalized.replace(/\D/g, '');
+        // Try to find by phone (various formats)
+        user = await db.user.findFirst({
+          where: {
+            OR: [
+              { phone: normalized },
+              { phone: digitsOnly },
+              { phone: `+${digitsOnly}` },
+              { phone: `00${digitsOnly}` },
+              // Also check legacy email format if phone is provided
+              { email: `phone+${normalized}@local` },
+              { email: `phone+${digitsOnly}@local` }
+            ]
+          },
+          select: { id: true, email: true, password: true, name: true, role: true, isVerified: true },
+        });
+      }
 
       if (!user) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password' });
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid credentials' });
       }
 
       // Verify password
       const isValidPassword = await bcrypt.compare(password, user.password);
       if (!isValidPassword) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password' });
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid credentials' });
       }
 
       // Generate JWT token and set cookie
@@ -134,9 +162,9 @@ export const authRouter = router({
               }
             }
             // cleanup guest cart
-            try { await db.guestCartItem.deleteMany({ where: { cartId: guest.id } } as any); } catch {}
-            try { await db.guestCart.delete({ where: { id: guest.id } } as any); } catch {}
-            try { await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any); } catch {}
+            try { await db.guestCartItem.deleteMany({ where: { cartId: guest.id } } as any); } catch { }
+            try { await db.guestCart.delete({ where: { id: guest.id } } as any); } catch { }
+            try { await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any); } catch { }
           }
         }
         // Cross-device auto-merge: merge recent guest carts linked to this user via analytics sessionIds
@@ -172,13 +200,13 @@ export const authRouter = router({
                 }
               }
               // cleanup merged guest cart
-              try { await db.guestCartItem.deleteMany({ where: { cartId: g.id } } as any); } catch {}
-              try { await db.guestCart.delete({ where: { id: g.id } } as any); } catch {}
+              try { await db.guestCartItem.deleteMany({ where: { cartId: g.id } } as any); } catch { }
+              try { await db.guestCart.delete({ where: { id: g.id } } as any); } catch { }
             }
-            try { await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any); } catch {}
+            try { await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any); } catch { }
           }
-        } catch {}
-      } catch {}
+        } catch { }
+      } catch { }
 
       const { password: _, ...userWithoutPassword } = user;
       return { user: userWithoutPassword };
@@ -278,6 +306,18 @@ export const authRouter = router({
       const hashedNewPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
       await db.user.update({ where: { id: ctx.user.userId }, data: { password: hashedNewPassword } });
 
+      return { success: true };
+    }),
+
+  // Set password (for reset flow or new users)
+  setPassword: publicProcedure
+    .use(authMiddleware)
+    .input(setPasswordSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { newPassword } = input;
+      // Hash new password
+      const hashedNewPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+      await db.user.update({ where: { id: ctx.user.userId }, data: { password: hashedNewPassword } });
       return { success: true };
     }),
 });
