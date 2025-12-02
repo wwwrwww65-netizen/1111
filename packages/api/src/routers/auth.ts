@@ -62,7 +62,7 @@ export const authRouter = router({
       if (existingUser) {
         throw new TRPCError({
           code: 'CONFLICT',
-          message: 'User with this email already exists',
+          message: 'المستخدم بهذا البريد الإلكتروني موجود بالفعل',
         });
       }
 

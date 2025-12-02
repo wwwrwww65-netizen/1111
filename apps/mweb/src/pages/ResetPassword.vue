@@ -86,6 +86,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-vue-next'
+import { API_BASE } from '@/lib/api'
 
 const router = useRouter()
 const primary = '#8a1538'
@@ -133,8 +134,9 @@ async function submit() {
   errorMessage.value = ''
 
   try {
-    // Note: In production, Nginx should proxy /trpc to the backend. In dev, Vite proxy handles it.
-    const res = await fetch('/trpc/auth.setPassword', {
+    // Using absolute URL to avoid Nginx proxy issues on m.jeeey.com
+    const url = `${API_BASE}/trpc/auth.setPassword`
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ newPassword: newPassword.value })
