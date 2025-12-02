@@ -136,9 +136,11 @@ async function submit() {
   try {
     // Using absolute URL to avoid Nginx proxy issues on m.jeeey.com
     const url = `${API_BASE}/trpc/auth.setPassword`
+    const { getAuthHeader } = await import('@/lib/api')
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      credentials: 'include',
       body: JSON.stringify({ newPassword: newPassword.value })
     })
     

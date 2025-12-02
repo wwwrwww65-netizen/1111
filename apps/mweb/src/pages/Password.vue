@@ -120,9 +120,11 @@ const login = async () => {
     // Use phone-based login directly
     // Using absolute URL to avoid Nginx proxy issues on m.jeeey.com
     const url = `${API_BASE}/trpc/auth.login`
+    const { getAuthHeader } = await import('@/lib/api')
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      credentials: 'include',
       body: JSON.stringify({ phone: phone.value, password: password.value })
     })
     
