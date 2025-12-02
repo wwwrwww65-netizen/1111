@@ -1,3 +1,9 @@
+# Keep Android native folder tracked so EAS can package gradle wrapper
+# Ignore heavy transient build/cache outputs only
+apps/mobile/android/.gradle/
+apps/mobile/android/.cxx/
+apps/mobile/android/app/build/
+apps/mobile/android/local.properties
 # Build outputs and caches
 .next/
 node_modules/

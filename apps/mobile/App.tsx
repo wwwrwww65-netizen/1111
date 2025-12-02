@@ -5,13 +5,43 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { httpBatchLink } from '@trpc/client';
-import { trpc } from './src/trpc';
+import * as Linking from 'expo-linking';
+import { trpc, createTrpcLinks } from './src/trpc';
+import { RemoteConfigProvider, useRemoteConfig } from './src/remote-config';
+import HomeScreen from './src/screens/HomeScreen';
+import ProductScreen from './src/screens/ProductScreen';
+import CategoriesScreen from './src/screens/CategoriesScreen';
+import CartScreen from './src/screens/CartScreen';
+import CheckoutScreen from './src/screens/CheckoutScreen';
+import PageRenderer from './src/screens/PageRenderer';
+import AuthFlow from './src/screens/AuthFlow';
+import OrdersScreen from './src/screens/OrdersScreen';
+import AccountScreenFull from './src/screens/AccountScreen';
+import SearchScreenFull from './src/screens/SearchScreen';
+import WishlistScreenFull from './src/screens/WishlistScreen';
+import PaymentConfirmScreen from './src/screens/PaymentConfirmScreen';
+import AddressScreen from './src/screens/AddressScreen';
+import OrderDetailScreen from './src/screens/OrderDetailScreen';
 
 const queryClient = new QueryClient();
-const trpcClient = trpc.createClient({
-  links: [httpBatchLink({ url: process.env.EXPO_PUBLIC_TRPC_URL || 'http://localhost:4000/trpc' })],
-});
+const trpcClient = trpc.createClient({ links: createTrpcLinks() });
+
+const prefixes = [
+  Linking.createURL('/'),
+  'jeeey://',
+  'https://jeeey.com',
+  'https://m.jeeey.com',
+];
+const linking = {
+  prefixes,
+  config: {
+    screens: {
+      Root: '',
+      Product: 'p',
+      Checkout: 'checkout',
+    },
+  },
+};
 
 const Stack = createNativeStackNavigator();
 const Tabs = createBottomTabNavigator();
@@ -20,27 +50,42 @@ export default function App() {
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
-        <NavigationContainer>
-          <Stack.Navigator>
-            <Stack.Screen name="Root" component={RootTabs} options={{ headerShown: false }} />
-            <Stack.Screen name="Product" component={ProductScreen} options={{ title: 'المنتج' }} />
-            <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ title: 'الدفع' }} />
-          </Stack.Navigator>
-        </NavigationContainer>
+        <RemoteConfigProvider>
+          <NavigationContainer linking={linking}>
+            <Stack.Navigator>
+              <Stack.Screen name="Root" component={RootTabs} options={{ headerShown: false }} />
+              <Stack.Screen name="Product" component={ProductScreen} options={{ title: 'المنتج' }} />
+              <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ title: 'الدفع' }} />
+              <Stack.Screen name="Page" component={PageRenderer} options={{ title: 'صفحة' }} />
+              <Stack.Screen name="Auth" component={AuthFlow} options={{ title: 'تسجيل الدخول' }} />
+              <Stack.Screen name="Orders" component={OrdersScreen} options={{ title: 'طلباتي' }} />
+              <Stack.Screen name="Address" component={AddressScreen} options={{ title: 'العنوان' }} />
+              <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'تفاصيل الطلب' }} />
+              <Stack.Screen name="PaymentConfirm" component={PaymentConfirmScreen} options={{ title: 'تأكيد الدفع' }} />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </RemoteConfigProvider>
       </QueryClientProvider>
     </trpc.Provider>
   );
 }
 
 function RootTabs() {
+  const { nav } = useRemoteConfig();
   return (
     <Tabs.Navigator screenOptions={{ headerShown: true }}>
-      <Tabs.Screen name="Home" component={ProductsScreen} options={{ title: 'الرئيسية' }} />
-      <Tabs.Screen name="Search" component={SearchScreen} options={{ title: 'البحث' }} />
-      <Tabs.Screen name="Categories" component={CategoriesScreen} options={{ title: 'التصنيفات' }} />
-      <Tabs.Screen name="Wishlist" component={WishlistScreen} options={{ title: 'المفضلة' }} />
-      <Tabs.Screen name="Account" component={AccountScreen} options={{ title: 'حسابي' }} />
-      <Tabs.Screen name="Cart" component={CartScreen} options={{ title: 'السلة' }} />
+      {nav.tabs?.map((t) => {
+        const title = t.title;
+        const name = t.key;
+        const component =
+          t.link === '/' ? HomeScreen :
+          t.link.startsWith('/categories') ? CategoriesScreen :
+          t.link.startsWith('/wishlist') ? WishlistScreenFull :
+          t.link.startsWith('/account') ? AccountScreenFull :
+          t.link.startsWith('/cart') ? CartScreen :
+          t.link.startsWith('/search') ? SearchScreenFull : HomeScreen;
+        return <Tabs.Screen key={name} name={name} component={component} options={{ title }} />
+      })}
     </Tabs.Navigator>
   );
 }
@@ -67,7 +112,7 @@ function ProductsScreen({ navigation }: any) {
   );
 }
 
-function ProductScreen({ route, navigation }: any) {
+function LegacyProductScreen({ route, navigation }: any) {
   const { id } = route.params;
   const { data, isLoading, error } = trpc.products.getById.useQuery({ id });
   const addItem = trpc.cart.addItem.useMutation();
@@ -95,7 +140,7 @@ function ProductScreen({ route, navigation }: any) {
   );
 }
 
-function CartScreen() {
+function LegacyCartScreen() {
   const { data, isLoading, error } = trpc.cart.getCart.useQuery();
   return (
     <View style={styles.container}>
@@ -118,7 +163,7 @@ function CartScreen() {
   );
 }
 
-function SearchScreen({ navigation }: any) {
+function LegacySearchScreen({ navigation }: any) {
   const [q, setQ] = React.useState('');
   const { data, isLoading, error } = trpc.search.searchProducts.useQuery(
     { page: 1, limit: 10, q },
@@ -149,7 +194,7 @@ function SearchScreen({ navigation }: any) {
   );
 }
 
-function CategoriesScreen({ navigation }: any) {
+function LegacyCategoriesScreen({ navigation }: any) {
   const categories = [
     { id: 'dresses', name: 'فساتين' },
     { id: 'shoes', name: 'أحذية' },
@@ -173,7 +218,7 @@ function CategoriesScreen({ navigation }: any) {
   );
 }
 
-function WishlistScreen() {
+function LegacyWishlistScreen() {
   const { data, isLoading, error } = trpc.wishlist.get.useQuery();
   return (
     <View style={styles.container}>
@@ -194,7 +239,7 @@ function WishlistScreen() {
   );
 }
 
-function AccountScreen() {
+function LegacyAccountScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>حسابي</Text>
@@ -203,7 +248,7 @@ function AccountScreen() {
   );
 }
 
-function CheckoutScreen() {
+function LegacyCheckoutScreen() {
   const checkout = trpc.checkout.start.useMutation();
   return (
     <View style={styles.container}>

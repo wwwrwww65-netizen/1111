@@ -1,0 +1,5 @@
+# Force EAS to run prebuild remotely (managed workflow)
+android/
+ios/
+
+# ci: trigger EAS build

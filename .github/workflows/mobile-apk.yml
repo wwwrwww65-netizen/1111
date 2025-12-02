@@ -1,0 +1,183 @@
+name: Mobile - Build Android APK
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: EAS profile to use (preview/internal/production)
+        required: false
+        default: preview
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-apk:
+    runs-on: ubuntu-latest
+    env:
+      # keep these simple and let them be empty if secrets not provided
+      EXPO_PUBLIC_TRPC_URL: ${{ secrets.EXPO_PUBLIC_TRPC_URL }}
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: |
+          pnpm install --no-frozen-lockfile
+
+      - name: Type check (mobile)
+        working-directory: apps/mobile
+        run: pnpm exec tsc -p tsconfig.json --noEmit
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Android SDK tools
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
+
+      - name: Install required Android SDK packages
+        run: |
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Ensure gradle.properties has RN paths
+        working-directory: apps/mobile
+        run: |
+          GP=android/gradle.properties
+          if [ ! -f "$GP" ]; then
+            cat > "$GP" <<'EOF'
+org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+org.gradle.daemon=true
+org.gradle.parallel=true
+reactNativeDir=../../../node_modules/react-native
+REACT_NATIVE_NPM_PACKAGE=../../../node_modules/@react-native/gradle-plugin
+EOF
+          else
+            echo "gradle.properties already exists — showing tail:"
+            tail -n 40 "$GP" || true
+          fi
+
+      - name: Read Gradle version from wrapper
+        id: read_gradle_version
+        working-directory: apps/mobile
+        run: |
+          VER=$(sed -n 's#.*gradle-\([0-9.]*\)-bin.zip#\1#p' android/gradle/wrapper/gradle-wrapper.properties | head -n1)
+          echo "Detected Gradle version: $VER"
+          echo "gradle_version=$VER" >> $GITHUB_OUTPUT
+
+      - name: Setup Gradle with cache
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+          gradle-version: ${{ steps.read_gradle_version.outputs.gradle_version }}
+
+      - name: Prefetch Gradle distribution and force local file URL
+        working-directory: apps/mobile
+        run: |
+          PROPS=android/gradle/wrapper/gradle-wrapper.properties
+          URL=$(grep '^distributionUrl=' "$PROPS" | cut -d'=' -f2- | tr -d '\r')
+          URL=$(echo "$URL" | sed 's#\\://#://#g')
+          URL=$(echo "$URL" | sed 's#https://services.gradle.org/distributions/#https://downloads.gradle-dn.com/distributions/#g')
+          FILE=$(basename "$URL")
+          DEST=$(pwd)/android/gradle/wrapper/$FILE
+          curl -fL --retry 5 --retry-all-errors --connect-timeout 30 --max-time 600 -o "$DEST" "$URL"
+          NEW_URL="file://$DEST"
+          sed -i "s#^distributionUrl=.*#distributionUrl=${NEW_URL}#" "$PROPS"
+          if grep -q '^networkTimeout=' "$PROPS"; then sed -i 's/^networkTimeout=.*/networkTimeout=600000/' "$PROPS"; else echo 'networkTimeout=600000' >> "$PROPS"; fi
+          if ! grep -q '^validateDistributionUrl=' "$PROPS"; then echo 'validateDistributionUrl=true' >> "$PROPS"; fi
+          echo "Updated $PROPS:" && sed -n '1,200p' "$PROPS"
+
+      - name: Unzip Gradle distribution for local CLI
+        working-directory: apps/mobile
+        id: unzip_gradle
+        run: |
+          WRAPPER_DIR=android/gradle/wrapper
+          FILE=$(basename $(grep '^distributionUrl=' "$WRAPPER_DIR/gradle-wrapper.properties" | cut -d'=' -f2- | tr -d '\r'))
+          ZIP_PATH="$WRAPPER_DIR/$FILE"
+          EXTRACT_DIR="$WRAPPER_DIR/gradle-dist"
+          mkdir -p "$EXTRACT_DIR"
+          unzip -q -o "$ZIP_PATH" -d "$EXTRACT_DIR"
+          GRADLE_BIN=$(echo "$EXTRACT_DIR"/gradle-*/bin/gradle | head -n1)
+          echo "Using GRADLE_BIN=$GRADLE_BIN"
+          echo "gradle_bin=$GRADLE_BIN" >> $GITHUB_OUTPUT
+
+      - name: Assemble release (Gradle CLI)
+        working-directory: apps/mobile
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'"
+        run: |
+          for attempt in 1 2 3; do \
+            "${{ steps.unzip_gradle.outputs.gradle_bin }}" -p android -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -PreactNativeDir=../../../node_modules/react-native -PREACT_NATIVE_NPM_PACKAGE=../../../node_modules/@react-native/gradle-plugin :app:clean :app:assembleRelease --no-daemon --stacktrace && break || { \
+              echo "Gradle attempt $attempt failed"; \
+              if [ "$attempt" -lt 3 ]; then sleep $((attempt*15)); else exit 1; fi; \
+            }; \
+          done
+
+      - name: Detect built APKs
+        working-directory: apps/mobile/android/app/build/outputs/apk
+        run: |
+          echo "Listing APK outputs:" && find . -type f -name "*.apk" -maxdepth 3 -print | sed 's/^/ - /'
+          RELEASE_DIR=release
+          if [ -d "$RELEASE_DIR" ]; then
+            UNSIGNED=$(ls -1 "$RELEASE_DIR"/app-*-unsigned.apk 2>/dev/null | head -n1 || true)
+            NORMAL=$(ls -1 "$RELEASE_DIR"/app-*.apk 2>/dev/null | head -n1 || true)
+            if [ -n "$UNSIGNED" ]; then echo "UNSIGNED_APK=$UNSIGNED" >> $GITHUB_ENV; fi
+            if [ -n "$NORMAL" ]; then echo "RELEASE_APK=$NORMAL" >> $GITHUB_ENV; fi
+          fi
+          if [ -z "$UNSIGNED" ] && [ -z "$NORMAL" ]; then echo "NO_RELEASE_APK=1" >> $GITHUB_ENV; fi
+
+      - name: Fallback build Debug APK (if release missing)
+        if: env.NO_RELEASE_APK == '1'
+        working-directory: apps/mobile
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'"
+        run: |
+          "${{ steps.unzip_gradle.outputs.gradle_bin }}" -p android -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true assembleDebug --no-daemon --stacktrace
+          echo "DEBUG_APK=apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk" >> $GITHUB_ENV
+
+      - name: Generate temporary release keystore
+        working-directory: apps/mobile/android/app
+        run: |
+          keytool -genkey -v -keystore release.keystore -alias release -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=example, OU=dev, O=company, L=city, S=state, C=US"
+
+      - name: Zipalign and sign APK (if unsigned present)
+        if: env.UNSIGNED_APK
+        working-directory: apps/mobile/android/app/build/outputs/apk
+        run: |
+          cd release
+          APK_UNSIGNED=$(basename "$UNSIGNED_APK")
+          BUILD_TOOLS=$(ls -v "$ANDROID_SDK_ROOT"/build-tools | tail -1)
+          "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/zipalign -v -p 4 "$APK_UNSIGNED" app-release-aligned.apk
+          "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/apksigner sign --ks ../../../../release.keystore --ks-pass pass:android --key-pass pass:android --out app-release-signed.apk app-release-aligned.apk
+          "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/apksigner verify app-release-signed.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-apk-${{ github.sha }}
+          path: |
+            apps/mobile/app.apk
+            apps/mobile/app-*.apk
+            apps/mobile/android/app/build/outputs/apk/release/app-release-signed.apk
+          if-no-files-found: warn

@@ -1,0 +1,7 @@
+// settings.gradle — minimal (no Expo, no plugins block)
+rootProject.name = 'E-commerce Mobile App'
+include ':app'
+
+// IMPORTANT:
+// - لا تضع هنا أي `plugins { id("com.facebook.react.settings") ... }`
+// - هذا الملف مقصود لتفادي محاولات Gradle لحل plugin عبر pluginManagement

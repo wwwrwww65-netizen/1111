@@ -1,6 +1,12 @@
 name: Build Android APK (EAS)
 
 on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'apps/mobile/**'
+      - '.github/workflows/eas-android-apk.yml'
   workflow_dispatch:
     inputs:
       TRPC_URL:
@@ -14,9 +20,8 @@ jobs:
     env:
       TRPC_URL: ${{ github.event.inputs.TRPC_URL || 'https://api.jeeey.com/trpc' }}
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-    defaults:
-      run:
-        working-directory: apps/mobile
+      EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID || vars.EAS_PROJECT_ID }}
+  # Run steps in explicit directories to ensure EAS archives include apps/mobile path
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -36,18 +41,172 @@ jobs:
         run: pnpm install --no-frozen-lockfile --ignore-scripts
         working-directory: .
 
-      - name: Inject EXPO_PUBLIC_TRPC_URL
+      - name: Inject config (TRPC + EAS projectId)
+        working-directory: apps/mobile
         run: |
-          node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.extra=j.expo.extra||{};j.expo.extra.EXPO_PUBLIC_TRPC_URL=process.env.TRPC_URL;fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Updated app.json ->',j.expo.extra.EXPO_PUBLIC_TRPC_URL);"
+          node -e "const fs=require('fs');const p='./app.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.expo=j.expo||{};j.expo.extra=j.expo.extra||{};j.expo.extra.EXPO_PUBLIC_TRPC_URL=process.env.TRPC_URL; if (process.env.EAS_PROJECT_ID) { j.expo.extra.eas=j.expo.extra.eas||{}; j.expo.extra.eas.projectId=process.env.EAS_PROJECT_ID; } fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('Updated TRPC + projectId in app.json');"
 
-      - name: Install EAS CLI
-        run: pnpm dlx eas-cli@latest --version | cat
+      # Keep native folders in the archive so EAS can run Gradle wrapper reliably
 
-      - name: Build APK locally (no cloud)
-        run: pnpm dlx eas-cli build --platform android --profile preview --non-interactive --local --output ./build/app-preview.apk
+      - name: Setup Expo & EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ env.EXPO_TOKEN }}
+
+      - name: Force Gradle downloads host in app plugin (optional)
+        working-directory: apps/mobile
+        run: |
+          if [ -f plugins/gradle-setup-plugin.js ]; then
+            sed -i 's#downloads.gradle-dn.com/distributions/#downloads.gradle.org/distributions/#g' plugins/gradle-setup-plugin.js
+          fi
+
+      - name: Ensure EAS login and link project
+        working-directory: apps/mobile
+        run: |
+          eas whoami || eas account:login --token ${{ env.EXPO_TOKEN }}
+          if [ -n "${{ env.EAS_PROJECT_ID }}" ]; then
+            eas init --id "${{ env.EAS_PROJECT_ID }}" --non-interactive || true
+          fi
+
+      - name: Prepare packaging to include android/ (override .easignore)
+        working-directory: apps/mobile
+        run: |
+          if [ -f .easignore ]; then
+            echo "Before .easignore:" && cat .easignore || true
+            # Remove lines that exclude android/ or ios/
+            sed -i '/^android\//d' .easignore || true
+            sed -i '/^ios\//d' .easignore || true
+            echo "After .easignore:" && cat .easignore || true
+          fi
+
+      - name: Prebuild android locally (generate gradlew)
+        working-directory: apps/mobile
+        run: |
+          pnpm dlx expo prebuild --platform android --clean --no-install || true
+          test -f android/gradlew || { echo "gradlew missing after prebuild"; exit 1; }
+          chmod +x android/gradlew || true
+
+      - name: Build APK on EAS (remote)
+        working-directory: apps/mobile
+        env:
+          # Disable VCS file list so untracked android/ is included in archive
+          EAS_NO_VCS: '1'
+        run: |
+          set +e
+          eas build --platform android --profile preview --non-interactive
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "EAS build failed with exit code $EXIT_CODE (quota or other). Falling back to local Gradle build."
+            echo "EAS_BUILD_FAILED=1" >> $GITHUB_ENV
+          fi
+          exit 0
+
+      - name: Download latest APK artifact
+        run: eas build:download --platform android --latest --path ./build/app-preview.apk --non-interactive || true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-preview-apk
           path: apps/mobile/build/app-preview.apk
+
+      # -------- FALLBACK: Local Gradle build if EAS quota exhausted --------
+      - name: Setup Java 17 (fallback)
+        if: env.EAS_BUILD_FAILED == '1'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Android SDK (fallback)
+        if: env.EAS_BUILD_FAILED == '1'
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses (fallback)
+        if: env.EAS_BUILD_FAILED == '1'
+        run: yes | sdkmanager --licenses
+
+      - name: Install required Android SDK packages (fallback)
+        if: env.EAS_BUILD_FAILED == '1'
+        run: |
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Create local.properties with SDK path (fallback)
+        if: env.EAS_BUILD_FAILED == '1'
+        working-directory: apps/mobile/android
+        run: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          echo "Wrote local.properties with sdk.dir=$ANDROID_SDK_ROOT"
+
+      - name: Prefetch Gradle distribution (fallback)
+        if: env.EAS_BUILD_FAILED == '1'
+        working-directory: apps/mobile
+        run: |
+          set -e
+          PROPS=android/gradle/wrapper/gradle-wrapper.properties
+          if [ ! -f "$PROPS" ]; then echo "Missing $PROPS"; exit 1; fi
+          mkdir -p android/gradle/wrapper
+          URL=$(awk -F= '/^distributionUrl=/{print $2}' "$PROPS" | tr -d '\r')
+          # Unescape if needed (https\:// -> https://)
+          URL=${URL/\\:\/\//:\/\/}
+          echo "Gradle URL: $URL"
+          if [ -z "$URL" ]; then echo "Empty distributionUrl, skipping prefetch"; exit 0; fi
+          FILE=$(basename "$URL")
+          DEST=$(pwd)/android/gradle/wrapper/$FILE
+          echo "Downloading to: $DEST"
+          curl -fL --retry 5 --retry-all-errors --connect-timeout 30 --max-time 600 -o "$DEST" "$URL"
+          NEW_URL="file://$DEST"
+          sed -i "s#^distributionUrl=.*#distributionUrl=${NEW_URL}#" "$PROPS"
+          if grep -q '^networkTimeout=' "$PROPS"; then sed -i 's/^networkTimeout=.*/networkTimeout=600000/' "$PROPS"; else echo 'networkTimeout=600000' >> "$PROPS"; fi
+          if ! grep -q '^validateDistributionUrl=' "$PROPS"; then echo 'validateDistributionUrl=true' >> "$PROPS"; fi
+
+      - name: Assemble APK locally with Gradle (fallback)
+        if: env.EAS_BUILD_FAILED == '1'
+        working-directory: apps/mobile
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'"
+        run: |
+          # Ensure android folder is freshly generated with version catalogs
+          pnpm dlx expo prebuild --platform android --clean --no-install || true
+          test -f android/gradle/wrapper/gradle-wrapper.properties || { echo "gradle wrapper missing"; exit 1; }
+          chmod +x android/gradlew || true
+          ./android/gradlew -p android :app:clean :app:assembleRelease --no-daemon --stacktrace --info || true
+          # Detect APKs
+          RELEASE_DIR=android/app/build/outputs/apk/release
+          DEBUG_DIR=android/app/build/outputs/apk/debug
+          UNSIGNED=$(ls -1 "$RELEASE_DIR"/app-*-unsigned.apk 2>/dev/null | head -n1 || true)
+          NORMAL=$(ls -1 "$RELEASE_DIR"/app-*.apk 2>/dev/null | head -n1 || true)
+          if [ -z "$UNSIGNED" ] && [ -z "$NORMAL" ]; then
+            echo "Release APK not found, building debug APK"
+            ./android/gradlew -p android :app:assembleDebug --stacktrace
+            echo "DEBUG_APK=$DEBUG_DIR/app-debug.apk" >> $GITHUB_ENV
+          else
+            if [ -n "$UNSIGNED" ]; then echo "UNSIGNED_APK=$UNSIGNED" >> $GITHUB_ENV; fi
+            if [ -n "$NORMAL" ]; then echo "RELEASE_APK=$NORMAL" >> $GITHUB_ENV; fi
+          fi
+
+      - name: Sign unsigned APK (fallback)
+        if: env.EAS_BUILD_FAILED == '1' && env.UNSIGNED_APK != null
+        working-directory: apps/mobile/android/app/build/outputs/apk/release
+        run: |
+          # Generate temporary keystore
+          keytool -genkey -v -keystore release.keystore -alias release -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=example, OU=dev, O=company, L=city, S=state, C=US"
+          APK_UNSIGNED=$(basename "$UNSIGNED_APK")
+          BUILD_TOOLS=$(ls -v "$ANDROID_SDK_ROOT"/build-tools | tail -1)
+          "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/zipalign -v -p 4 "$APK_UNSIGNED" app-release-aligned.apk
+          "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/apksigner sign --ks ../../../../release.keystore --ks-pass pass:android --key-pass pass:android --out app-release-signed.apk app-release-aligned.apk
+          "$ANDROID_SDK_ROOT"/build-tools/$BUILD_TOOLS/apksigner verify app-release-signed.apk
+          echo "SIGNED_APK=apps/mobile/android/app/build/outputs/apk/release/app-release-signed.apk" >> $GITHUB_ENV
+
+      - name: Upload fallback APK artifact
+        if: env.EAS_BUILD_FAILED == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-fallback-apk
+          path: |
+            ${{ env.SIGNED_APK }}
+            ${{ env.RELEASE_APK }}
+            ${{ env.DEBUG_APK }}
+          if-no-files-found: warn

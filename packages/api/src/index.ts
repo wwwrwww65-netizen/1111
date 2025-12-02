@@ -406,6 +406,128 @@ app.use('/api', shop);
 app.use('/webhooks', shippingWebhooks);
 app.use('/api/admin', rbac);
 
+// Mobile Remote Config endpoints (tokens/home) for RN apps
+app.get('/mobile/config/tokens.json', async (_req, res) => {
+  // Basic default tokens; override later from DB/settings if needed
+  const out = {
+    colors: {
+      primary: '#000000',
+      background: '#ffffff',
+      text: '#0f172a',
+      muted: '#6b7280'
+    },
+    spacing: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 },
+    radius: { sm: 6, md: 10, lg: 16 },
+    typography: { body: { fontFamily: 'System', fontSize: 16 } }
+  };
+  res.json(out);
+});
+
+app.get('/mobile/config/home.json', async (_req, res) => {
+  // Minimal manifest; mweb changes can be reflected here to sync RN UI
+  const out = {
+    version: '1',
+    sections: [
+      { type: 'banner', id: 'hero', imageUrl: 'https://jeeey.com/hero.jpg', link: '/products' },
+      {
+        type: 'carousel', id: 'for-you', title: 'من أجلك',
+        items: [
+          { imageUrl: 'https://jeeey.com/img/1.jpg', link: '/p?id=1' },
+          { imageUrl: 'https://jeeey.com/img/2.jpg', link: '/p?id=2' }
+        ]
+      }
+    ]
+  };
+  res.json(out);
+});
+
+// Navigation (header/tabs) manifest
+app.get('/mobile/config/nav.json', (_req, res) => {
+  const out = {
+    header: {
+      title: 'Jeeey',
+      actions: [ { icon: 'search', link: '/search' }, { icon: 'cart', link: '/cart' } ]
+    },
+    tabs: [
+      { key: 'home', title: 'الرئيسية', icon: 'home', link: '/' },
+      { key: 'categories', title: 'التصنيفات', icon: 'grid', link: '/categories' },
+      { key: 'wishlist', title: 'المفضلة', icon: 'heart', link: '/wishlist' },
+      { key: 'account', title: 'حسابي', icon: 'user', link: '/account' },
+      { key: 'cart', title: 'السلة', icon: 'shopping-bag', link: '/cart' }
+    ]
+  };
+  res.json(out);
+});
+
+// PDP blocks manifest
+app.get('/mobile/config/pdp.json', (_req, res) => {
+  const out = {
+    blocks: [
+      { type: 'images' },
+      { type: 'title-price' },
+      { type: 'variants', options: { color: true, sizeLetters: true, sizeNumbers: true } },
+      { type: 'inventory' },
+      { type: 'description' },
+      { type: 'actions', options: { addToCart: true, buyNow: true } }
+    ]
+  };
+  res.json(out);
+});
+
+// Categories manifest (layout/filters)
+app.get('/mobile/config/categories.json', (_req, res) => {
+  const out = {
+    layout: { columns: 3, gap: 8 },
+    showImages: true,
+    filters: [ 'price', 'brand', 'size', 'color' ]
+  };
+  res.json(out);
+});
+
+// Cart manifest
+app.get('/mobile/config/cart.json', (_req, res) => {
+  const out = {
+    showThumb: true,
+    showVendor: false,
+    totals: [ 'subtotal', 'shipping', 'discounts', 'total' ]
+  };
+  res.json(out);
+});
+
+// Checkout manifest
+app.get('/mobile/config/checkout.json', (_req, res) => {
+  const out = {
+    steps: [ 'address', 'shipping', 'payment', 'review' ],
+    paymentProviders: [ 'stripe' ],
+    successLink: '/pay/success',
+    failureLink: '/pay/failure'
+  };
+  res.json(out);
+});
+
+// Offers/placements manifest
+app.get('/mobile/config/offers.json', (_req, res) => {
+  const out = {
+    placements: {
+      homeTop: [{ bannerId: 'hero' }],
+      homeMid: [{ campaign: 'weekly-deals' }],
+      pdpBottom: [{ campaign: 'related' }]
+    }
+  };
+  res.json(out);
+});
+
+// Pages manifest (arbitrary screens by path)
+app.get('/mobile/config/pages.json', (_req, res) => {
+  const out = {
+    '/account': { path: '/account', title: 'حسابي', blocks: [ { type: 'heading', text: 'الحساب' }, { type: 'button', text: 'تسجيل الدخول / OTP', props: { action: 'openLogin' } } ] },
+    '/settings': { path: '/settings', title: 'الإعدادات', blocks: [ { type: 'heading', text: 'الإعدادات' } ] },
+    '/address': { path: '/address', title: 'العناوين', blocks: [ { type: 'heading', text: 'العنوان' }, { type: 'addressForm' } ] },
+    '/search': { path: '/search', title: 'بحث', blocks: [ { type: 'searchBar' }, { type: 'searchResults' } ] },
+  };
+  res.json(out);
+});
+
 try {
   const swaggerDoc = YAML.load(__dirname + '/../openapi.yaml');
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
