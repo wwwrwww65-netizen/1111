@@ -29,6 +29,17 @@ if [ "$rc" -ne 0 ] && [ "$rc" -ne 24 ]; then
 fi
 
 cd "$ROOT_DIR"
+# Ensure dedicated system user for services (non-root execution)
+if ! id -u ecom >/dev/null 2>&1; then
+  echo "[deploy] Creating system user 'ecom' (nologin)"
+  useradd --system --create-home --home-dir /home/ecom --shell /usr/sbin/nologin ecom || true
+fi
+# Ensure ownership for runtime directories
+mkdir -p "$ROOT_DIR" "$ROOT_DIR/uploads" /var/log
+chown -R ecom:ecom "$ROOT_DIR" || true
+touch /var/log/ecom-api.out /var/log/ecom-api.err /var/log/ecom-admin.out /var/log/ecom-admin.err /var/log/ecom-web.out /var/log/ecom-web.err || true
+chown ecom:ecom /var/log/ecom-*.out /var/log/ecom-*.err || true
+
 # Sanitize .env.api (remove non-breaking spaces) and ensure it's present
 if [ -f "$ROOT_DIR/.env.api" ]; then
   # remove UTF-8 NBSP if present
@@ -45,10 +56,31 @@ export PUPPETEER_SKIP_DOWNLOAD=true
 export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 pnpm install -r --no-frozen-lockfile --prod=false
 
+# Safe env loader that tolerates '&', '#', spaces and CRLF without executing code
+load_env_file() {
+  local f="$1"
+  [ -f "$f" ] || return 0
+  # shellcheck disable=SC2162
+  while IFS= read -r line || [ -n "$line" ]; do
+    # strip trailing CR (Windows line endings)
+    line="${line%$'\r'}"
+    case "$line" in
+      ''|'#'*) continue ;; # skip empty and comment lines
+    esac
+    # split on first '=' only
+    local key="${line%%=*}"
+    local val="${line#*=}"
+    # trim possible surrounding quotes without interpreting content
+    if [[ "$val" == \"*\" && "$val" == *\" ]]; then val="${val:1:${#val}-2}"; fi
+    if [[ "$val" == \'*\' && "$val" == *\' ]]; then val="${val:1:${#val}-2}"; fi
+    export "$key=$val"
+  done < "$f"
+}
+
 # Load or materialize public env (for Next build) and per-app .env.production
 mkdir -p "$ROOT_DIR/apps/admin" "$ROOT_DIR/apps/web"
 if [ -f "$ROOT_DIR/.env.web" ]; then
-  set -a; . "$ROOT_DIR/.env.web"; set +a
+  load_env_file "$ROOT_DIR/.env.web"
 fi
 {
   echo "NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-https://jeeey.com}"
@@ -61,7 +93,7 @@ cp "$ROOT_DIR/apps/admin/.env.production" "$ROOT_DIR/apps/web/.env.production"
 export NODE_ENV=production
 # Load API env for Prisma and run migrate deploy
 if [ -f "$ROOT_DIR/.env.api" ]; then
-  set -a; . "$ROOT_DIR/.env.api"; set +a
+  load_env_file "$ROOT_DIR/.env.api"
 fi
 # Try deploy migrations using npx prisma; if fails, attempt baseline resolve
 set +e
@@ -90,6 +122,44 @@ if [ -n "${DIRECT_URL:-}" ] || [ -n "${DATABASE_URL:-}" ]; then
   fi
 fi
 set -e
+# Enforce enum and casts for LedgerStatus (idempotent) to avoid 42883 at runtime
+if [ -n "${DIRECT_URL:-}" ] || [ -n "${DATABASE_URL:-}" ]; then
+  echo "[deploy] Ensuring LedgerStatus enum and casting status columns"
+  npx -y prisma@5.14.0 db execute --schema "$ROOT_DIR/packages/db/prisma/schema.prisma" --stdin <<'SQL'
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='LedgerStatus') THEN
+    CREATE TYPE "LedgerStatus" AS ENUM ('PENDING','CONFIRMED','EXPIRED','REVOKED');
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='PointsLedger' AND column_name='status' AND data_type='text'
+  ) THEN
+    BEGIN ALTER TABLE "PointsLedger" ALTER COLUMN "status" DROP DEFAULT; EXCEPTION WHEN others THEN NULL; END;
+    ALTER TABLE "PointsLedger" ALTER COLUMN "status" TYPE "LedgerStatus"
+      USING CASE WHEN "status" IN ('PENDING','CONFIRMED','EXPIRED','REVOKED') THEN "status"::"LedgerStatus" ELSE 'CONFIRMED'::"LedgerStatus" END;
+    ALTER TABLE "PointsLedger" ALTER COLUMN "status" SET DEFAULT 'CONFIRMED'::"LedgerStatus";
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='WalletLedger' AND column_name='status' AND data_type='text'
+  ) THEN
+    BEGIN ALTER TABLE "WalletLedger" ALTER COLUMN "status" DROP DEFAULT; EXCEPTION WHEN others THEN NULL; END;
+    ALTER TABLE "WalletLedger" ALTER COLUMN "status" TYPE "LedgerStatus"
+      USING CASE WHEN "status" IN ('PENDING','CONFIRMED','EXPIRED','REVOKED') THEN "status"::"LedgerStatus" ELSE 'CONFIRMED'::"LedgerStatus" END;
+    ALTER TABLE "WalletLedger" ALTER COLUMN "status" SET DEFAULT 'CONFIRMED'::"LedgerStatus";
+  END IF;
+END$$;
+SQL
+fi
 # Force fresh builds (clean previous outputs)
 rm -rf "$ROOT_DIR/packages/api/dist" || true
 rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
@@ -104,8 +174,12 @@ rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
  (cd "$ROOT_DIR/apps/admin" && pnpm install --no-frozen-lockfile --prod=false) || true
 pnpm --filter web build || (cd "$ROOT_DIR/apps/web" && ./node_modules/.bin/next build)
 pnpm --filter admin build || (cd "$ROOT_DIR/apps/admin" && ./node_modules/.bin/next build)
-# Ensure Category SEO columns after DB/API are compiled and Prisma client exists
-(cd "$ROOT_DIR/packages/api" && node scripts/ensure-category-seo.js) || true
+# Ensure Category SEO columns (opt-in). Disabled by default to avoid 54011 on legacy wide tables.
+if [ "${DEPLOY_ENABLE_CATEGORY_SEO:-0}" = "1" ]; then
+  (cd "$ROOT_DIR/packages/api" && node scripts/ensure-category-seo.js) || true
+else
+  echo "[deploy] Skipping ensure-category-seo (DEPLOY_ENABLE_CATEGORY_SEO!=1)"
+fi
 # Build mobile web (m.jeeey.com) if present (Vite) - REQUIRED
 if [ -d "$ROOT_DIR/apps/mweb" ]; then
   rm -rf "$ROOT_DIR/apps/mweb/dist" || true
@@ -188,6 +262,8 @@ if [ -f /etc/systemd/system/ecom-admin.service ]; then
   mkdir -p /etc/systemd/system/ecom-admin.service.d || true
   cat > /etc/systemd/system/ecom-admin.service.d/override.conf <<EOF
 [Service]
+User=ecom
+Group=ecom
 Environment=PORT=3001
 StandardOutput=append:/var/log/ecom-admin.out
 StandardError=append:/var/log/ecom-admin.err
@@ -206,6 +282,8 @@ if [ -f /etc/systemd/system/ecom-web.service ]; then
   mkdir -p /etc/systemd/system/ecom-web.service.d || true
   cat > /etc/systemd/system/ecom-web.service.d/override.conf <<EOF
 [Service]
+User=ecom
+Group=ecom
 Environment=PORT=3000
 StandardOutput=append:/var/log/ecom-web.out
 StandardError=append:/var/log/ecom-web.err
@@ -219,10 +297,14 @@ systemctl daemon-reload || true
 mkdir -p /etc/systemd/system/ecom-admin.service.d /etc/systemd/system/ecom-web.service.d || true
 cat > /etc/systemd/system/ecom-admin.service.d/override.conf <<'EOF'
 [Service]
+User=ecom
+Group=ecom
 Environment=PORT=3001
 EOF
 cat > /etc/systemd/system/ecom-web.service.d/override.conf <<'EOF'
 [Service]
+User=ecom
+Group=ecom
 Environment=PORT=3000
 EOF
 systemctl daemon-reload || true
@@ -239,6 +321,8 @@ Type=simple
 WorkingDirectory=$ROOT_DIR
 EnvironmentFile=$ROOT_DIR/.env.api
 ExecStart=/usr/bin/node $ROOT_DIR/packages/api/dist/index.js
+User=ecom
+Group=ecom
 Restart=always
 RestartSec=2
 
@@ -259,6 +343,8 @@ Type=simple
 WorkingDirectory=$ROOT_DIR/apps/admin
 Environment=PORT=3001
 ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3001
+User=ecom
+Group=ecom
 Restart=always
 RestartSec=2
 
@@ -279,6 +365,8 @@ Type=simple
 WorkingDirectory=$ROOT_DIR/apps/web
 Environment=PORT=3000
 ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000
+User=ecom
+Group=ecom
 Restart=always
 RestartSec=2
 
@@ -321,6 +409,12 @@ if [ -d "$ROOT_DIR/packages/api" ]; then
 EnvironmentFile=$ROOT_DIR/.env.api
 WorkingDirectory=$ROOT_DIR
 Environment=NLP_CONFIG_DIR=$ROOT_DIR/config/nlp
+Environment=API_RUN_ENSURE_SCHEMA=0
+Environment=NODE_ENV=production
+User=ecom
+Group=ecom
+StandardOutput=append:/var/log/ecom-api.out
+StandardError=append:/var/log/ecom-api.err
 EOF
       systemctl daemon-reload || true
     fi

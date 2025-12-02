@@ -33,7 +33,7 @@ const searchUsersSchema = z.object({
 
 const searchOrdersSchema = z.object({
   query: z.string().optional(),
-  status: z.enum(['PENDING', 'PAID', 'SHIPPED', 'DELIVERED', 'CANCELLED']).optional(),
+  status: z.enum(['PENDING', 'PROCESSING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED']).optional(),
   minTotal: z.number().optional(),
   maxTotal: z.number().optional(),
   startDate: z.string().optional(),

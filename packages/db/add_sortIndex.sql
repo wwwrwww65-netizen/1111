@@ -1,0 +1,3 @@
+﻿ALTER TABLE "TabPage" ADD COLUMN IF NOT EXISTS "sortIndex" INTEGER;
+UPDATE "TabPage" SET "sortIndex" = COALESCE("sortIndex", 0);
+ALTER TABLE "TabPage" ALTER COLUMN "sortIndex" SET DEFAULT 0;

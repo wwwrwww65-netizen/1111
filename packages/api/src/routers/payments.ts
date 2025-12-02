@@ -132,13 +132,13 @@ export const paymentsRouter = router({
   // Confirm payment
   confirmPayment: protectedProcedure
     .input(confirmPaymentSchema)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { paymentIntentId, paymentMethodId } = input;
       if (isMockPayments) {
         await db.payment.update({ where: { stripeId: paymentIntentId }, data: { status: 'COMPLETED' } });
         const payment = await db.payment.findUnique({ where: { stripeId: paymentIntentId } });
         if (payment) {
-          await db.order.update({ where: { id: payment.orderId }, data: { status: 'PAID' } });
+          await db.order.update({ where: { id: payment.orderId }, data: { status: 'PENDING' } });
           // Bootstrap shipment legs per vendor for this order
           try {
             const items = await db.orderItem.findMany({ where: { orderId: payment.orderId }, include: { product: { select: { vendorId: true } } } });
@@ -158,9 +158,9 @@ export const paymentsRouter = router({
               } as any);
             }
             // Also create PROCESSING and DELIVERY placeholders
-            await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
-            await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
-          } catch {}
+            await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(() => { });
+            await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(() => { });
+          } catch { }
         }
         return { status: 'succeeded', paymentIntent: { id: paymentIntentId } } as any;
       }
@@ -186,7 +186,7 @@ export const paymentsRouter = router({
         if (payment) {
           await db.order.update({
             where: { id: payment.orderId },
-            data: { status: 'PAID' },
+            data: { status: 'PENDING' },
           });
           // Bootstrap shipment legs per vendor
           try {
@@ -205,16 +205,16 @@ export const paymentsRouter = router({
                 create: { id: poId, orderId: payment.orderId, poId, legType: 'PICKUP' as any, status: 'SCHEDULED' as any } as any,
               } as any);
             }
-            await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
-            await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
-          } catch {}
+            await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(() => { });
+            await db.shipmentLeg.create({ data: { orderId: payment.orderId, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(() => { });
+          } catch { }
           // Journal posting (sale)
           try {
-            const eid = (require('crypto').randomUUID as ()=>string)();
+            const eid = (require('crypto').randomUUID as () => string)();
             await db.$executeRawUnsafe('INSERT INTO "JournalEntry" (id, ref, memo) VALUES ($1,$2,$3)', eid, payment.orderId, 'Sale');
-            await db.$executeRawUnsafe('INSERT INTO "JournalLine" (id, "entryId", "accountCode", debit, credit) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), eid, 'CASH', Number(payment.amount||0), 0);
-            await db.$executeRawUnsafe('INSERT INTO "JournalLine" (id, "entryId", "accountCode", debit, credit) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as ()=>string)(), eid, 'REVENUE', 0, Number(payment.amount||0));
-          } catch {}
+            await db.$executeRawUnsafe('INSERT INTO "JournalLine" (id, "entryId", "accountCode", debit, credit) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as () => string)(), eid, 'CASH', Number(payment.amount || 0), 0);
+            await db.$executeRawUnsafe('INSERT INTO "JournalLine" (id, "entryId", "accountCode", debit, credit) VALUES ($1,$2,$3,$4,$5)', (require('crypto').randomUUID as () => string)(), eid, 'REVENUE', 0, Number(payment.amount || 0));
+          } catch { }
           // Fire FB CAPI Purchase (best-effort)
           try {
             const { fbSendEvents, hashEmail } = await import('../services/fb');
@@ -223,11 +223,11 @@ export const paymentsRouter = router({
               {
                 event_name: 'Purchase',
                 user_data: { em: hashEmail(ord?.user?.email) },
-                custom_data: { value: ord?.total || 0, currency: 'USD', num_items: ord?.items?.length || 0 },
+                custom_data: { value: ord?.total || 0, currency: 'YER', num_items: ord?.items?.length || 0 },
                 action_source: 'website',
               },
             ]);
-          } catch {}
+          } catch { }
         }
       }
 
@@ -367,7 +367,16 @@ export const paymentsRouter = router({
         where: { stripeId: paymentIntentId },
         data: { status: 'REFUNDED' },
       });
-
+      // Fire FB CAPI PurchaseRefund
+      try {
+        const pay: any = await db.payment.findUnique({ where: { stripeId: paymentIntentId }, include: { order: { include: { items: true, user: true } } } as any } as any);
+        if (pay && pay.order) {
+          const { fbSendEvents, hashEmail } = await import('../services/fb' as any);
+          const contents = ((pay.order && pay.order.items) ? pay.order.items : []).map((it: any) => ({ id: String(it.productId), quantity: Number(it.quantity || 1), item_price: Number(it.price || 0) }));
+          const evId = `PurchaseRefund_${String(pay.order.id)}_${Math.floor(Date.now() / 1000)}`;
+          await fbSendEvents([{ event_name: 'PurchaseRefund', event_id: evId, user_data: { em: hashEmail(pay.order?.user?.email) }, custom_data: { value: Number(pay.amount || 0), currency: String(pay.currency || 'YER'), content_ids: contents.map((c: any) => c.id), content_type: 'product_group', contents, order_id: String(pay.order.id), transaction_id: String(paymentIntentId), payment_method: String(pay?.method || '') }, action_source: 'website' } as any]);
+        }
+      } catch { }
       return { refund };
     }),
 });

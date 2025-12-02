@@ -18,6 +18,12 @@ export async function ensureSchemaSafe(): Promise<void> {
       END$$;
     `);
   } catch (_) {}
+  // Ensure analytics/Event optional columns exist (forward/backward compatible)
+  try { await db.$executeRawUnsafe('ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmContent" TEXT'); } catch {}
+  try { await db.$executeRawUnsafe('ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "utmTerm" TEXT'); } catch {}
+  try { await db.$executeRawUnsafe('ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "channel" TEXT'); } catch {}
+  try { await db.$executeRawUnsafe('ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "properties" JSONB'); } catch {}
+  try { await db.$executeRawUnsafe('ALTER TABLE "Event" ALTER COLUMN "properties" SET DEFAULT \'{}\'::jsonb'); } catch {}
 }
 
 // Re-export db for other modules importing from this file

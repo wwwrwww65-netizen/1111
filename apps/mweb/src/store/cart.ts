@@ -32,27 +32,44 @@ export const useCart = defineStore('cart', {
       }) } }catch{}
     },
     saveLocal(){ try{ localStorage.setItem('cart_v1', JSON.stringify(this.items)) }catch{} },
-    async syncFromServer(){
-      // Preserve local variant metadata; only sync if cart is empty locally
-      if (this.items.length > 0) { this.loaded = true; return }
+    async syncFromServer(force = false){
+      // When force=true, always hydrate from server (used after login/merge)
+      if (!force && this.items.length > 0) { this.loaded = true; return }
       const data = await apiGet<any>('/api/cart')
       if (data && data.cart){
         this.items = (data.cart.items||[]).map((ci:any)=>{
           const id = String(ci.productId)
-          const uid = this.computeUid(id)
-          return { uid, id, title: ci.product?.name||ci.productId, price: Number(ci.product?.price||0), img: (ci.product?.images?.[0]||undefined), qty: ci.quantity }
+          const attr = (ci as any).attributes || {}
+          const color = attr.color || undefined
+          const size = attr.size || undefined
+          const img = attr.colorImageUrl || (ci.product?.images?.[0]||undefined)
+          const uid = this.computeUid(id, color, size)
+          return { uid, id, title: ci.product?.name||ci.productId, price: Number(ci.product?.price||0), img, qty: ci.quantity, variantColor: color, variantSize: size }
         })
       }
       this.loaded = true
     },
-    add(item: Omit<CartItem, 'qty'|'uid'>, qty = 1) {
+    async add(item: Omit<CartItem, 'qty'|'uid'>, qty = 1) {
       const uid = this.computeUid(item.id, item.variantColor, item.variantSize)
       const ex = this.items.find(i => i.uid === uid)
       if (ex) ex.qty += qty
       else this.items.push({ ...item, uid, qty })
       // fire and forget server sync
-      apiPost('/api/cart/add', { productId: item.id, quantity: qty }).catch(()=>{})
+      apiPost('/api/cart/add', { productId: item.id, quantity: qty, attributes: { color: item.variantColor, size: item.variantSize, colorImageUrl: item.img } }).catch(()=>{})
+      // Track AddToCart via Pixel + CAPI with dedupe-ready event_id
+      try{
+        const { trackEvent } = await import('@/lib/track')
+        const priceNum = Number(item.price||0)
+        trackEvent('AddToCart', {
+          value: priceNum,
+          currency: (window as any).__CURRENCY_CODE__ || 'YER',
+          content_ids: [String(item.id)],
+          content_type: 'product_group',
+          contents: [{ id: String(item.id), quantity: Number(qty||1), item_price: priceNum }]
+        })
+      }catch{}
       this.saveLocal()
+      try{ window.dispatchEvent(new CustomEvent('cart:add', { detail:{ productId: item.id, qty } })) }catch{}
     },
     upsertVariantMeta(uid: string, meta: { color?: string; size?: string; img?: string }){
       const it = this.items.find(i=> i.uid===uid)
@@ -67,20 +84,37 @@ export const useCart = defineStore('cart', {
         if (other){ other.qty += it.qty; this.items = this.items.filter(x=> x!==it) }
         else { it.uid = newUid }
       }
+      // sync attributes to server (best-effort)
+      apiPost('/api/cart/update', { productId: it.id, quantity: it.qty, attributes: { color: it.variantColor, size: it.variantSize, colorImageUrl: it.img } }).catch(()=>{})
       this.saveLocal()
     },
-    remove(uid: string) {
+    async remove(uid: string) {
       const it = this.items.find(i=> i.uid===uid)
       if (!it) return
       this.items = this.items.filter(i => i.uid !== uid)
-      apiPost('/api/cart/remove', { productId: it.id }).catch(()=>{})
+      try { await apiPost('/api/cart/remove', { productId: it.id, attributes: { color: it.variantColor, size: it.variantSize, colorImageUrl: it.img } }) } catch {}
+      // Ensure local state matches DB after removal
+      try { await this.syncFromServer(true) } catch {}
+      try{
+        const { trackEvent } = await import('@/lib/track')
+        const priceNum = Number(it.price||0)
+        trackEvent('RemoveFromCart', {
+          value: priceNum,
+          currency: (window as any).__CURRENCY_CODE__ || 'YER',
+          content_ids: [String(it.id)],
+          content_type: 'product_group',
+          contents: [{ id: String(it.id), quantity: Number(it.qty||1), item_price: priceNum }]
+        })
+      }catch{}
       this.saveLocal()
     },
     clear() { this.items = []; apiPost('/api/cart/clear', {}).catch(()=>{}); this.saveLocal() },
     async update(uid: string, qty: number){
       const it = this.items.find(i=>i.uid===uid); if(!it) return
       it.qty = qty
-      await apiPost('/api/cart/update', { productId: it.id, quantity: qty })
+      await apiPost('/api/cart/update', { productId: it.id, quantity: qty, attributes: { color: it.variantColor, size: it.variantSize, colorImageUrl: it.img } })
+      // Pull authoritative quantities from server on cart page
+      try { await this.syncFromServer(true) } catch {}
       this.saveLocal()
     }
   }

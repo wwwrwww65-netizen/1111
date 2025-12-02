@@ -14,7 +14,7 @@ router.post('/shipping', express.raw({ type: 'application/json' }), async (req: 
       const sig = req.headers['x-shipping-signature'] as string | undefined;
       if (!sig) return res.status(400).json({ error: 'missing_signature' });
       // Prefer raw buffer if available; else fall back to JSON string of parsed body
-      const raw = Buffer.isBuffer(req.body) ? (req.body as Buffer) : Buffer.from(JSON.stringify(req.body||{}), 'utf8');
+      const raw = Buffer.isBuffer(req.body) ? (req.body as Buffer) : Buffer.from(JSON.stringify(req.body || {}), 'utf8');
       const hmac = crypto.createHmac('sha256', secret).update(raw).digest('hex');
       if (hmac !== sig) return res.status(401).json({ error: 'invalid_signature' });
     }
@@ -31,7 +31,7 @@ router.post('/shipping', express.raw({ type: 'application/json' }), async (req: 
     }
     // Example: mark order shipped if event says so
     if (payload?.type === 'shipment.created' && payload?.data?.orderId) {
-      await db.order.update({ where: { id: payload.data.orderId }, data: { status: 'SHIPPED', trackingNumber: payload.data.trackingNumber ?? null } });
+      await db.order.update({ where: { id: payload.data.orderId }, data: { status: 'OUT_FOR_DELIVERY', trackingNumber: payload.data.trackingNumber ?? null } });
     }
     return res.json({ received: true });
   } catch (e) {
@@ -65,10 +65,10 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req: Re
       if (stripeId) {
         try {
           await db.payment.update({ where: { stripeId }, data: { status: 'COMPLETED' } });
-        } catch {}
+        } catch { }
         const p = await db.payment.findUnique({ where: { stripeId } });
         if (p) {
-          await db.order.update({ where: { id: p.orderId }, data: { status: 'PAID' } });
+          await db.order.update({ where: { id: p.orderId }, data: { status: 'PENDING' } });
           // Bootstrap shipment legs
           try {
             const items = await db.orderItem.findMany({ where: { orderId: p.orderId }, include: { product: { select: { vendorId: true } } } });
@@ -82,15 +82,15 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req: Re
               const poId = `${vendorId}:${p.orderId}`;
               await db.shipmentLeg.upsert({ where: { id: poId }, update: {}, create: { id: poId, orderId: p.orderId, poId, legType: 'PICKUP' as any, status: 'SCHEDULED' as any } as any } as any);
             }
-            await db.shipmentLeg.create({ data: { orderId: p.orderId, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
-            await db.shipmentLeg.create({ data: { orderId: p.orderId, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(()=>{});
-          } catch {}
+            await db.shipmentLeg.create({ data: { orderId: p.orderId, legType: 'PROCESSING' as any, status: 'SCHEDULED' as any } as any }).catch(() => { });
+            await db.shipmentLeg.create({ data: { orderId: p.orderId, legType: 'DELIVERY' as any, status: 'SCHEDULED' as any } as any }).catch(() => { });
+          } catch { }
           // Fire FB CAPI purchase (best-effort)
           try {
             const { fbSendEvents, hashEmail } = await import('../services/fb');
             const ord = await db.order.findUnique({ where: { id: p.orderId }, include: { user: true, items: true } });
             await fbSendEvents([{ event_name: 'Purchase', user_data: { em: hashEmail(ord?.user?.email) }, custom_data: { value: ord?.total || 0, currency: 'USD', num_items: ord?.items?.length || 0 }, action_source: 'website' }]);
-          } catch {}
+          } catch { }
         }
       }
     }

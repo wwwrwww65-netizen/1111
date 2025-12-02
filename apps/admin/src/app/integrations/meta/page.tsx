@@ -33,6 +33,9 @@ export default function MetaIntegrationPage(): JSX.Element {
     advancedMatching: true,
     enableServerEvents: true,
   });
+  const [lastPixelTest, setLastPixelTest] = React.useState<any>(null);
+  const [lastCatalogTest, setLastCatalogTest] = React.useState<any>(null);
+  const [lastCatalogSync, setLastCatalogSync] = React.useState<any>(null);
 
   async function load(){
     setError('');
@@ -68,6 +71,7 @@ export default function MetaIntegrationPage(): JSX.Element {
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error||'pixel_test_failed');
+      setLastPixelTest(j);
       showToast(j?.simulated? 'تم اختبار الإرسال (محاكاة)' : 'تم إرسال حدث اختبار');
     }catch(e:any){ setError(e?.message||'failed'); showToast('فشل اختبار البيكسل','err'); }
     finally { setBusy(false); }
@@ -81,6 +85,7 @@ export default function MetaIntegrationPage(): JSX.Element {
       } as any);
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error||'catalog_test_failed');
+      setLastCatalogTest(j);
       showToast(j?.simulated? 'تم اختبار الكاتالوج (محاكاة)' : 'تم التحقق من بيانات الكاتالوج');
     }catch(e:any){ setError(e?.message||'failed'); showToast('فشل اختبار الكاتالوج','err'); }
     finally { setBusy(false); }
@@ -123,9 +128,57 @@ export default function MetaIntegrationPage(): JSX.Element {
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
             <button type="button" className="btn btn-outline" onClick={testPixel} disabled={busy}>اختبار إرسال PageView (CAPI)</button>
             <button type="button" className="btn btn-outline" onClick={testCatalog} disabled={busy}>اختبار بيانات الكاتالوج</button>
+            <button
+              type="button"
+              className="btn"
+              onClick={async()=>{
+                setBusy(true); setError('');
+                try{
+                  const r = await fetch(`${apiBase}/api/admin/marketing/facebook/catalog/sync`, {
+                    method:'POST',
+                    credentials:'include',
+                    headers: { 'content-type':'application/json', ...authHeaders() },
+                    body: JSON.stringify({ ids: [] })
+                  });
+                  const j = await r.json();
+                  if (!r.ok) throw new Error(j?.error||'catalog_sync_failed');
+                  const synced = Number(j?.synced||0);
+                  setLastCatalogSync(j);
+                  showToast(`تمت مزامنة ${synced} منتجًا${synced? '':' (لا بيانات)'}`);
+                }catch(e:any){ setError(e?.message||'failed'); showToast('فشل مزامنة الكاتالوج','err'); }
+                finally{ setBusy(false); }
+              }}
+              disabled={busy}
+            >
+              مزامنة الكاتالوج الآن
+            </button>
           </div>
           <div style={{ color:'var(--sub)', fontSize:12, marginTop:8 }}>ملاحظة: أثناء CI/البيئات المقيدة يتم إجراء محاكاة بدل الاتصال الخارجي.</div>
         </section>
+
+        {(lastPixelTest || lastCatalogTest || lastCatalogSync) && (
+          <section className="panel" style={{ padding:16, marginBottom:16 }}>
+            <h2 style={{ marginTop:0, fontSize:16 }}>آخر النتائج</h2>
+            {lastPixelTest && (
+              <div style={{ marginBottom:12 }}>
+                <div style={{ fontWeight:700, marginBottom:6 }}>Pixel Test</div>
+                <pre style={{ whiteSpace:'pre-wrap', background:'#0b0e14', padding:8, borderRadius:8, border:'1px solid #1c2333' }}>{JSON.stringify(lastPixelTest, null, 2)}</pre>
+              </div>
+            )}
+            {lastCatalogTest && (
+              <div style={{ marginBottom:12 }}>
+                <div style={{ fontWeight:700, marginBottom:6 }}>Catalog Test</div>
+                <pre style={{ whiteSpace:'pre-wrap', background:'#0b0e14', padding:8, borderRadius:8, border:'1px solid #1c2333' }}>{JSON.stringify(lastCatalogTest, null, 2)}</pre>
+              </div>
+            )}
+            {lastCatalogSync && (
+              <div>
+                <div style={{ fontWeight:700, marginBottom:6 }}>Catalog Sync</div>
+                <pre style={{ whiteSpace:'pre-wrap', background:'#0b0e14', padding:8, borderRadius:8, border:'1px solid #1c2333' }}>{JSON.stringify(lastCatalogSync, null, 2)}</pre>
+              </div>
+            )}
+          </section>
+        )}
 
         <section className="panel" style={{ padding:16 }}>
           <h2 style={{ marginTop:0, fontSize:16 }}>إرشادات الأمن</h2>

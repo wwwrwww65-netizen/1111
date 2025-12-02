@@ -142,14 +142,14 @@ export const wishlistRouter = router({
       }
 
       // Check if product already in cart
-      const existingCartItem = await db.cartItem.findUnique({
+      const existingCartItems = await db.cartItem.findMany({
         where: {
-          cartId_productId: {
-            cartId: cart.id,
-            productId,
-          },
+          cartId: cart.id,
+          productId,
         },
       });
+      // If moving from wishlist (no attributes), merge with first item or create new "base" item
+      const existingCartItem = existingCartItems[0];
 
       if (existingCartItem) {
         // Update quantity

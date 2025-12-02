@@ -37,7 +37,7 @@ const updateCategorySchema = createCategorySchema.partial().extend({
 
 const updateOrderStatusSchema = z.object({
   orderId: z.string(),
-  status: z.enum(['PENDING', 'PAID', 'SHIPPED', 'DELIVERED', 'CANCELLED']),
+  status: z.enum(['PENDING', 'PROCESSING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED']),
   trackingNumber: z.string().optional(),
 });
 
@@ -76,19 +76,19 @@ export const adminRouter = router({
       ] = await Promise.all([
         // Total users
         db.user.count(),
-        
+
         // Total products
         db.product.count(),
-        
+
         // Total orders
         db.order.count(),
-        
+
         // Total revenue
         db.order.aggregate({
-          where: { status: { in: ['PAID', 'SHIPPED', 'DELIVERED'] } },
+          where: { status: { in: ['PROCESSING', 'OUT_FOR_DELIVERY', 'DELIVERED'] } },
           _sum: { total: true },
         }),
-        
+
         // Recent orders
         db.order.findMany({
           take: 10,
@@ -102,14 +102,14 @@ export const adminRouter = router({
             },
           },
         }),
-        
+
         // Low stock products
         db.product.findMany({
           where: { stockQuantity: { lte: 10 } },
           take: 10,
           orderBy: { stockQuantity: 'asc' },
         }),
-        
+
         // Top selling products
         db.orderItem.groupBy({
           by: ['productId'],
@@ -117,7 +117,7 @@ export const adminRouter = router({
           orderBy: { _sum: { quantity: 'desc' } },
           take: 10,
         }),
-        
+
         // Monthly revenue (last 6 months)
         db.order.groupBy({
           by: ['status'],
@@ -192,7 +192,7 @@ export const adminRouter = router({
     .input(updateProductSchema)
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
-      
+
       const product = await db.product.update({
         where: { id },
         data,
@@ -205,7 +205,7 @@ export const adminRouter = router({
   // Toggle or set product active/archive status
   setProductStatus: protectedProcedure
     .use(adminMiddleware)
-    .input(z.object({ id: z.string(), status: z.enum(['PUBLISHED','ARCHIVED','DISABLED']) }))
+    .input(z.object({ id: z.string(), status: z.enum(['PUBLISHED', 'ARCHIVED', 'DISABLED']) }))
     .mutation(async ({ input }) => {
       // Map UI statuses to isActive flag; extend later for richer status
       const { id, status } = input;
@@ -239,7 +239,7 @@ export const adminRouter = router({
       const skip = (page - 1) * limit;
 
       const where: any = {};
-      
+
       if (search) {
         where.OR = [
           { name: { contains: search, mode: 'insensitive' } },
@@ -331,7 +331,7 @@ export const adminRouter = router({
     .input(updateCategorySchema)
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
-      
+
       const category = await db.category.update({
         where: { id },
         data,
@@ -381,7 +381,7 @@ export const adminRouter = router({
     .input(z.object({
       page: z.number().min(1).default(1),
       limit: z.number().min(1).max(100).default(20),
-      status: z.enum(['PENDING', 'PAID', 'SHIPPED', 'DELIVERED', 'CANCELLED']).optional(),
+      status: z.enum(['PENDING', 'PROCESSING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED']).optional(),
       search: z.string().optional(),
     }))
     .query(async ({ input }) => {
@@ -389,7 +389,7 @@ export const adminRouter = router({
       const skip = (page - 1) * limit;
 
       const where: any = {};
-      
+
       if (status) {
         where.status = status;
       }
@@ -441,7 +441,7 @@ export const adminRouter = router({
 
       const order = await db.order.update({
         where: { id: orderId },
-        data: { 
+        data: {
           status,
           ...(trackingNumber && { trackingNumber }),
         },
@@ -472,7 +472,7 @@ export const adminRouter = router({
       const skip = (page - 1) * limit;
 
       const where: any = {};
-      
+
       if (role) {
         where.role = role;
       }
@@ -596,7 +596,7 @@ export const adminRouter = router({
     }))
     .query(async ({ input }) => {
       const { period } = input;
-      
+
       const now = new Date();
       let startDate: Date;
 
@@ -625,28 +625,28 @@ export const adminRouter = router({
         db.order.count({
           where: { createdAt: { gte: startDate } },
         }),
-        
+
         // Revenue in period
         db.order.aggregate({
-          where: { 
+          where: {
             createdAt: { gte: startDate },
-            status: { in: ['PAID', 'SHIPPED', 'DELIVERED'] },
+            status: { in: ['PROCESSING', 'OUT_FOR_DELIVERY', 'DELIVERED'] },
           },
           _sum: { total: true },
         }),
-        
+
         // New users in period
         db.user.count({
           where: { createdAt: { gte: startDate } },
         }),
-        
+
         // Top products in period
         db.orderItem.groupBy({
           by: ['productId'],
           where: {
             order: {
               createdAt: { gte: startDate },
-              status: { in: ['PAID', 'SHIPPED', 'DELIVERED'] },
+              status: { in: ['PROCESSING', 'OUT_FOR_DELIVERY', 'DELIVERED'] },
             },
           },
           _sum: { quantity: true },

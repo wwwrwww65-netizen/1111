@@ -43,7 +43,7 @@
       </section>
 
       <!-- المعلومات -->
-      <section class="bg-white w-full">
+      <section id="info-section" class="bg-white w-full">
         <div class="px-4 py-2 border-b border-gray-200">
           <h2 class="text-[13px] font-semibold text-gray-900">المعلومات</h2>
         </div>
@@ -91,6 +91,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { ArrowRight, ChevronLeft, User, LogOut, RefreshCcw } from 'lucide-vue-next'
+import { apiPost } from '../lib/api'
 
 const router = useRouter()
 const accountName = "jeeey"
@@ -172,15 +173,37 @@ function handleInfoClick(item: string) {
   }
 }
 
-function switchAccount() {
-  console.log('تبديل الحساب')
-  // يمكن إضافة منطق تبديل الحساب هنا
+async function switchAccount() {
+  try { await logout() } catch {}
+  router.push('/login')
 }
 
-function logout() {
-  console.log('تسجيل الخروج')
-  // يمكن إضافة منطق تسجيل الخروج هنا
-  // router.push('/login')
+async function logout() {
+  try {
+    // Best-effort: notify backend to clear HttpOnly cookies (if any)
+    await apiPost('/api/auth/logout', {})
+  } catch {}
+  try {
+    // Clear auth cookies for both apex domain and current host
+    const clearCookie = (name: string) => {
+      try {
+        const host = location.hostname
+        const parts = host.split('.')
+        const apex = parts.length >= 2 ? '.' + parts.slice(-2).join('.') : ''
+        // Expire on apex (if any) and current host
+        document.cookie = `${name}=; Max-Age=0; path=/; domain=${apex}; SameSite=None; Secure`
+        document.cookie = `${name}=; Max-Age=0; path=/; SameSite=Lax`
+      } catch {}
+    }
+    clearCookie('shop_auth_token')
+    clearCookie('auth_token')
+  } catch {}
+  try { localStorage.removeItem('shop_token') } catch {}
+  try { sessionStorage.removeItem('__linked_v1') } catch {}
+  // Force a fresh analytics session for the next user
+  try { localStorage.removeItem('sid_v1') } catch {}
+  // Redirect to login
+  router.push('/login')
 }
 </script>
 

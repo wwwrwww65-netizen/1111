@@ -88,10 +88,12 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     title: 'التسويق',
     items: [
       { href: '/coupons', label: 'الكوبونات' },
-      { href: '/promotions', label: 'العروض' },
+      { href: '/promotions/campaigns', label: 'العروض والنوافذ الترويجية' },
       { href: '/trends/management', label: 'الاتجاهات' },
       { href: '/marketing/facebook', label: 'تسويق فيسبوك' },
       { href: '/recommendations/rules', label: 'قواعد التوصيات' },
+      { href: '/marketing/occasion-strip', label: 'مناسبة المطلة' },
+      { href: '/marketing/pdp-policies', label: 'سياسات صفحة المنتج' },
     ],
   },
   {
@@ -99,6 +101,8 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     items: [
       { href: '/cms', label: 'المحتوى (CMS)' },
       { href: '/media', label: 'الوسائط' },
+      { href: '/design/tabs', label: 'مدير تبويبات الصفحة' },
+      { href: '/categories-tabs', label: 'تبويبات الفئات' },
       { href: '/cms/size-guides', label: 'دلائل المقاسات' },
       { href: '/cms/qa', label: 'أسئلة وأجوبة' },
       { href: '/cms/photos', label: 'صور العملاء' },
@@ -118,6 +122,10 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
       { href: '/loyalty/club-banner', label: 'شريط خصم JEEEY Club' },
       { href: '/loyalty/points', label: 'النقاط' },
       { href: '/loyalty/points-log', label: 'سجل النقاط' },
+      { href: '/loyalty/triggers', label: 'قواعد النقاط (Triggers)' },
+      { href: '/loyalty/redemption', label: 'الاستبدال (Redemption)' },
+      { href: '/loyalty/campaigns', label: 'حملات النقاط' },
+      { href: '/loyalty/reports', label: 'تقارير النقاط' },
       { href: '/badges', label: 'الشارات' },
       { href: '/subscriptions', label: 'الاشتراكات' },
     ],
@@ -143,6 +151,7 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     title: 'التقارير والتحليلات',
     items: [
       { href: '/analytics', label: 'التحليلات' },
+      { href: '/analytics/independent', label: 'تحليلات مستقلة' },
       { href: '/system/analytics', label: 'إحصاءات النظام' },
     ],
   },

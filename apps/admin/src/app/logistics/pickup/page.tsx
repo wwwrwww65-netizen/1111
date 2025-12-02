@@ -13,6 +13,7 @@ export default function PickupPage(): JSX.Element {
   const [message, setMessage] = React.useState('');
   const [assignPo, setAssignPo] = React.useState<string>('');
   const [assignDriver, setAssignDriver] = React.useState<string>('');
+  const [drivers, setDrivers] = React.useState<Array<{id:string;name:string}>>([]);
   // local filters
   const [vendorText, setVendorText] = React.useState('');
   const [dateFrom, setDateFrom] = React.useState('');
@@ -29,6 +30,7 @@ export default function PickupPage(): JSX.Element {
     } finally { setLoading(false); }
   }
   React.useEffect(()=>{ load().catch(()=>{}); }, [apiBase, tab]);
+  React.useEffect(()=>{ (async()=>{ try{ const j = await (await fetch(`${apiBase}/api/admin/drivers`, { credentials:'include' })).json(); setDrivers(j.drivers||[]);}catch{ setDrivers([]);} })(); }, [apiBase]);
 
   async function doAssign(){
     setMessage('');
@@ -45,6 +47,12 @@ export default function PickupPage(): JSX.Element {
     await fetch(`${apiBase}/api/admin/status/change`, { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify({ entity:'pickup', id: poId, action: status }) });
     push({ type:'ok', message:'تم تحديث الحالة' });
     await load();
+  }
+  function timeElapsed(ts?: string){ try{ const d=new Date(ts||Date.now()); const ms=Date.now()-d.getTime(); const h=Math.floor(ms/3600000); const m=Math.floor((ms%3600000)/60000); return `${h}س ${m}د`; }catch{return '—'} }
+  function goDetailFromRow(r:any){
+    const po = r?.poId || (r?.vendorId && r?.orderId ? `${r.vendorId}:${r.orderId}` : '');
+    if (!po) return;
+    location.assign(`/logistics/pickup/${po}`);
   }
   const Empty = !loading && rows.length===0 ? (
     <div className="panel" style={{ display:'grid', placeItems:'center', padding:24, color:'var(--sub)' }}>
@@ -82,9 +90,13 @@ export default function PickupPage(): JSX.Element {
         <input className="input" type="date" value={dateTo} onChange={e=> setDateTo(e.target.value)} />
       </div>
 
-      <div className="mt-4" style={{ display:'flex', gap:12, alignItems:'center' }}>
+      <div className="mt-4" style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
         <input className="input" placeholder="معرّف طلب المورد (PO)" value={assignPo} onChange={e=> setAssignPo(e.target.value)} />
-        <input className="input" placeholder="معرّف السائق" value={assignDriver} onChange={e=> setAssignDriver(e.target.value)} />
+        <input className="input" placeholder="معرّف السائق (اختياري)" value={assignDriver} onChange={e=> setAssignDriver(e.target.value)} />
+        <select className="select" value={assignDriver} onChange={e=> setAssignDriver(e.target.value)}>
+          <option value="">اختر سائقاً</option>
+          {drivers.map(d=> (<option key={d.id} value={d.id}>{d.name}</option>))}
+        </select>
         <button className="btn" onClick={doAssign}>إسناد سائق</button>
         {message && <div className="text-sm" style={{ color:'#9ae6b4' }}>{message}</div>}
       </div>
@@ -98,14 +110,15 @@ export default function PickupPage(): JSX.Element {
               <thead style={{ position:'sticky', top:48, zIndex:5, background:'var(--panel)'}}><tr><th>اسم المورد</th><th>الموقع</th><th>عدد المنتجات</th><th>حالة الطلب</th><th>الإجراءات</th></tr></thead>
               <tbody>
                 {filtered.map((r:any)=> (
-                  <tr key={r.id}>
+                  <tr key={r.id} style={{ cursor:'pointer' }} onClick={()=> goDetailFromRow(r)}>
                     <td>{r.vendorName||'-'}</td>
                     <td>{r.vendorAddress||'-'}</td>
                     <td>{Number(r.itemsCount||0)}</td>
-                    <td><span className={`badge ${String(r.status).toUpperCase()==='SUBMITTED'?'warn':'ok'}`}>{r.status}</span></td>
-                    <td style={{ display:'flex', gap:6 }}>
+                    <td><span className={`badge ${String(r.status).toUpperCase()==='SUBMITTED'?'err':'ok'}`}>{String(r.status||'—')}</span></td>
+                    <td style={{ display:'flex', gap:6 }} onClick={(e)=> e.stopPropagation()}>
                       <button className="btn btn-sm" onClick={()=>{ setAssignPo(r.poId||r.id); }}>إسناد سائق</button>
-                      <a className="btn btn-sm btn-outline" href={`/api/admin/logistics/pickup/export/csv?status=waiting`}>PDF</a>
+                      <a className="btn btn_sm btn-outline" href={`/api/admin/vendors/${(r.vendorId||'').trim()}/orders/export/pdf`}>PDF</a>
+                      <a className="btn btn_sm btn-outline" href={`/api/admin/vendors/${(r.vendorId||'').trim()}/orders/export/xls`}>Excel</a>
                       <button className="btn btn-sm btn-outline" onClick={()=> changeStatus(r.poId||r.id, 'receive')}>استلام</button>
                       <button className="btn btn-sm btn-outline" onClick={()=> changeStatus(r.poId||r.id, 'start')}>بدء</button>
                     </td>
@@ -123,16 +136,20 @@ export default function PickupPage(): JSX.Element {
           {Empty}
           {filtered.length>0 && (
             <table className="table">
-              <thead style={{ position:'sticky', top:48, zIndex:5, background:'var(--panel)'}}><tr><th>اسم المورد</th><th>اسم السائق</th><th>الحالة</th><th>الوقت المنقضي</th><th>عدد المنتجات</th><th>إجراءات</th></tr></thead>
+              <thead style={{ position:'sticky', top:48, zIndex:5, background:'var(--panel)'}}><tr><th>اسم المورد</th><th>اسم السائق</th><th>استلام من المورد</th><th>الوقت المنقضي</th><th>عدد المنتجات</th><th>إجراءات</th></tr></thead>
               <tbody>
                 {filtered.map((r:any)=> (
-                  <tr key={r.id}>
+                  <tr key={r.id} style={{ cursor:'pointer' }} onClick={()=> goDetailFromRow(r)}>
                     <td>{r.vendorName||'-'}</td>
                     <td>{r.driverName||'-'}</td>
-                    <td><span className="badge warn">قيد التنفيذ</span></td>
-                    <td>—</td>
+                    <td><span className="badge warn">قيد الاستلام</span></td>
+                    <td>{timeElapsed(r.updatedAt||r.createdAt)}</td>
                     <td>{Number(r.itemsCount||0)}</td>
-                    <td><button className="btn btn-sm btn-outline" onClick={()=> changeStatus(r.id, 'receive')}>تغيير الحالة</button></td>
+                    <td style={{ display:'flex', gap:6 }} onClick={(e)=> e.stopPropagation()}>
+                      <a className="btn btn-sm btn-outline" href={`/api/admin/vendors/${(r.vendorId||'').trim()}/orders/export/pdf`}>PDF</a>
+                      <a className="btn btn-sm btn-outline" href={`/api/admin/vendors/${(r.vendorId||'').trim()}/orders/export/xls`}>Excel</a>
+                      <button className="btn btn-sm btn-outline" onClick={()=> changeStatus(r.id, 'receive')}>استلام</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

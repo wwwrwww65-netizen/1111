@@ -46,6 +46,15 @@ const NAV_GROUPS: NavGroup[] = [
   { label: 'الإعدادات', href: '/settings' },
   { label: 'النسخ الاحتياطي', href: '/backups' },
   {
+    label: 'التصميم (Design)',
+    children: [
+      { href: '/design/home', label: 'مصمم الصفحة الرئيسية' },
+      { href: '/design/navigation', label: 'التنقل والشرائط' },
+      { href: '/design/tabs', label: 'مصمم تبويبات الصفحة' },
+      { href: '/categories-tabs', label: 'تبويبات الفئات' },
+    ],
+  },
+  {
     label: 'المالية (Finance)',
     children: [
       { href: '/finance/revenues', label: 'إدارة المداخيل' },

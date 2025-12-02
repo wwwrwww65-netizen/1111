@@ -1,37 +1,23 @@
 "use client";
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function ShippingRatesPage(): JSX.Element {
+  const router = useRouter();
   const [zones, setZones] = React.useState<any[]>([]);
   const [rows, setRows] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
-  const [showForm, setShowForm] = React.useState(false);
-  const [editing, setEditing] = React.useState<any|null>(null);
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
   const [allChecked, setAllChecked] = React.useState(false);
-  const [toast, setToast] = React.useState('');
-  const showToast = (m:string)=>{ setToast(m); setTimeout(()=> setToast(''), 1600); };
+  const [toast, setToast] = React.useState<{ text: string, type: 'ok' | 'err' } | null>(null);
 
-  const [zoneId, setZoneId] = React.useState('');
-  const [carrier, setCarrier] = React.useState('');
-  const [currency, setCurrency] = React.useState<string>('');
-  const [baseFee, setBaseFee] = React.useState<number>(0);
-  const [perKgFee, setPerKgFee] = React.useState<number|''>('');
-  const [minWeightKg, setMinWeightKg] = React.useState<number|''>('');
-  const [maxWeightKg, setMaxWeightKg] = React.useState<number|''>('');
-  const [minSubtotal, setMinSubtotal] = React.useState<number|''>('');
-  const [freeOverSubtotal, setFreeOverSubtotal] = React.useState<number|''>('');
-  const [etaMinHours, setEtaMinHours] = React.useState<number|''>('');
-  const [etaMaxHours, setEtaMaxHours] = React.useState<number|''>('');
-  const [offerTitle, setOfferTitle] = React.useState('');
-  const [activeFrom, setActiveFrom] = React.useState<string>('');
-  const [activeUntil, setActiveUntil] = React.useState<string>('');
-  const [isActive, setIsActive] = React.useState(true);
-  const fromRef = React.useRef<HTMLInputElement|null>(null);
-  const toRef = React.useRef<HTMLInputElement|null>(null);
+  const showToast = (text: string, type: 'ok' | 'err' = 'ok') => {
+    setToast({ text, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
-  // Geo cascade: Country -> City -> Area (UI helper)
+  // Geo cascade: Country -> City -> Area (UI helper for filtering)
   const [geoLoading, setGeoLoading] = React.useState(false);
   const [countriesOptions, setCountriesOptions] = React.useState<any[]>([]);
   const [citiesOptions, setCitiesOptions] = React.useState<any[]>([]);
@@ -39,211 +25,277 @@ export default function ShippingRatesPage(): JSX.Element {
   const [countryId, setCountryId] = React.useState<string>('');
   const [cityId, setCityId] = React.useState<string>('');
   const [areaId, setAreaId] = React.useState<string>('');
-  const [currencies, setCurrencies] = React.useState<Array<{id:string;code:string;name:string;symbol:string;isBase:boolean}>>([]);
 
-  async function load(){
+  async function load() {
     setLoading(true); setError('');
-    try{ const z = await fetch('/api/admin/shipping/zones', { credentials:'include' }); const zj = await z.json(); if (z.ok) setZones(zj.zones||[]);
-      const r = await fetch('/api/admin/shipping/rates', { credentials:'include' }); const j = await r.json(); if (r.ok) setRows(j.rates||[]); else setError(j.error||'failed');
-    }catch{ setError('network'); }
-    finally{ setLoading(false); }
+    try {
+      const z = await fetch('/api/admin/shipping/zones', { credentials: 'include' }); const zj = await z.json(); if (z.ok) setZones(zj.zones || []);
+      const r = await fetch('/api/admin/shipping/rates', { credentials: 'include' }); const j = await r.json(); if (r.ok) setRows(j.rates || []); else setError(j.error || 'failed');
+    } catch { setError('network'); }
+    finally { setLoading(false); }
   }
-  React.useEffect(()=>{ load(); }, []);
+  React.useEffect(() => { load(); }, []);
 
   // Load geo lists
-  async function loadCountries(){
-    try{ setGeoLoading(true); const r = await fetch('/api/admin/geo/countries', { credentials:'include' }); const j = await r.json(); if (r.ok) setCountriesOptions(j.countries||[]); }
-    catch{} finally{ setGeoLoading(false); }
+  async function loadCountries() {
+    try { setGeoLoading(true); const r = await fetch('/api/admin/geo/countries', { credentials: 'include' }); const j = await r.json(); if (r.ok) setCountriesOptions(j.countries || []); }
+    catch { } finally { setGeoLoading(false); }
   }
-  async function loadCities(cid:string){
-    if(!cid){ setCitiesOptions([]); return; }
-    try{ setGeoLoading(true); const r = await fetch(`/api/admin/geo/cities?countryId=${encodeURIComponent(cid)}`, { credentials:'include' }); const j = await r.json(); if (r.ok) setCitiesOptions(j.cities||[]); }
-    catch{} finally{ setGeoLoading(false); }
+  async function loadCities(cid: string) {
+    if (!cid) { setCitiesOptions([]); return; }
+    try { setGeoLoading(true); const r = await fetch(`/api/admin/geo/cities?countryId=${encodeURIComponent(cid)}`, { credentials: 'include' }); const j = await r.json(); if (r.ok) setCitiesOptions(j.cities || []); }
+    catch { } finally { setGeoLoading(false); }
   }
-  async function loadAreas(ccid:string){
-    if(!ccid){ setAreasOptions([]); return; }
-    try{ setGeoLoading(true); const r = await fetch(`/api/admin/geo/areas?cityId=${encodeURIComponent(ccid)}`, { credentials:'include' }); const j = await r.json(); if (r.ok) setAreasOptions(j.areas||[]); }
-    catch{} finally{ setGeoLoading(false); }
+  async function loadAreas(ccid: string) {
+    if (!ccid) { setAreasOptions([]); return; }
+    try { setGeoLoading(true); const r = await fetch(`/api/admin/geo/areas?cityId=${encodeURIComponent(ccid)}`, { credentials: 'include' }); const j = await r.json(); if (r.ok) setAreasOptions(j.areas || []); }
+    catch { } finally { setGeoLoading(false); }
   }
-  React.useEffect(()=>{ loadCountries(); }, []);
-  React.useEffect(()=>{ (async()=>{ try{ const r=await fetch('/api/admin/currencies', { credentials:'include' }); const j=await r.json(); if(r.ok) setCurrencies(j.currencies||[]);}catch{ setCurrencies([]);} })(); }, []);
-  React.useEffect(()=>{ setCityId(''); setAreaId(''); setCitiesOptions([]); setAreasOptions([]); if(countryId) loadCities(countryId); }, [countryId]);
-  React.useEffect(()=>{ setAreaId(''); setAreasOptions([]); if(cityId) loadAreas(cityId); }, [cityId]);
+  React.useEffect(() => { loadCountries(); }, []);
+  React.useEffect(() => { setCityId(''); setAreaId(''); setCitiesOptions([]); setAreasOptions([]); if (countryId) loadCities(countryId); }, [countryId]);
+  React.useEffect(() => { setAreaId(''); setAreasOptions([]); if (cityId) loadAreas(cityId); }, [cityId]);
 
-  function reset(){ setEditing(null); setZoneId(''); setCarrier(''); setBaseFee(0); setPerKgFee(''); setMinWeightKg(''); setMaxWeightKg(''); setMinSubtotal(''); setFreeOverSubtotal(''); setEtaMinHours(''); setEtaMaxHours(''); setOfferTitle(''); setActiveFrom(''); setActiveUntil(''); setIsActive(true); }
-  function openCreate(){ reset(); setShowForm(true); }
-  function openEdit(r:any){ setEditing(r); setZoneId(r.zoneId||''); setCarrier(r.carrier||''); setCurrency(r.currency||''); setBaseFee(Number(r.baseFee||0)); setPerKgFee(r.perKgFee??''); setMinWeightKg(r.minWeightKg??''); setMaxWeightKg(r.maxWeightKg??''); setMinSubtotal(r.minSubtotal??''); setFreeOverSubtotal(r.freeOverSubtotal??''); setEtaMinHours(r.etaMinHours??''); setEtaMaxHours(r.etaMaxHours??''); setOfferTitle(r.offerTitle||''); setActiveFrom(r.activeFrom? String(r.activeFrom).slice(0,16):''); setActiveUntil(r.activeUntil? String(r.activeUntil).slice(0,16):''); setIsActive(Boolean(r.isActive)); setShowForm(true); }
   // Auto-filter zones by selected geo
-  const filteredZones = React.useMemo(()=>{
-    if (!countryId && !cityId && !areaId) return zones;
-    // zones are synced per country code and lists of cities/areas by name; we can heuristically filter by name match when available
-    // We only have IDs for geo; fetch names from options
-    const country = countriesOptions.find((c:any)=> c.id===countryId);
-    const city = citiesOptions.find((c:any)=> c.id===cityId);
-    const area = areasOptions.find((a:any)=> a.id===areaId);
-    return zones.filter((z:any)=>{
+  const filteredRows = React.useMemo(() => {
+    if (!countryId && !cityId && !areaId) return rows;
+
+    // Filter zones first
+    const country = countriesOptions.find((c: any) => c.id === countryId);
+    const city = citiesOptions.find((c: any) => c.id === cityId);
+    const area = areasOptions.find((a: any) => a.id === areaId);
+
+    const matchingZoneIds = new Set(zones.filter((z: any) => {
       // If area selected, require zone.areas include area.name
       if (area && Array.isArray(z.areas) && !z.areas.includes(area.name)) return false;
       // If city selected, require zone.cities include city.name
       if (city && Array.isArray(z.cities) && !z.cities.includes(city.name)) return false;
       // If country selected, require countryCodes include country code or code from name
       if (country) {
-        const codes:string[] = Array.isArray(z.countryCodes)? z.countryCodes: [];
-        const iso = (country.code||'').toUpperCase();
-        const nameCode = (country.name||'').trim().toUpperCase().slice(0,2);
+        const codes: string[] = Array.isArray(z.countryCodes) ? z.countryCodes : [];
+        const iso = (country.code || '').toUpperCase();
+        const nameCode = (country.name || '').trim().toUpperCase().slice(0, 2);
         if (!codes.includes(iso) && !codes.includes(nameCode)) return false;
       }
       return true;
-    });
-  }, [zones, countryId, cityId, areaId, countriesOptions, citiesOptions, areasOptions]);
+    }).map(z => z.id));
 
-  // Auto-select zone when there is a match; prefer the first if multiple; clear if current not in filtered
-  React.useEffect(()=>{
-    if (filteredZones.length >= 1) {
-      const preferId = zoneId && filteredZones.some((z:any)=> z.id===zoneId) ? zoneId : filteredZones[0]?.id;
-      if (preferId && zoneId !== preferId) setZoneId(preferId);
-    } else if (zoneId) { setZoneId(''); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredZones, countryId, cityId, areaId]);
+    return rows.filter(r => matchingZoneIds.has(r.zoneId));
+  }, [rows, zones, countryId, cityId, areaId, countriesOptions, citiesOptions, areasOptions]);
 
-  async function submit(e:React.FormEvent){
-    e.preventDefault(); setError('');
-    try{
-      const payload:any = { zoneId, carrier: carrier||undefined, currency: currency||undefined, baseFee: Number(baseFee), perKgFee: perKgFee===''? undefined : Number(perKgFee), minWeightKg: minWeightKg===''? undefined : Number(minWeightKg), maxWeightKg: maxWeightKg===''? undefined : Number(maxWeightKg), minSubtotal: minSubtotal===''? undefined : Number(minSubtotal), freeOverSubtotal: freeOverSubtotal===''? undefined : Number(freeOverSubtotal), etaMinHours: etaMinHours===''? undefined : Number(etaMinHours), etaMaxHours: etaMaxHours===''? undefined : Number(etaMaxHours), offerTitle: offerTitle||undefined, activeFrom: activeFrom||undefined, activeUntil: activeUntil||undefined, isActive };
-      let r:Response; if (editing) r = await fetch(`/api/admin/shipping/rates/${editing.id}`, { method:'PUT', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
-      else r = await fetch('/api/admin/shipping/rates', { method:'POST', headers:{'content-type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
-      const j = await r.json(); if (!r.ok) throw new Error(j.error||'failed'); setShowForm(false); reset(); await load();
-      showToast('تم الحفظ');
-    }catch(err:any){ setError(err.message||'failed'); }
+  async function remove(id: string) {
+    if (!confirm('هل أنت متأكد من حذف سعر الشحن هذا؟')) return;
+    try {
+      const r = await fetch(`/api/admin/shipping/rates/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (r.ok) {
+        showToast('تم الحذف بنجاح', 'ok');
+        await load();
+      } else {
+        const j = await r.json().catch(() => ({}));
+        showToast(j.error || 'فشل الحذف', 'err');
+      }
+    } catch (e) {
+      showToast('خطأ في الاتصال', 'err');
+    }
   }
 
-  async function remove(id:string){ if (!confirm('حذف السعر؟')) return; const r = await fetch(`/api/admin/shipping/rates/${id}`, { method:'DELETE', credentials:'include' }); if (r.ok) await load(); }
+  async function bulkRemove() {
+    const ids = Object.keys(selected).filter(id => selected[id]);
+    if (!ids.length) return;
+    if (!confirm(`هل أنت متأكد من حذف ${ids.length} عنصر؟`)) return;
+    
+    let successCount = 0;
+    for (const id of ids) {
+      try {
+        const r = await fetch(`/api/admin/shipping/rates/${id}`, { method: 'DELETE', credentials: 'include' });
+        if (r.ok) successCount++;
+      } catch { }
+    }
+    
+    setSelected({});
+    setAllChecked(false);
+    await load();
+    showToast(`تم حذف ${successCount} عنصر`, 'ok');
+  }
 
   return (
-    <div className="container">
-      <main className="panel" style={{ padding:16 }}>
-        {toast && (<div className="toast ok" style={{ marginBottom:8 }}>{toast}</div>)}
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-          <h1 style={{ margin:0 }}>أسعار التوصيل</h1>
-          <div style={{ display:'flex', gap:8 }}>
-            <button className="btn danger" onClick={async ()=>{
-              const ids = Object.keys(selected).filter(id=> selected[id]); if (!ids.length) return;
-              for (const id of ids) { try { await fetch(`/api/admin/shipping/rates/${id}`, { method:'DELETE', credentials:'include' }); } catch {} }
-              setSelected({}); setAllChecked(false); await load(); showToast('تم حذف المحدد');
-            }}>حذف المحدد</button>
-            <button onClick={openCreate} className="btn">إضافة سعر</button>
-          </div>
+    <div className="w-full space-y-6">
+      {toast && (
+        <div className={`fixed bottom-4 left-4 z-50 px-4 py-2 rounded shadow-lg text-white ${toast.type === 'ok' ? 'bg-green-600' : 'bg-red-600'}`}>
+          {toast.text}
         </div>
-        {loading ? <div role="status" aria-busy="true" className="skeleton" style={{ height: 200 }} /> : error ? <div className="error" aria-live="assertive">فشل: {error}</div> : (
-          <div style={{ overflowX:'auto' }}>
-            <table className="table" role="table" aria-label="قائمة أسعار التوصيل">
-              <thead><tr><th><input type="checkbox" checked={allChecked} onChange={(e)=>{ const v=e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(rows.map(r=> [r.id, v]))); }} /></th><th>المنطقة</th><th>المشغل</th><th>الرسوم الأساسية</th><th>لكل كجم</th><th>مجاني فوق</th><th>ETA</th><th>نشط</th><th></th></tr></thead>
-              <tbody>
-                {rows.map(r=> (
-                  <tr key={r.id}>
-                    <td><input type="checkbox" checked={!!selected[r.id]} onChange={()=> setSelected(s=> ({...s, [r.id]: !s[r.id]}))} /></td>
-                    <td>{zones.find(z=>z.id===r.zoneId)?.name || r.zoneId}</td>
-                    <td>{r.carrier||'—'}</td>
-                    <td>{r.baseFee}</td>
-                    <td>{r.perKgFee??'—'}</td>
-                    <td>{r.freeOverSubtotal??'—'}</td>
-                    <td>{r.etaMinHours? `${r.etaMinHours}-${r.etaMaxHours||r.etaMinHours} ساعة` : '—'}</td>
-                    <td>{r.isActive? 'نعم':'لا'}</td>
-                    <td>
-                      <button aria-label={`تعديل سعر ${zones.find(z=>z.id===r.zoneId)?.name||''}`} onClick={()=>openEdit(r)} className="btn btn-outline" style={{ marginInlineEnd:6 }}>تعديل</button>
-                      <button aria-label={`حذف سعر ${zones.find(z=>z.id===r.zoneId)?.name||''}`} onClick={()=>remove(r.id)} className="btn btn-danger">حذف</button>
-                    </td>
-                  </tr>
-                ))}
+      )}
+      
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text)]">أسعار التوصيل</h1>
+          <p className="text-[var(--sub)] mt-1">إدارة أسعار الشحن للمناطق المختلفة</p>
+        </div>
+        <div className="flex gap-3">
+          {Object.values(selected).some(Boolean) && (
+            <button 
+              className="btn bg-red-500/10 text-red-500 hover:bg-red-500/20 border-red-500/20"
+              onClick={bulkRemove}
+            >
+              حذف المحدد ({Object.values(selected).filter(Boolean).length})
+            </button>
+          )}
+          <button 
+            onClick={() => router.push('/system/shipping-rates/new')} 
+            className="btn"
+          >
+            <svg className="w-5 h-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            إضافة سعر جديد
+          </button>
+        </div>
+      </div>
+
+      {/* Filter Bar */}
+      <div className="panel p-4 flex flex-wrap gap-4 items-center">
+        <div className="flex items-center gap-2 text-[var(--sub)]">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+          <span className="text-sm font-medium">تصفية:</span>
+        </div>
+        <select 
+          value={countryId} 
+          onChange={(e) => setCountryId(e.target.value)} 
+          className="select w-auto min-w-[160px] py-1.5 h-9 text-sm"
+        >
+          <option value="">كل الدول</option>
+          {countriesOptions.map((c: any) => (<option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>))}
+        </select>
+        <select 
+          value={cityId} 
+          onChange={(e) => setCityId(e.target.value)} 
+          className="select w-auto min-w-[160px] py-1.5 h-9 text-sm disabled:opacity-50" 
+          disabled={!countryId}
+        >
+          <option value="">كل المدن</option>
+          {citiesOptions.map((c: any) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+        </select>
+        <select 
+          value={areaId} 
+          onChange={(e) => setAreaId(e.target.value)} 
+          className="select w-auto min-w-[160px] py-1.5 h-9 text-sm disabled:opacity-50" 
+          disabled={!cityId}
+        >
+          <option value="">كل المناطق</option>
+          {areasOptions.map((a: any) => (<option key={a.id} value={a.id}>{a.name}</option>))}
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="animate-pulse space-y-4">
+          <div className="h-12 bg-[var(--panel)] rounded w-full border border-[rgba(255,255,255,0.05)]"></div>
+          <div className="h-64 bg-[var(--panel)] rounded w-full border border-[rgba(255,255,255,0.05)]"></div>
+        </div>
+      ) : error ? (
+        <div className="p-4 bg-red-900/20 text-red-400 rounded-lg border border-red-900/50 flex items-center gap-2">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          فشل تحميل البيانات: {error}
+        </div>
+      ) : (
+        <div className="panel overflow-hidden p-0">
+          <div className="overflow-x-auto">
+            <table className="table w-full">
+              <thead>
+                <tr className="bg-[rgba(255,255,255,0.02)] border-b border-[rgba(255,255,255,0.06)]">
+                  <th className="w-10 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={allChecked}
+                      onChange={(e) => { const v = e.target.checked; setAllChecked(v); setSelected(Object.fromEntries(filteredRows.map(r => [r.id, v]))); }}
+                      className="rounded border-gray-600 bg-transparent text-[var(--primary)] focus:ring-[var(--primary)] h-4 w-4"
+                    />
+                  </th>
+                  <th className="px-4 py-3 text-right">المنطقة</th>
+                  <th className="px-4 py-3 text-right">استثناءات</th>
+                  <th className="px-4 py-3 text-right">المشغل</th>
+                  <th className="px-4 py-3 text-right">الرسوم الأساسية</th>
+                  <th className="px-4 py-3 text-right">لكل كجم</th>
+                  <th className="px-4 py-3 text-right">مجاني فوق</th>
+                  <th className="px-4 py-3 text-right">مدة التوصيل</th>
+                  <th className="px-4 py-3 text-center">الحالة</th>
+                  <th className="px-4 py-3 text-left">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[rgba(255,255,255,0.06)]">
+                {filteredRows.map(r => {
+                  const z = zones.find(z => z.id === r.zoneId)
+                  const excludedCount = Array.isArray(r.excludedZoneIds) ? r.excludedZoneIds.length : 0;
+                  return (
+                    <tr key={r.id} className="hover:bg-[rgba(255,255,255,0.02)] transition-colors">
+                      <td className="px-4 py-3">
+                        <input 
+                          type="checkbox" 
+                          checked={!!selected[r.id]} 
+                          onChange={() => setSelected(s => ({ ...s, [r.id]: !s[r.id] }))} 
+                          className="rounded border-gray-600 bg-transparent text-[var(--primary)] focus:ring-[var(--primary)] h-4 w-4"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-[var(--text)]">{z?.name || r.zoneId}</div>
+                        <div className="text-xs text-[var(--sub)] mt-0.5">
+                          {[
+                            Array.isArray(z?.cities) && z.cities.length ? `${z.cities.length} مدن` : null,
+                            Array.isArray(z?.areas) && z.areas.length ? `${z.areas.length} مناطق` : null
+                          ].filter(Boolean).join('، ')}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {excludedCount > 0 ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-900/30 text-red-400 border border-red-900/50">
+                            {excludedCount} مستثنى
+                          </span>
+                        ) : (
+                          <span className="text-[var(--sub)] text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-[var(--sub)]">{r.carrier || '—'}</td>
+                      <td className="px-4 py-3 font-medium text-[var(--text)]">{r.baseFee}</td>
+                      <td className="px-4 py-3 text-sm text-[var(--sub)]">{r.perKgFee ?? '—'}</td>
+                      <td className="px-4 py-3 text-sm text-[var(--sub)]">{r.freeOverSubtotal ?? '—'}</td>
+                      <td className="px-4 py-3 text-sm text-[var(--sub)]">
+                        {r.etaMinHours ? (
+                          <div className="flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            {r.etaMinHours}-{r.etaMaxHours || r.etaMinHours} ساعة
+                          </div>
+                        ) : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${r.isActive ? 'bg-green-900/30 text-green-400 border border-green-900/50' : 'bg-gray-700/30 text-gray-400 border border-gray-700/50'}`}>
+                          {r.isActive ? 'نشط' : 'معطل'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => router.push(`/system/shipping-rates/${r.id}`)} 
+                            className="p-1.5 text-[var(--sub)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded transition-colors"
+                            title="تعديل"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          </button>
+                          <button 
+                            onClick={() => remove(r.id)} 
+                            className="p-1.5 text-[var(--sub)] hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                            title="حذف"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+                {filteredRows.length === 0 && (
+                  <tr><td colSpan={10} className="px-6 py-12 text-center text-[var(--sub)] text-sm">لا توجد أسعار شحن مطابقة لخيارات التصفية</td></tr>
+                )}
               </tbody>
             </table>
           </div>
-        )}
-
-        {showForm && (
-          <div className="panel" style={{ marginTop:16, padding:16 }}>
-            <h2 style={{ marginTop:0 }}>{editing? 'تعديل سعر' : 'إضافة سعر'}</h2>
-            <form onSubmit={submit} style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }} aria-label="نموذج سعر التوصيل">
-              <label>الدولة
-                <select value={countryId} onChange={(e)=> setCountryId(e.target.value)} className="select">
-                  <option value="">اختر دولة</option>
-                  {countriesOptions.map((c:any)=> (<option key={c.id} value={c.id}>{c.name}{c.code? ` (${c.code})`: ''}</option>))}
-                </select>
-              </label>
-              <label>المدينة
-                <select value={cityId} onChange={(e)=> setCityId(e.target.value)} className="select" disabled={!countryId}>
-                  <option value="">اختر مدينة</option>
-                  {citiesOptions.map((c:any)=> (<option key={c.id} value={c.id}>{c.name}{c.region? ` — ${c.region}`:''}</option>))}
-                </select>
-              </label>
-              <label>المنطقة
-                <select value={areaId} onChange={(e)=> setAreaId(e.target.value)} className="select" disabled={!cityId}>
-                  <option value="">اختر منطقة</option>
-                  {areasOptions.map((a:any)=> (<option key={a.id} value={a.id}>{a.name}</option>))}
-                </select>
-              </label>
-              <div style={{ gridColumn:'1 / -1' }}>
-                {filteredZones.length>0 ? (
-                  <div className="panel" style={{ padding:10 }}>
-                    <div style={{ color:'#666', fontSize:12, marginBottom:6 }}>سيتم استخدام منطقة الشحن المطابقة تلقائيًا</div>
-                    <div><b>{(zones.find(z=> z.id===zoneId)?.name) || filteredZones[0]?.name}</b></div>
-                  </div>
-                ) : (
-                  <div className="error" aria-live="polite">لا توجد منطقة شحن مطابقة — استخدم مزامنة المناطق أو أضف دولة/مدينة/منطقة</div>
-                )}
-              </div>
-              <label>العملة
-                <select className="select" value={currency} onChange={(e)=> setCurrency(e.target.value)}>
-                  <option value="">اختر عملة</option>
-                  {currencies.map((c)=> (
-                    <option key={c.id} value={c.code}>{c.code} — {c.name} {c.isBase? '(الأساسية)': ''}</option>
-                  ))}
-                </select>
-              </label>
-              <label>المشغل (اختياري)<input value={carrier} onChange={(e)=> setCarrier(e.target.value)} className="input" /></label>
-              <label>السعر الأساسي<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={String(baseFee)} onChange={(e)=> setBaseFee(Number(String(e.target.value).replace(',','.'))||0)} className="input" placeholder="0.00" required /></label>
-              <label>لكل كجم<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={perKgFee} onChange={(e)=> setPerKgFee(e.target.value===''?'':Number(String(e.target.value).replace(',','.')))} className="input" placeholder="0.00" /></label>
-              <label>الوزن الأدنى (كجم)<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={minWeightKg} onChange={(e)=> setMinWeightKg(e.target.value===''?'':Number(String(e.target.value).replace(',','.')))} className="input" placeholder="0.00" /></label>
-              <label>الوزن الأقصى (كجم)<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={maxWeightKg} onChange={(e)=> setMaxWeightKg(e.target.value===''?'':Number(String(e.target.value).replace(',','.')))} className="input" placeholder="0.00" /></label>
-              <label>المجموع الأدنى للطلب<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={minSubtotal} onChange={(e)=> setMinSubtotal(e.target.value===''?'':Number(String(e.target.value).replace(',','.')))} className="input" placeholder="0.00" /></label>
-              <label>شحن مجاني فوق<input inputMode="decimal" pattern="[0-9]+([.,][0-9]+)?" value={freeOverSubtotal} onChange={(e)=> setFreeOverSubtotal(e.target.value===''?'':Number(String(e.target.value).replace(',','.')))} className="input" placeholder="0.00" /></label>
-              <label>المدة (ساعات)
-                <div style={{ display:'flex', gap:8 }}>
-                  <input className="input" inputMode="numeric" pattern="[0-9]+" value={etaMinHours} onChange={(e)=> setEtaMinHours(e.target.value===''?'':Number(e.target.value))} placeholder="من" />
-                  <input className="input" inputMode="numeric" pattern="[0-9]+" value={etaMaxHours} onChange={(e)=> setEtaMaxHours(e.target.value===''?'':Number(e.target.value))} placeholder="إلى" />
-                </div>
-              </label>
-              <label>عنوان العرض (اختياري)<input value={offerTitle} onChange={(e)=> setOfferTitle(e.target.value)} className="input" /></label>
-              <div style={{ gridColumn:'1 / -1' }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, alignItems:'center' }}>
-                  <div style={{ display:'flex', gap:8 }}>
-                    <label style={{ flex:1 }}>ساري من
-                      <div style={{ display:'flex', gap:6 }}>
-                        <input ref={fromRef} type="date" value={activeFrom? String(activeFrom).slice(0,10): ''} onChange={(e)=> setActiveFrom(e.target.value? `${e.target.value}T00:00` : '')} className="input" />
-                        <button type="button" className="btn btn-outline" onClick={()=>{ try{ (fromRef.current as any)?.showPicker?.(); }catch{} fromRef.current?.focus(); }}>📅</button>
-                      </div>
-                    </label>
-                  </div>
-                  <div style={{ display:'flex', gap:8 }}>
-                    <label style={{ flex:1 }}>ساري إلى
-                      <div style={{ display:'flex', gap:6 }}>
-                        <input ref={toRef} type="date" value={activeUntil? String(activeUntil).slice(0,10): ''} onChange={(e)=> setActiveUntil(e.target.value? `${e.target.value}T23:59` : '')} className="input" />
-                        <button type="button" className="btn btn-outline" onClick={()=>{ try{ (toRef.current as any)?.showPicker?.(); }catch{} toRef.current?.focus(); }}>📅</button>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <label style={{ display:'flex', alignItems:'center', gap:8 }}><input type="checkbox" checked={isActive} onChange={(e)=> setIsActive(e.target.checked)} /> مفعّل</label>
-              <div style={{ gridColumn:'1 / -1', display:'flex', gap:8, justifyContent:'flex-end' }}>
-                <button type="submit" className="btn">حفظ</button>
-                <button type="button" onClick={()=> { setShowForm(false); reset(); }} className="btn btn-outline">إلغاء</button>
-              </div>
-            </form>
-          </div>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   );
 }
-

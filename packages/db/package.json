@@ -15,17 +15,16 @@
     "db:seed:admin-only": "pnpm exec ts-node prisma/seed-admin-only.ts",
     "db:reset": "pnpm exec prisma migrate reset --force",
     "db:deploy": "pnpm exec prisma migrate deploy",
-    "db:push": "pnpm exec prisma db push",
     "lint": "echo \"Linting disabled for now\"",
     "test": "echo \"No tests specified for db package\"",
     "test:coverage": "echo \"No tests specified for db package\""
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
-    "bcryptjs": "^2.4.3"
+    "bcryptjs": "^2.4.3",
+    "prisma": "^5.14.0"
   },
   "devDependencies": {
-    "prisma": "^5.14.0",
     "@repo/typescript-config": "workspace:*",
     "typescript": "^5",
     "eslint": "^8",

@@ -106,6 +106,80 @@ export const authRouter = router({
       const token = createToken({ userId: user.id, email: user.email, role: user.role });
       setAuthCookies(ctx.res as any, token);
 
+      // Merge guest cart into user cart if a guest session cookie exists (first-login sync)
+      try {
+        const req: any = ctx.req as any;
+        const res: any = ctx.res as any;
+        const raw = String(req.headers?.cookie || '');
+        const cookies: Record<string, string> = raw.split(';').reduce((acc: any, p: string) => {
+          const [k, ...rest] = p.split('=');
+          if (!k) return acc;
+          acc[k.trim()] = decodeURIComponent((rest.join('=') || '').trim());
+          return acc;
+        }, {});
+        const sid = (req.headers['x-session-id'] as string | undefined) || cookies['guest_session'] || cookies['guest_sid'];
+        if (sid) {
+          const guest: any = await db.guestCart.findUnique({ where: { sessionId: sid }, include: { items: true } } as any);
+          if (guest && Array.isArray(guest.items) && guest.items.length) {
+            // Ensure user cart
+            const cart = await db.cart.upsert({ where: { userId: user.id }, create: { userId: user.id }, update: {} } as any);
+            const cartId = cart.id;
+            for (const it of guest.items) {
+              const pid = String(it.productId);
+              const existing = await db.cartItem.findFirst({ where: { cartId, productId: pid }, select: { id: true, quantity: true } });
+              if (existing) {
+                await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + Number(it.quantity || 1), attributes: (it as any).attributes || undefined } });
+              } else {
+                await db.cartItem.create({ data: { cartId, productId: pid, quantity: Number(it.quantity || 1), attributes: (it as any).attributes || undefined } });
+              }
+            }
+            // cleanup guest cart
+            try { await db.guestCartItem.deleteMany({ where: { cartId: guest.id } } as any); } catch {}
+            try { await db.guestCart.delete({ where: { id: guest.id } } as any); } catch {}
+            try { await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any); } catch {}
+          }
+        }
+        // Cross-device auto-merge: merge recent guest carts linked to this user via analytics sessionIds
+        try {
+          // Fetch up to 20 recent distinct sessionIds for this user from Event
+          const rows: any[] = await db.$queryRawUnsafe(`
+            SELECT DISTINCT ON (sid) sid
+            FROM (
+              SELECT COALESCE("sessionId", properties->>'sessionId') AS sid, "createdAt"
+              FROM "Event"
+              WHERE "userId"=$1 AND COALESCE("sessionId", properties->>'sessionId') IS NOT NULL
+                AND "createdAt" >= NOW() - INTERVAL '30 days'
+            ) t
+            ORDER BY sid, "createdAt" DESC
+            LIMIT 20
+          `, user.id) as any[];
+          if (Array.isArray(rows) && rows.length) {
+            const cart = await db.cart.upsert({ where: { userId: user.id }, create: { userId: user.id }, update: {} } as any);
+            const cartId = cart.id;
+            for (const r of rows) {
+              const sid2 = String((r as any).sid || '');
+              if (!sid2) continue;
+              const g: any = await db.guestCart.findFirst({ where: { sessionId: sid2 }, include: { items: true } } as any) as any;
+              const gItems: any[] = Array.isArray((g as any)?.items) ? (g as any).items : [];
+              if (!g || gItems.length === 0) continue;
+              for (const it of gItems) {
+                const pid = String(it.productId);
+                const existing = await db.cartItem.findFirst({ where: { cartId, productId: pid }, select: { id: true, quantity: true } });
+                if (existing) {
+                  await db.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + Number(it.quantity || 1), attributes: (it as any).attributes || undefined } });
+                } else {
+                  await db.cartItem.create({ data: { cartId, productId: pid, quantity: Number(it.quantity || 1), attributes: (it as any).attributes || undefined } });
+                }
+              }
+              // cleanup merged guest cart
+              try { await db.guestCartItem.deleteMany({ where: { cartId: g.id } } as any); } catch {}
+              try { await db.guestCart.delete({ where: { id: g.id } } as any); } catch {}
+            }
+            try { await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any); } catch {}
+          }
+        } catch {}
+      } catch {}
+
       const { password: _, ...userWithoutPassword } = user;
       return { user: userWithoutPassword };
     }),

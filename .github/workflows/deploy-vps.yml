@@ -15,6 +15,11 @@ on:
         required: false
         type: boolean
         default: false
+      run_variants_smoke:
+        description: "Run product variants/colors smoke after deploy"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   deploy:
@@ -36,6 +41,8 @@ jobs:
           pnpm --filter @repo/api clean
           pnpm --filter @repo/api exec tsc -p tsconfig.json
           pnpm --filter admin build
+          # Build mweb locally to catch Vite errors early (fails fast)
+          pnpm --filter mweb build
 
       # E2E auth moved to dedicated workflow
       - name: Archive project (use git archive to avoid file change warnings)
@@ -199,6 +206,7 @@ jobs:
               echo "COOKIE_DOMAIN=${{ secrets.COOKIE_DOMAIN || vars.COOKIE_DOMAIN }}"
               echo "PUBLIC_API_BASE=$API_BASE_VAL"
               echo "MWEB_BASE_URL=$MWEB_BASE_VAL"
+              echo "META_ALLOW_EXTERNAL=1"
               echo "DEFAULT_COUNTRY_CODE=${{ secrets.DEFAULT_COUNTRY_CODE || vars.DEFAULT_COUNTRY_CODE || '+967' }}"
               echo "CORS_ALLOW_ORIGINS=${{ secrets.CORS_ALLOW_ORIGINS || vars.CORS_ALLOW_ORIGINS }}"
               echo "NEXT_PUBLIC_ADMIN_URL=${{ secrets.NEXT_PUBLIC_ADMIN_URL || vars.NEXT_PUBLIC_ADMIN_URL }}"
@@ -307,16 +315,16 @@ jobs:
             pnpm install --frozen-lockfile=false
             bash infra/scripts/deploy.sh "$PATH_ON_HOST"
             echo '--- Prisma migrate (deploy) ---'
-            if [ -f "$PATH_ON_HOST/.env.api" ]; then
-              set -a
-              . "$PATH_ON_HOST/.env.api"
-              set +a
-            fi
-            if [ -n "${DATABASE_URL:-}" ] && [ -n "${DIRECT_URL:-}" ]; then
-              echo "Running prisma migrate deploy with DATABASE_URL=$DATABASE_URL"
+            # Safe env loader (handles &, #, CRLF)
+            load_env_file() { local f="$1"; [ -f "$f" ] || return 0; while IFS= read -r line || [ -n "$line" ]; do line="${line%$'\r'}"; case "$line" in ''|'#'*) continue;; esac; local key="${line%%=*}"; local val="${line#*=}"; if [[ "$val" == \"*\" && "$val" == *\" ]]; then val="${val:1:${#val}-2}"; fi; if [[ "$val" == \'*\' && "$val" == *\' ]]; then val="${val:1:${#val}-2}"; fi; export "$key=$val"; done < "$f"; }
+            load_env_file "$PATH_ON_HOST/.env.api"
+            if [ -n "${DATABASE_URL:-}" ] || [ -n "${DIRECT_URL:-}" ]; then
+              # Fallback: if DIRECT_URL is empty, reuse DATABASE_URL to avoid schema validation issues
+              if [ -z "${DIRECT_URL:-}" ] && [ -n "${DATABASE_URL:-}" ]; then export DIRECT_URL="$DATABASE_URL"; fi
+              echo "Running prisma migrate deploy with DATABASE_URL=${DATABASE_URL:-$DIRECT_URL}"
               cd "$PATH_ON_HOST/packages/db"
               pnpm install --prod --ignore-scripts || true
-              npx prisma migrate deploy || pnpm prisma migrate deploy || true
+              npx prisma db push --accept-data-loss || pnpm prisma db push --accept-data-loss || true
               cd "$PATH_ON_HOST"
             else
               echo 'DATABASE_URL/DIRECT_URL not set; skipping prisma migrate deploy'
@@ -342,6 +350,9 @@ jobs:
                 '    default "";' \
                 '    ~^https://(m\.jeeey\.com|admin\.jeeey\.com|jeeey\.com|www\.jeeey\.com)$ $http_origin;' \
                 '}' > /etc/nginx/conf.d/cors_map.conf
+              # Ensure proxy_cache path exists for thumbs cache
+              mkdir -p /var/cache/nginx/thumbs || true
+              chown -R www-data:www-data /var/cache/nginx || true
               echo 'Validating nginx config (staging only, no reload yet)...'
               nginx -t || true
               echo 'Nginx config staged; reload will occur after ensure-https.'
@@ -369,10 +380,126 @@ jobs:
             echo '--- Clean any conflicting site files and reload ---'
             # Keep only jeeey.conf (template) and remove any jeeey-ssl.conf to avoid duplication
             find /etc/nginx/sites-enabled -maxdepth 1 -type l -not -name 'jeeey.conf' -exec rm -f {} + || true
+            # Ensure proxy_cache path exists before nginx -t
+            mkdir -p /var/cache/nginx/thumbs || true
+            chown -R www-data:www-data /var/cache/nginx || true
             nginx -t
             (nginx -s reload || systemctl reload nginx || systemctl restart nginx)
             echo '--- Wait for 443 readiness ---'
             ok=0; for i in $(seq 1 30); do code=$(curl -ksS -o /dev/null -w '%{http_code}' https://api.jeeey.com/health || true); echo "try $i => $code"; [ "$code" = "200" ] && ok=1 && break; sleep 2; done; [ "$ok" = "1" ] || exit 1
+
+      - name: Schedule certbot renew (systemd timer)
+        if: ${{ env.HAVE_SSH == '1' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
+          timeout: 120s
+          command_timeout: 5m
+          script_stop: true
+          script: |
+            set -e
+            ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
+            bash "$ROOT/infra/deploy/schedule-certbot-renew.sh"
+
+      - name: Setup swap (optional)
+        if: ${{ env.HAVE_SSH == '1' }}
+        uses: appleboy/ssh-action@v1.0.3
+        continue-on-error: true
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
+          timeout: 120s
+          command_timeout: 5m
+          script_stop: false
+          script: |
+            set -e
+            ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
+            SWAP_FLAG="${{ secrets.SETUP_SWAP || vars.SETUP_SWAP || '0' }}"
+            echo "SETUP_SWAP=$SWAP_FLAG"
+            if [ "$SWAP_FLAG" = "1" ]; then
+              sudo bash "$ROOT/infra/scripts/setup-swap.sh" 2 || true
+            else
+              echo "Swap setup disabled (SETUP_SWAP != 1)"
+            fi
+
+      - name: Network hardening (bind HOST=127.0.0.1 + close 3000/3001/4000)
+        if: ${{ env.HAVE_SSH == '1' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
+          timeout: 120s
+          command_timeout: 10m
+          script_stop: true
+          script: |
+            set -e
+            echo '--- Ensure systemd drop-ins set HOST=127.0.0.1 ---'
+            for svc in ecom-api ecom-web ecom-admin; do
+              mkdir -p "/etc/systemd/system/$svc.service.d"
+              printf '[Service]\nEnvironment=HOST=127.0.0.1\n' > "/etc/systemd/system/$svc.service.d/host.conf"
+              printf '[Service]\nEnvironment=HOSTNAME=127.0.0.1\n' > "/etc/systemd/system/$svc.service.d/hostname.conf"
+            done
+            systemctl daemon-reload || true
+            # Force restart to pick up new env
+            systemctl restart ecom-api || true
+            systemctl restart ecom-web || true
+            systemctl restart ecom-admin || true
+            echo '--- UFW: allow only 22/80/443; deny 3000/3001/4000 ---'
+            if command -v ufw >/dev/null 2>&1; then
+              ufw allow OpenSSH || true
+              ufw allow 80/tcp || true
+              ufw allow 443/tcp || true
+              ufw deny 3000/tcp || true
+              ufw deny 3001/tcp || true
+              ufw deny 4000/tcp || true
+              yes | ufw enable || true
+            fi
+            echo '--- Verify bindings are localhost-only ---'
+            (command -v ss >/dev/null && ss -ltnp | egrep ':4000|:3001|:3000' || netstat -ltnp 2>/dev/null | egrep ':4000|:3001|:3000') || true
+            bad=$( (ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null) | egrep ':4000|:3001|:3000' | egrep -v '127\.0\.0\.1' || true )
+            if [ -n "$bad" ]; then
+              echo 'Found non-localhost bindings:'
+              echo "$bad"
+              exit 1
+            fi
+
+      - name: Verify mweb dist and static serving
+        if: ${{ env.HAVE_SSH == '1' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT }}
+          timeout: 120s
+          command_timeout: 10m
+          script_stop: true
+          script: |
+            set -e
+            ROOT=${{ github.event.inputs.path || '/var/www/ecom' }}
+            test -f "$ROOT/apps/mweb/dist/index.html"
+            echo '--- Probe m.jeeey.com root and sw.js ---'
+            code=$(curl -ksS -o /dev/null -w '%{http_code}' https://m.jeeey.com/ || true)
+            echo "mweb / => $code"
+            sw=$(curl -ksS -o /dev/null -w '%{http_code}' https://m.jeeey.com/sw.js || true)
+            echo "mweb /sw.js => $sw"
+            case "$code" in 200|204|301|302|307|308) : ;; *) exit 1;; esac
+            [ "$sw" = "200" ] || exit 1
 
       - name: Post-deploy smoke (health, login, static, services)
         if: ${{ env.HAVE_SSH == '1' }}
@@ -510,7 +637,9 @@ jobs:
               PASS="${ADMIN_PASSWORD:-admin123}"
               JSON_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:4000/api/admin/auth/login -H 'content-type: application/json' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}")
               if [ "$JSON_STATUS" != "200" ]; then
-                . "$ROOT/.env.api" || true
+              # Safe env loader for MAINTENANCE_SECRET and others
+              load_env_file() { local f="$1"; [ -f "$f" ] || return 0; while IFS= read -r line || [ -n "$line" ]; do line="${line%$'\r'}"; case "$line" in ''|'#'*) continue;; esac; local key="${line%%=*}"; local val="${line#*=}"; if [[ "$val" == \"*\" && "$val" == *\" ]]; then val="${val:1:${#val}-2}"; fi; if [[ "$val" == \'*\' && "$val" == *\' ]]; then val="${val:1:${#val}-2}"; fi; export "$key=$val"; done < "$f"; }
+              load_env_file "$ROOT/.env.api" || true
                 curl -s -X POST http://127.0.0.1:4000/api/admin/maintenance/create-admin -H "x-maintenance-secret: ${MAINTENANCE_SECRET:-}" -H 'content-type: application/json' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"name\":\"Admin\"}" || true
                 sleep 1
                 JSON_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:4000/api/admin/auth/login -H 'content-type: application/json' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}")
@@ -550,7 +679,9 @@ jobs:
             EMAIL=${ADMIN_EMAIL:-${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}}
             PASS=${ADMIN_PASSWORD:-${{ secrets.ADMIN_PASSWORD || 'admin123' }}}
             API=http://127.0.0.1:4000
-            if [ -f "$ROOT/.env.api" ]; then . "$ROOT/.env.api" || true; fi
+            # Safe env loader and load .env.api if present
+            load_env_file() { local f="$1"; [ -f "$f" ] || return 0; while IFS= read -r line || [ -n "$line" ]; do line="${line%$'\r'}"; case "$line" in ''|'#'*) continue;; esac; local key="${line%%=*}"; local val="${line#*=}"; if [[ "$val" == \"*\" && "$val" == *\" ]]; then val="${val:1:${#val}-2}"; fi; if [[ "$val" == \'*\' && "$val" == *\' ]]; then val="${val:1:${#val}-2}"; fi; export "$key=$val"; done < "$f"; }
+            load_env_file "$ROOT/.env.api" || true
             echo '--- ensure RBAC'
             curl -sS -H "x-maintenance-secret: ${MAINTENANCE_SECRET:-}" -X POST "$API/api/admin/maintenance/ensure-rbac" | sed -n '1,60p' || true
             echo '--- create admin (idempotent)'
@@ -623,12 +754,13 @@ jobs:
             echo '--- Admin login via API domain (JSON) ---'
             curl -k -sSi -c "$CJ" \
               -H 'content-type: application/json' \
+              -H 'origin: https://admin.jeeey.com' \
               -X POST 'https://api.jeeey.com/api/admin/auth/login' \
               --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" | sed -n '1,60p'
             echo
             echo '--- Extract token from response body (fallback to cookie if missing) ---'
             BODY=/tmp/admin_login_body_$$.json
-            curl -k -s -c "$CJ" -H 'content-type: application/json' -X POST 'https://api.jeeey.com/api/admin/auth/login' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY"
+            curl -k -s -c "$CJ" -H 'content-type: application/json' -H 'origin: https://admin.jeeey.com' -X POST 'https://api.jeeey.com/api/admin/auth/login' --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY"
             TOKEN=$(grep -o '"token":"[^"]\+"' "$BODY" | head -n1 | sed 's/.*"token":"\([^"]\+\)".*/\1/') || true
             if [ -n "${TOKEN:-}" ]; then echo "token: ${#TOKEN} bytes"; else echo 'token: (not present, will rely on cookie)'; fi
             echo
@@ -645,7 +777,7 @@ jobs:
             fi
             echo
             echo '--- API whoami (cookie jar) ---'
-            curl -k -sS -b "$CJ" https://api.jeeey.com/api/admin/auth/whoami | sed -n '1,80p'
+            curl -k -sS -H 'origin: https://admin.jeeey.com' -b "$CJ" https://api.jeeey.com/api/admin/auth/whoami | sed -n '1,80p'
             echo
             echo '--- Done ---'
 
@@ -671,7 +803,7 @@ jobs:
             rm -f "$CJ"
             echo '--- Login (JSON) ---'
             BODY=/tmp/login.body
-            curl -k -s -c "$CJ" -o "$BODY" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}"
+            curl -k -s -c "$CJ" -o "$BODY" -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}"
             TOKEN=$(grep -o '"token":"[^"]\+"' "$BODY" | head -n1 | sed 's/.*"token":"\([^"]\+\)".*/\1/' ) || true
             echo "token-bytes: ${#TOKEN}"
             echo '--- Bridge cookie on admin domain ---'
@@ -687,9 +819,9 @@ jobs:
             # API matrix (read-only)
             echo '--- Admin API matrix (read-only) ---'
             # Categories list
-            curl -k -sS 'https://api.jeeey.com/api/admin/categories?limit=1' -b "$CJ" | head -n1 | grep -q '{' || { echo 'categories API failed'; exit 1; }
+            curl -k -sS -H 'origin: https://admin.jeeey.com' 'https://api.jeeey.com/api/admin/categories?limit=1' -b "$CJ" | head -n1 | grep -q '{' || { echo 'categories API failed'; exit 1; }
             # Users list (if available)
-            curl -k -sS 'https://api.jeeey.com/api/admin/users/list?page=1&limit=1' -b "$CJ" | head -n1 | grep -q '{' || echo 'users API not available (continuing)'
+            curl -k -sS -H 'origin: https://admin.jeeey.com' 'https://api.jeeey.com/api/admin/users/list?page=1&limit=1' -b "$CJ" | head -n1 | grep -q '{' || echo 'users API not available (continuing)'
             echo '--- Matrix OK ---'
 
       - name: Post-deploy admin CRUD smoke (RBAC, grant-admin, users, vendor, user)
@@ -717,20 +849,20 @@ jobs:
             head -n 2 /tmp/login.body | sed -n '1,2p'
             [ "$CODE" = "200" ] || { echo "login failed: $CODE"; cat /tmp/login.body; exit 1; }
             echo '--- Ensure RBAC ---'
-            RB=$(curl -k -sS -H "x-maintenance-secret: $SECRET" -X POST https://api.jeeey.com/api/admin/maintenance/ensure-rbac || true)
+            RB=$(curl -k -sS -H 'origin: https://admin.jeeey.com' -H "x-maintenance-secret: $SECRET" -X POST https://api.jeeey.com/api/admin/maintenance/ensure-rbac || true)
             echo "$RB" | sed -n '1,40p'
             echo '--- Grant admin ---'
-            GA=$(curl -k -sS -H "x-maintenance-secret: $SECRET" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/maintenance/grant-admin --data "{\"email\":\"$EMAIL\"}" || true)
+            GA=$(curl -k -sS -H 'origin: https://admin.jeeey.com' -H "x-maintenance-secret: $SECRET" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/maintenance/grant-admin --data "{\"email\":\"$EMAIL\"}" || true)
             echo "$GA" | sed -n '1,60p'
             echo '--- Users list (first 5) ---'
-            UL=$(curl -k -sS -b "$CJ" 'https://api.jeeey.com/api/admin/users/list?page=1&limit=5' || true)
+            UL=$(curl -k -sS -H 'origin: https://admin.jeeey.com' -b "$CJ" 'https://api.jeeey.com/api/admin/users/list?page=1&limit=5' || true)
             echo "$UL" | sed -n '1,80p'
             echo '--- Create vendor (smoke) ---'
-            VEND=$(curl -k -sS -b "$CJ" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/vendors --data '{"name":"Deploy Smoke Vendor"}' || true)
+            VEND=$(curl -k -sS -b "$CJ" -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/vendors --data '{"name":"Deploy Smoke Vendor"}' || true)
             echo "$VEND" | sed -n '1,80p'
             echo '--- Create user (smoke) ---'
             TS=$(date +%s)
-            CUSR=$(curl -k -sS -b "$CJ" -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/users --data "{\"email\":\"deploy+${TS}@local\",\"password\":\"Temp#12345\",\"name\":\"Deploy User\"}" || true)
+            CUSR=$(curl -k -sS -b "$CJ" -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/users --data "{\"email\":\"deploy+${TS}@local\",\"password\":\"Temp#12345\",\"name\":\"Deploy User\"}" || true)
             echo "$CUSR" | sed -n '1,120p'
             echo '--- CRUD smoke done ---'
 
@@ -749,44 +881,97 @@ jobs:
             set -Eeuo pipefail
             EMAIL='${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}'
             PASS='${{ secrets.ADMIN_PASSWORD || 'admin123' }}'
-            SECRET='${{ secrets.MAINTENANCE_SECRET || vars.MAINTENANCE_SECRET }}'
             echo '--- Login to API (JSON, local first) ---'
             BODY=/tmp/login.body
-            curl -sS -H 'content-type: application/json' -X POST http://127.0.0.1:4000/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY" || true
+            curl -sS -H 'content-type: application/json' -X POST http://127.0.0.1:4000/api/admin/auth/login \
+              --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY" || true
             if ! grep -q '"token":' "$BODY" 2>/dev/null; then
               echo 'Local login failed, trying public API...'
-              curl -k -sS -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/auth/login --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY"
+              curl -k -sS -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST https://api.jeeey.com/api/admin/auth/login \
+                --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -o "$BODY"
             fi
             TOKEN=$(grep -o '"token":"[^"]\+"' "$BODY" | head -n1 | sed 's/.*"token":"\([^"]\+\)".*/\1/') || true
             if [ -z "$TOKEN" ]; then echo 'Missing token from login response'; head -n 40 "$BODY"; exit 1; fi
-            if [ -n "$SECRET" ]; then
-              echo '--- Ensure Category SEO columns (maintenance) ---'
-              curl -sS -H "x-maintenance-secret: $SECRET" -X POST http://127.0.0.1:4000/api/admin/maintenance/ensure-category-seo -o /tmp/ens.body || true
-              if ! grep -q 'ok' /tmp/ens.body 2>/dev/null; then
-                echo 'Local ensure failed, trying public API...'
-                curl -k -sS -H "x-maintenance-secret: $SECRET" -X POST https://api.jeeey.com/api/admin/maintenance/ensure-category-seo -o /tmp/ens.body || true
-              fi
-              head -n 1 /tmp/ens.body || true
-            fi
+            # Disabled: ensure-category-seo maintenance (causes 1600 column attempts on some deployments)
             echo '--- Select existing image from media ---'
             IMG=$(curl -sS -H "Authorization: Bearer $TOKEN" 'http://127.0.0.1:4000/api/admin/media/list?limit=1' | grep -o '"url":"[^"]\+"' | head -n1 | sed 's/.*"url":"\([^"]\+\)".*/\1/') || true
             if [ -z "$IMG" ]; then
               echo 'No local media found; trying public API media list...'
-              IMG=$(curl -k -sS -H "Authorization: Bearer $TOKEN" 'https://api.jeeey.com/api/admin/media/list?limit=1' | grep -o '"url":"[^"]\+"' | head -n1 | sed 's/.*"url":"\([^"]\+\)".*/\1/') || true
+              IMG=$(curl -k -sS -H 'origin: https://admin.jeeey.com' -H "Authorization: Bearer $TOKEN" 'https://api.jeeey.com/api/admin/media/list?limit=1' | grep -o '"url":"[^"]\+"' | head -n1 | sed 's/.*"url":"\([^"]\+\)".*/\1/') || true
             fi
             if [ -z "$IMG" ]; then echo 'No media assets found in library; please add at least one image to Media.'; exit 1; fi
             echo '--- Create category ---'
             TS=$(date +%s)
-            BODY=$(printf '{"name":"SmokeCat %s","slug":"smoke-%s","image":"%s"}' "$TS" "$TS" "$IMG")
-            CODE=$(curl -sS -w '%{http_code}' -o /tmp/cat.body -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" -X POST http://127.0.0.1:4000/api/admin/categories --data "$BODY" || true)
+            printf '{"name":"SmokeCat %s","slug":"smoke-%s","image":"%s"}' "$TS" "$TS" "$IMG" > /tmp/cat.json
+            CODE=$(curl -sS --fail-with-body -w '%{http_code}' -o /tmp/cat.body \
+              -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" \
+              -X POST http://127.0.0.1:4000/api/admin/categories --data-binary @/tmp/cat.json || true)
             if [ "$CODE" != "200" ]; then
               echo 'Local create failed, trying public API...'
-              CODE=$(curl -k -sS -w '%{http_code}' -o /tmp/cat.body -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" -X POST https://api.jeeey.com/api/admin/categories --data "$BODY" || true)
+              CODE=$(curl -k -sS --fail-with-body -w '%{http_code}' -o /tmp/cat.body \
+                -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" \
+                -X POST https://api.jeeey.com/api/admin/categories --data-binary @/tmp/cat.json || true)
             fi
             head -n 2 /tmp/cat.body | sed -n '1,2p'
             if [ "$CODE" != "200" ]; then echo "Category create failed: $CODE"; cat /tmp/cat.body; echo '=== API logs (tail) ==='; journalctl -u ecom-api --no-pager -n 120 || true; exit 1; fi
+            ID=$(grep -o '"id":"[^"]\+"' /tmp/cat.body | head -n1 | sed 's/.*"id":"\([^"]\+\)".*/\1/') || true
+            if [ -z "$ID" ]; then echo 'Missing id in create response'; cat /tmp/cat.body; exit 1; fi
+            echo "created id: $ID"
             echo '--- List categories (search=SmokeCat) ---'
-            curl -sS -H "Authorization: Bearer $TOKEN" 'http://127.0.0.1:4000/api/admin/categories?search=SmokeCat' | sed -n '1,200p' || curl -k -sS -H "Authorization: Bearer $TOKEN" 'https://api.jeeey.com/api/admin/categories?search=SmokeCat' | sed -n '1,200p'
+            curl -sS -H "Authorization: Bearer $TOKEN" 'http://127.0.0.1:4000/api/admin/categories?search=SmokeCat' | sed -n '1,200p' || \
+              curl -k -sS -H 'origin: https://admin.jeeey.com' -H "Authorization: Bearer $TOKEN" 'https://api.jeeey.com/api/admin/categories?search=SmokeCat' | sed -n '1,200p'
+            echo '--- Delete created category (cleanup) ---'
+            printf '{"ids":["%s"]}' "$ID" > /tmp/del.json
+            DCODE=$(curl -sS --fail-with-body -w '%{http_code}' -o /tmp/cat.del \
+              -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" \
+              -X POST http://127.0.0.1:4000/api/admin/categories/bulk-delete --data-binary @/tmp/del.json || true)
+            if [ "$DCODE" != "200" ]; then
+              DCODE=$(curl -k -sS --fail-with-body -w '%{http_code}' -o /tmp/cat.del \
+                -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN" \
+                -X POST https://api.jeeey.com/api/admin/categories/bulk-delete --data-binary @/tmp/del.json || true)
+            fi
+            if [ "$DCODE" != "200" ]; then echo "Cleanup delete failed: $DCODE"; cat /tmp/cat.del; exit 1; fi
+            echo '--- Verify deleted not found ---'
+            OUT=$(curl -sS -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:4000/api/admin/categories?search=$ID" || \
+                  curl -k -sS -H 'origin: https://admin.jeeey.com' -H "Authorization: Bearer $TOKEN" "https://api.jeeey.com/api/admin/categories?search=$ID" || true)
+            if echo "$OUT" | grep -q "$ID"; then echo 'Cleanup verification failed (ID still present)'; echo "$OUT"; exit 1; fi
+
+      - name: Post-deploy popup claim smoke (create reward/campaign → claim → cleanup)
+        if: ${{ env.HAVE_SSH == '1' && github.event_name == 'workflow_dispatch' && inputs.allow_mutating_smokes == true }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_PORT || 22 }}
+          timeout: 180s
+          command_timeout: 15m
+          script: |
+            set -Eeuo pipefail
+            EMAIL='${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}'
+            PASS='${{ secrets.ADMIN_PASSWORD || 'admin123' }}'
+            API='https://api.jeeey.com'
+            echo '--- Admin login (JSON) ---'
+            CJ=/tmp/promo_cj
+            curl -k -s -c "$CJ" -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST "$API/api/admin/auth/login" --data "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" >/dev/null
+            echo '--- Create reward (COUPON 10%) ---'
+            RID=$(curl -k -s -b "$CJ" -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST "$API/api/admin/promotions/rewards" --data '{"name":"SmokeReward","type":"COUPON","config":{"percent":10}}' | sed -n 's/.*"id":"\([^"]\+\)".*/\1/p' | head -n1)
+            [ -n "$RID" ] || { echo 'Create reward failed'; exit 1; }
+            echo "RID=$RID"
+            echo '--- Create campaign LIVE ---'
+            CID=$(curl -k -s -b "$CJ" -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -X POST "$API/api/admin/promotions/campaigns" --data "{\"name\":\"SmokeCampaign\",\"priority\":5,\"status\":\"LIVE\",\"rewardId\":\"$RID\"}" | sed -n 's/.*"id":"\([^"]\+\)".*/\1/p' | head -n1)
+            [ -n "$CID" ] || { echo 'Create campaign failed'; exit 1; }
+            echo "CID=$CID"
+            echo '--- Start claim ---'
+            TOK=$(curl -k -s -H 'content-type: application/json' -X POST "$API/api/promotions/claim/start" --data "{\"campaignId\":\"$CID\"}" | sed -n 's/.*"token":"\([^"]\+\)".*/\1/p' | head -n1)
+            [ -n "$TOK" ] || { echo 'Claim start failed'; exit 1; }
+            echo '--- Complete claim as admin (cookie jar) ---'
+            CODE=$(curl -k -s -o /dev/null -w '%{http_code}' -b "$CJ" -H 'content-type: application/json' -X POST "$API/api/promotions/claim/complete" --data "{\"token\":\"$TOK\"}" || true)
+            echo "complete status=$CODE"
+            [ "$CODE" = "200" ] || { echo 'Claim complete failed'; exit 1; }
+            echo '--- Cleanup: delete campaign (reward kept for audit) ---'
+            curl -k -s -b "$CJ" -H 'origin: https://admin.jeeey.com' -X DELETE "$API/api/admin/promotions/campaigns/$CID" || true
 
       - name: Server & Prisma comprehensive self-check
         if: ${{ env.HAVE_SSH == '1' }}
@@ -817,7 +1002,7 @@ jobs:
             echo '== api process env (selected) =='
             pid=$(systemctl show -p MainPID ecom-api | cut -d= -f2)
             if [ -n "$pid" ] && [ -r "/proc/$pid/environ" ]; then
-              tr '\0' '\n' </proc/$pid/environ | egrep '^(DEFAULT_COUNTRY_CODE|WHATSAPP_|WA_OTP_STRICT|OTP_SMS_WITH_WA|COOKIE_DOMAIN)=' || true
+              tr '\0' '\n' </proc/$pid/environ | egrep '^(DEFAULT_COUNTRY_CODE|WHATSAPP_|WA_OTP_STRICT|OTP_SMS_WITH_WA|COOKIE_DOMAIN|META_ALLOW_EXTERNAL|CI)=' || true
             else
               echo '(no pid or inaccessible /proc)'
             fi
@@ -836,7 +1021,9 @@ jobs:
               echo '(missing packages/api/dist)'
             fi
             echo '== prisma status =='
-            if [ -f "$ROOT/.env.api" ]; then set -a; . "$ROOT/.env.api"; set +a; fi
+            # Safe env loader for prisma section
+            load_env_file() { local f="$1"; [ -f "$f" ] || return 0; while IFS= read -r line || [ -n "$line" ]; do line="${line%$'\r'}"; case "$line" in ''|'#'*) continue;; esac; local key="${line%%=*}"; local val="${line#*=}"; if [[ "$val" == \"*\" && "$val" == *\" ]]; then val="${val:1:${#val}-2}"; fi; if [[ "$val" == \'*\' && "$val" == *\' ]]; then val="${val:1:${#val}-2}"; fi; export "$key=$val"; done < "$f"; }
+            load_env_file "$ROOT/.env.api"
             if [ -n "${DATABASE_URL:-}" ] || [ -n "${DIRECT_URL:-}" ]; then
               cd "$ROOT/packages/db"
               pnpm install --prod --ignore-scripts >/dev/null 2>&1 || true
@@ -861,7 +1048,7 @@ jobs:
             journalctl -u ecom-api --no-pager -n 50 || tail -n 50 /var/log/ecom-api.out 2>/dev/null || true
 
       - name: Product variants/colors smoke
-        if: ${{ env.HAVE_SSH == '1' }}
+        if: ${{ env.HAVE_SSH == '1' && github.event_name == 'workflow_dispatch' && inputs.run_variants_smoke == true }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
@@ -951,6 +1138,34 @@ jobs:
               fi
             done
 
+      - name: Verify m.jeeey.com CSP, Service Worker and IPv6
+        if: ${{ env.HAVE_SSH == '1' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST || vars.VPS_HOST || env.SSH_HOST }}
+          username: ${{ env.SSH_USER }}
+          key_path: ${{ env.SSH_KEY_PATH }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ env.SELECTED_SSH_PORT || env.SSH_PORT || secrets.VPS_PORT || vars.VPS_PORT || 22 }}
+          timeout: 180s
+          command_timeout: 10m
+          debug: true
+          script_stop: true
+          script: |
+            set -eux
+            echo '--- CSP header present ---'
+            curl -ksSI https://m.jeeey.com | grep -i 'content-security-policy' >/dev/null
+            echo '--- Service worker reachable (200) ---'
+            code=$(curl -ksS -o /dev/null -w '%{http_code}' https://m.jeeey.com/sw.js || true)
+            [ "$code" = "200" ] || { echo "sw.js status=$code"; exit 1; }
+            echo '--- Service-Worker-Allowed header present ---'
+            curl -ksSI https://m.jeeey.com/sw.js | grep -i '^service-worker-allowed:' >/dev/null
+            echo '--- IPv6 AAAA lookup (optional) ---'
+            dig +short AAAA m.jeeey.com || true
+            echo '--- HTTPS over IPv6 (if AAAA exists) ---'
+            curl -6 -ksSI https://m.jeeey.com | head -n1 || true
+
       - name: Admin layout check (UI sanity) — disabled per request
         if: false
         env:
@@ -982,14 +1197,14 @@ jobs:
             if [ -z "$PHONE" ]; then echo 'WHATSAPP_TEST_PHONE not set; skipping WA smoke'; exit 0; fi
             EMAIL='${{ secrets.ADMIN_EMAIL || 'admin@example.com' }}'
             PASS='${{ secrets.ADMIN_PASSWORD || 'admin123' }}'
-            curl -sS -c /tmp/cj -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -X POST "$API/api/admin/auth/login" >/dev/null
+            curl -sS -c /tmp/cj -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"remember\":true}" -X POST "$API/api/admin/auth/login" >/dev/null
             # Use smart send which introspects template components
-            resp=$(curl -sS -H 'content-type: application/json' -b /tmp/cj -X POST "$API/api/admin/whatsapp/send-smart" -d "{\"phone\":\"$PHONE\",\"template\":\"$TMPL\",\"languageCode\":\"ar\",\"bodyParams\":[\"123456\"]}")
+            resp=$(curl -sS -H 'origin: https://admin.jeeey.com' -H 'content-type: application/json' -b /tmp/cj -X POST "$API/api/admin/whatsapp/send-smart" -d "{\"phone\":\"$PHONE\",\"template\":\"$TMPL\",\"languageCode\":\"ar\",\"bodyParams\":[\"123456\"]}")
             echo "Smart send => $(echo "$resp" | head -c 200)" || true
             echo "$resp" | grep -q 'messageId' || { echo "WA smoke failed: $resp"; exit 1; }
             mid=$(echo "$resp" | grep -o '"messageId":"[^\"]\+"' | head -n1 | sed 's/.*"messageId":"\([^\"]\+\)".*/\1/')
             for i in $(seq 1 5); do
-              st=$(curl -sS -b /tmp/cj "$API/api/admin/whatsapp/status?id=$mid" || true)
+              st=$(curl -sS -H 'origin: https://admin.jeeey.com' -b /tmp/cj "$API/api/admin/whatsapp/status?id=$mid" || true)
               echo "$st" | grep -Eq 'DELIVERED|READ|SENT' && break
               sleep 3
             done

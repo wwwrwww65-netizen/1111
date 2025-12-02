@@ -17,10 +17,15 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
   const [docFile, setDocFile] = React.useState('');
   const [vendorOrders, setVendorOrders] = React.useState<any[]>([]);
   const [orderLines, setOrderLines] = React.useState<any[]|null>(null);
+  const [publicBlurb, setPublicBlurb] = React.useState('');
+  const [logoUrl, setLogoUrl] = React.useState('');
+  const [bannerUrl, setBannerUrl] = React.useState('');
+  const [links, setLinks] = React.useState<{ website?: string; instagram?: string; whatsapp?: string }>({});
   React.useEffect(()=>{ fetch(`/api/admin/vendors/${id}/overview`, { credentials:'include' }).then(r=>r.json()).then(setData); },[id]);
   React.useEffect(()=>{ if(tab==='orders'){ fetch(`/api/admin/vendors/${id}/orders`, { credentials:'include' }).then(r=>r.json()).then(j=> setVendorOrders(j.orders||[])); } },[id,tab]);
   React.useEffect(()=>{ if(tab==='ledger'){ fetch(`/api/admin/vendors/${id}/ledger`, { credentials:'include' }).then(r=>r.json()).then(j=> setLedger({ entries:j.entries||[], balance:j.balance||0 })); } },[id,tab]);
   React.useEffect(()=>{ if(tab==='docs'){ fetch(`/api/admin/vendors/${id}/documents`, { credentials:'include' }).then(r=>r.json()).then(j=> setDocs(j.documents||[])); } },[id,tab]);
+  React.useEffect(()=>{ if(tab==='info'){ fetch(`/api/admin/vendors/${id}/meta`, { credentials:'include' }).then(r=>r.json()).then(j=> { const m=j?.meta||{}; setPublicBlurb(m.blurb||''); setLogoUrl(m.logoUrl||''); setBannerUrl(m.bannerUrl||''); setLinks(m.links||{}); }); } },[id,tab]);
   if (!data) return <main style={{ padding:16 }}>Loading…</main>;
   const { vendor, products, orders, invoices, stock } = data;
   return (
@@ -58,6 +63,25 @@ export default function VendorOverviewPage({ params }: { params: { id: string } 
             <div className="panel">الهاتف: {vendor.phone||'-'}</div>
             <div className="panel">المخزون الإجمالي: {stock}</div>
             <div className="panel">الطلبات: {orders.length}</div>
+          </div>
+          <div className="panel" style={{ padding:12, marginTop:8 }}>
+            <h3 style={{ marginTop:0 }}>إعداد صفحة متجر المورد (عام)</h3>
+            <div className="grid" style={{ gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              <label>وصف موجز عام<input className="input" value={publicBlurb} onChange={(e)=> setPublicBlurb(e.target.value)} placeholder="نبذة تظهر في صفحة المورد" /></label>
+              <label>رابط الموقع<input className="input" value={links.website||''} onChange={(e)=> setLinks(l=> ({...l, website: e.target.value}))} placeholder="https://" /></label>
+              <label>رابط انستغرام<input className="input" value={links.instagram||''} onChange={(e)=> setLinks(l=> ({...l, instagram: e.target.value}))} placeholder="https://instagram.com/..." /></label>
+              <label>واتساب<input className="input" value={links.whatsapp||''} onChange={(e)=> setLinks(l=> ({...l, whatsapp: e.target.value}))} placeholder="+966..." /></label>
+              <label>شعار المتجر<input className="input" value={logoUrl} onChange={(e)=> setLogoUrl(e.target.value)} placeholder="https://...logo.png" /></label>
+              <label>بانر المتجر<input className="input" value={bannerUrl} onChange={(e)=> setBannerUrl(e.target.value)} placeholder="https://...banner.jpg" /></label>
+            </div>
+            <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:8 }}>
+              <button className="btn btn-sm" onClick={async()=>{
+                await fetch(`/api/admin/vendors/${id}/meta`, { method:'PUT', headers:{ 'content-type':'application/json' }, credentials:'include', body: JSON.stringify({ blurb: publicBlurb||undefined, logoUrl: logoUrl||undefined, bannerUrl: bannerUrl||undefined, links }) });
+                alert('تم الحفظ');
+              }}>حفظ</button>
+              {logoUrl && (<img src={logoUrl} alt="logo" style={{ width:36, height:36, borderRadius:8 }} />)}
+              {bannerUrl && (<img src={bannerUrl} alt="banner" style={{ width:120, height:40, objectFit:'cover', borderRadius:8 }} />)}
+            </div>
           </div>
         </div>
       )}

@@ -2,6 +2,7 @@
   <div class="bg-[#f7f7f7] pb-24" dir="rtl">
     <!-- Header - Dynamic with Search Bar on Scroll -->
     <div class="fixed top-0 left-0 right-0 z-50 bg-white">
+
       <!-- Main Header -->
       <div 
         class="flex items-center justify-between px-4 py-3 border-b transition-all duration-300"
@@ -57,14 +58,7 @@
       <!-- Dynamic Header Content: Price / Tabs / Recommendation Strip -->
       <div class="relative">
         <!-- State 1: Price Only (before tabs sticky) -->
-        <Transition name="slide-down">
-          <div 
-            v-if="showHeaderPrice && !tabsSticky && !showRecommendationStrip" 
-            class="px-4 py-2 bg-white border-b border-gray-200 shadow-sm"
-          >
-            <div class="text-[18px] font-extrabold text-black">{{ displayPrice }}</div>
-          </div>
-        </Transition>
+        <!-- Removed small header price as requested -->
 
         <!-- State 2: Tabs (sticky, with optional price) -->
         <Transition name="slide-down">
@@ -85,11 +79,7 @@
                 {{ tab.label }}
               </button>
             </div>
-            <Transition name="fade">
-              <div v-if="showHeaderPrice" class="px-4 py-2 border-b border-gray-200">
-                <div class="text-[18px] font-extrabold text-black">{{ displayPrice }}</div>
-              </div>
-            </Transition>
+            <!-- Removed repeated header price -->
           </div>
         </Transition>
 
@@ -100,17 +90,15 @@
             class="bg-white border-b border-gray-200 relative z-40"
           >
             <div class="flex gap-4 px-4 py-3 overflow-x-auto no-scrollbar">
-              <button class="pb-1 text-[14px] border-b-2 font-bold whitespace-nowrap text-black" style="border-bottom-color: #8a1538">
-                التوصية
-              </button>
-              <button class="pb-1 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
-                مجوهرات & ساعات
-              </button>
-              <button class="pb-1 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
-                ملابس واكسسوارات
-              </button>
-              <button class="pb-1 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
-                ملابس داخلية & ملابس نوم
+              <button
+                v-for="t in recTabs"
+                :key="'strip-'+t.key"
+                class="pb-1 text-[14px] border-b-2 whitespace-nowrap"
+                :class="activeRecTab===t.key ? 'font-bold text-black' : 'text-gray-600 border-transparent'"
+                :style="activeRecTab===t.key ? 'border-bottom-color: #8a1538' : ''"
+                @click="switchRecTab(t.key)"
+              >
+                {{ t.label }}
               </button>
             </div>
           </div>
@@ -123,14 +111,17 @@
       <!-- Product Image Gallery -->
     <div class="relative">
         <div ref="galleryRef" class="w-full overflow-x-auto snap-x snap-mandatory no-scrollbar bg-black"
-           :style="{ height: galleryHeight ? (galleryHeight + 'px') : undefined }"
+           :style="{ height: galleryHeight ? (galleryHeight + 'px') : undefined, aspectRatio: galleryHeight ? undefined : ('4 / 5') }"
            @scroll.passive="onGalleryScroll">
           <div class="flex h-full">
             <div v-for="(img,idx) in images" :key="'hero-'+idx" class="w-full h-full flex-shrink-0 snap-start relative flex items-center justify-center" style="min-width:100%">
-              <img :src="img" :alt="title" class="w-full h-full block" :class="getImgFitClass(idx)" loading="lazy" decoding="async" :fetchpriority="idx===0 ? 'high' : 'low'" sizes="100vw" @click="openLightbox(idx)" />
+              <img :src="buildThumbUrl(img, 768)" :srcset="`${buildThumbUrl(img,384)} 384w, ${buildThumbUrl(img,512)} 512w, ${buildThumbUrl(img,768)} 768w, ${buildThumbUrl(img,1024)} 1024w`" :alt="title" class="w-full h-full block" :class="getImgFitClass(idx)" loading="lazy" decoding="async" :fetchpriority="idx===0 ? 'high' : 'low'" sizes="100vw" @click="openLightbox(idx)" :style="idx===activeIdx ? { viewTransitionName: ('p-img-'+String(product?.id||id)) } : {}" />
+            </div>
         </div>
       </div>
-      </div>
+      
+      <!-- Title & Price skeleton -->
+      
 
         <!-- Pages indicator -->
         <div class="carousels-pagination__pages">
@@ -147,7 +138,7 @@
       <div class="flex-1 relative">
         <div ref="lightboxRef" class="w-full h-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
           <div class="flex h-full">
-            <img v-for="(img,i) in images" :key="'lb-'+i" :src="img" class="w-full h-full object-contain flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" decoding="async" sizes="100vw" />
+            <img v-for="(img,i) in images" :key="'lb-'+i" :src="buildThumbUrl(img, 1024)" :srcset="`${buildThumbUrl(img,768)} 768w, ${buildThumbUrl(img,1024)} 1024w, ${buildThumbUrl(img,1200)} 1200w`" class="w-full h-full object-contain flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" decoding="async" sizes="100vw" />
           </div>
         </div>
         <button class="absolute left-2 top-1/2 -translate-y-1/2 text-white text-2xl" @click="prevLightbox" aria-label="السابق">‹</button>
@@ -159,18 +150,38 @@
     </div>
 
     <!-- Trending Badge (dynamic) -->
-    <div class="flex items-center justify-between px-4 py-2 bg-purple-50" v-if="pdpMeta.badges && pdpMeta.badges.length">
+    <div class="flex items-center justify-between px-4 py-2 bg-purple-50" v-if="product && pdpMeta.badges && pdpMeta.badges.length">
       <span class="text-[14px] font-bold text-purple-700">{{ pdpMeta.badges[0]?.title || '' }}</span>
       <span class="text-[13px] text-gray-600">{{ pdpMeta.badges[0]?.subtitle || '' }}</span>
       </div>
 
     <!-- Price Section -->
-    <div ref="priceRef" class="px-4 py-4">
-      <div class="text-[22px] font-extrabold text-black">{{ displayPrice }}</div>
+    <div ref="priceRef" class="px-4">
+      <div class="flex items-center gap-2">
+        <div class="font-extrabold text-black" :class="price!=null ? 'text-[20px]' : ''">
+          <template v-if="price!=null">{{ displayPrice }}</template>
+          <div v-else-if="isLoadingPdp" class="h-6 w-28 bg-gray-200 animate-pulse rounded" />
+        </div>
+        <div v-if="afterCouponPriceText" class="inline-flex items-center gap-1 cursor-pointer" @click="couponsSheetOpen = true">
+          <div class="h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]">
+            <span class="text-[13px] font-extrabold text-orange-500">{{ afterCouponPriceText }}</span>
+            <span class="text-[11px] text-orange-500">/بعد الكوبون</span>
+          </div>
+          <span class="text-[16px] leading-none" :style="{ color: themeCouponColor }">›</span>
+        </div>
+      </div>
+      <div v-if="pdpCouponsLimited.length" class="mt-2 flex items-center gap-2 flex-wrap cursor-pointer" @click="couponsSheetOpen = true">
+        <div v-for="(c,idx) in pdpCouponsLimited" :key="c.code||idx" class="inline-flex items-center gap-2 rounded px-2 py-1" :style="{ border: '1px solid '+themeCouponColor, background: 'transparent' }">
+          <div class="text-[12px] font-semibold truncate" :style="{ color: themeCouponColor }">
+            خصم {{ c.discountLabel }} {{ c.minLabel }}
+          </div>
+        </div>
+        <span class="text-[16px] leading-none" :style="{ color: themeCouponColor }">›</span>
+      </div>
     </div>
 
     <!-- Jeeey Club Bar (dynamic) -->
-    <div v-if="pdpMeta.clubBanner && pdpMeta.clubBanner.enabled && pdpMeta.clubBanner.placement?.pdp?.enabled"
+    <div v-if="product && pdpMeta.clubBanner && pdpMeta.clubBanner.enabled && pdpMeta.clubBanner.placement?.pdp?.enabled"
       class="mx-4 mb-4 flex items-center justify-between px-3 py-2.5 rounded-md cursor-pointer transition-colors"
       :class="clubThemeClass"
       role="button"
@@ -187,22 +198,24 @@
     <!-- Product Info -->
     <div class="px-4">
       <div class="flex items-center justify-between mb-2">
-        <div v-if="reviews.length" class="flex items-center gap-1">
+        <div class="flex items-center gap-1" v-if="!isLoadingPdp && reviews.length">
           <StarIcon :size="14" class="text-yellow-400 fill-yellow-400" />
           <span class="font-bold text-[14px]">{{ avgRating.toFixed(1) }}</span>
           <span class="text-gray-600 text-[13px]">(+{{ reviews.length }})</span>
         </div>
-        <h1 class="text-[13px] leading-relaxed text-gray-800 text-right">
-          {{ title }}
-        </h1>
+        <!-- remove small price duplicate -->
       </div>
+      <h1 class="text-[13px] leading-relaxed text-gray-800 text-right">
+        <template v-if="title">{{ title }}</template>
+        <div v-else-if="isLoadingPdp" class="h-4 w-3/4 bg-gray-200 animate-pulse rounded" />
+      </h1>
 
       <div class="mb-1">
         <span v-for="(b,i) in (pdpMeta.badges||[])" :key="'bdg-top-'+i" class="inline-flex items-center px-2 py-0.5 text-white text-[11px] font-bold rounded" :style="b.bgColor ? ('background-color:'+b.bgColor) : 'background-color:#8a1538'">{{ b.title }}</span>
       </div>
 
       <!-- Best-seller Strip (club style) -->
-      <div v-if="pdpMeta.bestRank" class="mb-4 flex items-center justify-between px-3 py-2.5 rounded-md" :class="clubThemeClass">
+      <div v-if="product && pdpMeta.bestRank" class="mb-4 flex items-center justify-between px-3 py-2.5 rounded-md" :class="clubThemeClass">
         <!-- Left side: thumbnails + arrow (far left) -->
         <div class="flex items-center gap-2">
           <ChevronLeft :size="16" class="text-gray-600" />
@@ -220,42 +233,57 @@
       </div>
 
       <!-- Color Selector -->
-      <div class="mb-4" v-if="colorVariants.length">
+      <div class="mb-4" v-if="colorVariants.length || isLoadingVariants">
         <div class="flex items-center gap-1 mb-2">
-          <span class="font-semibold text-[14px]">لون: {{ currentColorName || '—' }}</span>
+          <span class="font-semibold text-[14px]">
+            <template v-if="colorVariants.length">لون: {{ currentColorName || '—' }}</template>
+            <span v-else-if="isLoadingPdp" class="inline-block h-4 w-20 bg-gray-200 animate-pulse rounded" />
+          </span>
           <ChevronLeft :size="16" class="text-gray-600" />
         </div>
         <div class="flex gap-1 overflow-x-auto no-scrollbar pb-2">
-          <div v-for="(c,i) in colorVariants" :key="'color-'+i" class="flex-shrink-0 relative" data-testid="color-swatch" :data-color="c.name">
-            <div class="w-[50px] h-[70px] rounded-lg border-2 overflow-hidden cursor-pointer transition-all hover:scale-105" :class="i===colorIdx ? '' : 'border-gray-200'" :style="i===colorIdx ? 'border-color: #8a1538' : ''" @click="colorIdx=i" :aria-selected="i===colorIdx">
-              <img :src="c.image" class="w-full h-full object-cover" :alt="c.name" />
+          <template v-if="colorVariants.length">
+            <div v-for="(c,i) in colorVariants" :key="'color-'+i" class="flex-shrink-0 relative" data-testid="color-swatch" :data-color="c.name">
+              <div class="w-[50px] h-[70px] rounded-lg border-2 overflow-hidden cursor-pointer transition-all hover:scale-105" :class="i===colorIdx ? '' : 'border-gray-200'" :style="i===colorIdx ? 'border-color: #8a1538' : ''" @click="colorIdx=i" :aria-selected="i===colorIdx">
+                <img :src="buildThumbUrl(c.image, 128)" class="w-full h-full object-cover" :alt="c.name" />
+              </div>
+              <div v-if="c.isHot" class="absolute top-0 right-0 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl">HOT</div>
+              <div v-if="i===colorIdx" class="absolute bottom-0 left-0 right-0 h-0.5" style="background-color: #8a1538"></div>
             </div>
-            <div v-if="c.isHot" class="absolute top-0 right-0 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl">
-              HOT
-            </div>
-            <div v-if="i===colorIdx" class="absolute bottom-0 left-0 right-0 h-0.5" style="background-color: #8a1538"></div>
-          </div>
+          </template>
+          <template v-else-if="isLoadingVariants">
+            <div v-for="i in 4" :key="'skc-'+i" class="w-[50px] h-[70px] rounded-lg border overflow-hidden bg-gray-200 animate-pulse" />
+          </template>
         </div>
       </div>
 
       <!-- Size Selector (single list) - hidden until attributes loaded to avoid flicker, and hidden when multi size-groups exist) -->
-      <div ref="sizeSelectorRef" class="mb-4" v-if="attrsLoaded && sizeOptions.length && !sizeGroups.length">
+      <div ref="sizeSelectorRef" class="mb-4" v-if="(sizeOptions.length && !sizeGroups.length) || isLoadingVariants">
         <div class="flex items-center justify-between mb-2">
-          <span class="font-semibold text-[14px]">مقاس - {{ size || 'اختر المقاس' }}</span>
-          <span class="text-[13px] text-gray-600 cursor-pointer" @click="openSizeGuide">مرجع المقاس ◀</span>
+          <span class="font-semibold text-[14px]">
+            <template v-if="sizeOptions.length">مقاس - {{ size || 'اختر المقاس' }}</template>
+            <span v-else-if="isLoadingVariants" class="inline-block h-4 w-28 bg-gray-200 animate-pulse rounded" />
+          </span>
+          <span class="text-[13px] text-gray-600 cursor-pointer" @click="openSizeGuide" v-if="sizeOptions.length">مرجع المقاس ◀</span>
+          <span v-else-if="isLoadingVariants" class="inline-block h-4 w-20 bg-gray-100 rounded" />
         </div>
         <div class="flex flex-wrap gap-2">
-          <button 
-            v-for="s in sizeOptions" 
-            :key="s" 
-            class="px-4 py-2 border rounded-full text-[13px] font-medium transition-all hover:scale-105"
-            :class="size===s ? 'text-white' : 'bg-white text-black border-gray-300'"
-            :style="size===s ? 'background-color: #8a1538; border-color: #8a1538' : ''"
-            data-testid="size-btn" :data-size="s"
-            @click="size=s"
-          >
-            {{ s }}
-          </button>
+          <template v-if="sizeOptions.length">
+            <button 
+              v-for="s in sizeOptions" 
+              :key="s" 
+              class="px-4 py-2 border rounded-full text-[13px] font-medium transition-all hover:scale-105"
+              :class="size===s ? 'text-white' : 'bg-white text-black border-gray-300'"
+              :style="size===s ? 'background-color: #8a1538; border-color: #8a1538' : ''"
+              data-testid="size-btn" :data-size="s"
+              @click="size=s"
+            >
+              {{ s }}
+            </button>
+          </template>
+          <template v-else-if="isLoadingVariants">
+            <div v-for="i in 6" :key="'sks-'+i" class="w-12 h-8 bg-gray-200 animate-pulse rounded-full" />
+          </template>
         </div>
       <div class="mt-2">
           <span class="text-[13px] text-gray-600 underline cursor-pointer">ترام كيرفي ◀</span>
@@ -284,17 +312,15 @@
         </div>
       </div>
 
-      <!-- Fit Rating -->
-      <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
-        <div class="flex items-center gap-2 mb-2">
+      <!-- Fit Rating (show only if product has sizes) -->
+      <div v-if="(sizeOptions.length || sizeGroups.length)" class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 transition-colors">
+        <div v-if="reviews.length && (pdpMeta.fitPercent!=null || pdpMeta.fitText)" class="flex items-center gap-2 mb-2">
           <ThumbsUp :size="16" class="text-green-600" />
-          <span class="font-bold text-[16px]">{{ pdpMeta.fitPercent ?? 96 }}%</span>
-          <span class="text-[12px] text-gray-600">{{ pdpMeta.fitText || 'يعتقد من العملاء أن المقاس حقيقي ومناسب' }}</span>
+          <span class="font-bold text-[16px]">{{ pdpMeta.fitPercent ?? 0 }}%</span>
+          <span class="text-[13px] text-gray-700">{{ pdpMeta.fitText || 'يعتقد من العملاء أن المقاس حقيقي ومناسب' }}</span>
           <ChevronLeft :size="16" class="text-gray-600 mr-auto" />
-      </div>
-        <div class="text-[12px] text-gray-600">
-          ليس مقاسك؟ اختبرنا ما هو مقاسك ◀
         </div>
+        <button class="w-full text-start text-[14px] text-gray-800 underline font-medium" @click="openFitModal">ليس مقاسك؟ أخبرنا ما هو مقاسك ◀</button>
       </div>
     </div>
     <div ref="firstContainerEnd"></div>
@@ -304,10 +330,10 @@
     <div class="bg-white px-4 mt-0.5">
       <!-- Shipping to destination -->
       <div class="mb-4">
-        <div class="text-[16px] font-bold mb-3">الشحن الى {{ pdpMeta.shippingDestinationOverride || (product?.shippingCountry || 'السعودية') }}</div>
+        <div class="text-[16px] font-bold mb-3">الشحن إلى {{ destinationText }}</div>
         
         <div class="flex items-center justify-between py-3 border-b border-gray-200">
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2" @click="openShippingDetails" role="button">
             <Truck :size="20" class="text-green-600" />
             <div>
               <div class="text-[14px] font-bold">{{ shippingTitleText }}</div>
@@ -329,7 +355,7 @@
           <ChevronLeft :size="16" class="text-gray-600" />
         </div>
 
-        <div class="flex items-center justify-between py-3 border-b border-gray-200">
+        <div class="flex items-center justify-between py-3 border-b border-gray-200" @click="openPolicy('cod')" role="button">
           <div class="flex items-center gap-2">
             <DollarSign :size="20" class="text-green-600" />
             <span class="text-[14px]">خدمة الدفع عند الاستلام</span>
@@ -337,7 +363,7 @@
           <ChevronLeft :size="16" class="text-gray-600" />
         </div>
 
-        <div class="flex items-center justify-between py-3 border-b border-gray-200">
+        <div class="flex items-center justify-between py-3 border-b border-gray-200" @click="openPolicy('returns')" role="button">
           <div class="flex items-center gap-2">
             <RotateCcw :size="20" class="text-gray-600" />
             <span class="text-[14px]">سياسة الإرجاع</span>
@@ -345,7 +371,7 @@
           <ChevronLeft :size="16" class="text-gray-600" />
         </div>
 
-        <div class="flex items-center justify-between py-3 border-b border-gray-200">
+        <div class="flex items-center justify-between py-3 border-b border-gray-200 cursor-pointer" @click="openPolicy('secure')" @keydown.enter.prevent="openPolicy('secure')" @keydown.space.prevent="openPolicy('secure')" role="button" tabindex="0">
           <div class="flex items-center gap-2">
             <ShieldCheck :size="20" class="text-green-600" />
             <span class="text-[14px]">أمن التسوق</span>
@@ -353,7 +379,7 @@
           <ChevronLeft :size="16" class="text-gray-600" />
         </div>
 
-        <div class="mt-3 p-3 bg-gray-50 rounded-lg">
+        <div class="mt-3 p-3 bg-gray-50 rounded-lg" @click="openPolicy('secure')" role="button">
           <div class="grid grid-cols-2 gap-2 text-[12px] text-gray-700">
             <div class="flex items-center gap-1"><div class="w-1 h-1 rounded-full bg-green-600"></div>طرق دفع آمنة</div>
             <div class="flex items-center gap-1"><div class="w-1 h-1 rounded-full bg-green-600"></div>شحن آمن</div>
@@ -362,13 +388,7 @@
           </div>
       </div>
 
-        <div class="flex items-center justify-between py-3">
-        <div class="flex items-center gap-2">
-            <Truck :size="20" class="text-green-600" />
-            <span class="text-[13px]">الباع والشحن من: شي ان</span>
-          </div>
-          <ChevronLeft :size="16" class="text-gray-600" />
-        </div>
+        <!-- Removed seller/shipping source row as requested -->
         </div>
       </div>
 
@@ -377,88 +397,87 @@
       <!-- Section 1: Products (Always Visible) -->
       <div ref="productsContentRef">
         <!-- Coupon Banner -->
-        <div class="mb-4 p-3 bg-gradient-to-r from-pink-50 to-yellow-50 rounded-lg border border-pink-200">
+        <div v-if="(pdpMeta as any)?.occasionStrip?.enabled" class="mb-4 p-3 rounded-lg border" :style="`background-image: linear-gradient(to right, ${(pdpMeta as any)?.occasionStrip?.theme?.gradientFrom||'#fdf2f8'}, ${(pdpMeta as any)?.occasionStrip?.theme?.gradientTo||'#fffbeb'}); border-color: ${(pdpMeta as any)?.occasionStrip?.theme?.borderColor||'#fbcfe8'}`">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <span class="text-[13px]">مناسبة المطلة</span>
-              <span v-for="(b,i) in (pdpMeta.badges||[])" :key="'bdg-fit-'+i" class="inline-flex items-center px-2 py-0.5 bg-purple-600 text-white text-[11px] font-bold rounded">{{ b.title }}</span>
-              <span class="text-[11px] text-green-600 font-bold">⬇️ارتفاع14%</span>
+              <span class="text-[13px] font-semibold">{{ (pdpMeta as any).occasionStrip.title }}</span>
+              <span v-if="(pdpMeta as any).occasionStrip.kpiText" class="text-[11px] text-green-700 font-bold">{{ (pdpMeta as any).occasionStrip.kpiText }}</span>
+            </div>
+            <a v-if="(pdpMeta as any).occasionStrip.cta?.label && (pdpMeta as any).occasionStrip.cta?.url" :href="(pdpMeta as any).occasionStrip.cta.url" class="text-[12px] underline">{{ (pdpMeta as any).occasionStrip.cta.label }}</a>
           </div>
+          <div v-if="(pdpMeta as any).occasionStrip.subtitle" class="text-[12px] text-gray-700 mt-1">
+            {{ (pdpMeta as any).occasionStrip.subtitle }}
           </div>
-          <div class="text-[12px] text-gray-600 mt-1">
-            إطلالات عطلة ساحرة لك ولعائلتك لمغامرات منسمة!
         </div>
-      </div>
 
-        <!-- Description -->
-        <div class="mb-4 pb-4 border-b border-gray-200">
-          <div class="flex items-center justify-between mb-2">
+        <!-- Description trigger (opens modal) -->
+        <div class="mb-4 pb-2 border-b border-gray-200">
+          <button class="w-full flex items-center justify-between py-1" @click="descOpen=true">
             <span class="font-semibold text-[15px]">وصف</span>
             <ChevronLeft :size="16" class="text-gray-600" />
-          </div>
-          <div class="prose prose-sm max-w-none text-gray-800" v-html="safeDescription"></div>
+          </button>
         </div>
 
-        <!-- Model Reference -->
-        <div class="mb-4 pb-4 border-b border-gray-200">
-          <div class="flex items-center justify-between mb-2">
-            <span class="font-semibold text-[15px]">مرجع المقاس</span>
-            <ChevronLeft :size="16" class="text-gray-600" />
-          </div>
-        </div>
-
-        <!-- Model Measurements -->
-        <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+      <!-- Model Measurements (dynamic from PDP meta: modelEnabled + fields[]) -->
+      <div v-if="(pdpMeta as any)?.modelEnabled" class="mb-4 p-3 bg-gray-50 rounded-lg">
         <div class="flex items-center justify-between">
-            <div>
-              <div class="text-[14px] font-bold mb-2">عارضة الأزياء ترتدي: {{ pdpMeta.model?.size || 'S' }}</div>
-              <div class="text-[12px] text-gray-600">
-                <span>طول: {{ pdpMeta.model?.height || 163 }}</span> | 
-                <span>صدر: {{ pdpMeta.model?.bust || 88 }}</span> | 
-                <span>خصر: {{ pdpMeta.model?.waist || 64 }}</span><br>
-                <span>الوركين: {{ pdpMeta.model?.hips || 92 }}</span>
-        </div>
+          <div>
+            <div class="text-[14px] font-bold mb-2">عارضة الأزياء</div>
+            <div class="text-[12px] text-gray-600">
+              <template v-if="Array.isArray((pdpMeta as any)?.model?.fields) && (pdpMeta as any)?.model?.fields.length">
+                <template v-for="(f,idx) in (pdpMeta as any).model.fields" :key="'mf-'+idx">
+                  <span>{{ f.label }}: {{ f.value }}</span>
+                  <span v-if="idx < ((pdpMeta as any).model.fields.length-1)"> | </span>
+                </template>
+              </template>
+              <template v-else>
+                <span>—</span>
+              </template>
             </div>
-            <div class="w-12 h-12 rounded-full overflow-hidden">
-              <img :src="images[0]" class="w-full h-full object-cover" />
-            </div>
+          </div>
+          <div class="w-12 h-12 rounded-full overflow-hidden" v-if="(pdpMeta as any)?.model?.imageUrl">
+            <img :src="(pdpMeta as any).model.imageUrl" class="w-full h-full object-cover" />
+          </div>
         </div>
       </div>
 
-        <!-- Seller Info -->
-        <div class="mb-4 p-4 border border-gray-200 rounded-lg">
+        <!-- Vendor Store Info (hidden by default; enable via pdpMeta.vendorBoxEnabled) -->
+        <div v-if="product && (pdpMeta as any)?.vendorBoxEnabled && seller" class="mb-4 p-4 border border-gray-200 rounded-lg">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
-              <span class="font-bold text-[15px]">{{ brand || 'Elenzga' }}</span>
+              <span class="font-bold text-[15px]">{{ seller.storeName || seller.name || brand || '—' }}</span>
               <ChevronLeft :size="16" class="text-gray-600" />
             </div>
-            <div class="w-14 h-14 rounded-full bg-purple-100 flex items-center justify-center">
-              <span class="text-2xl">E</span>
+            <div class="w-14 h-14 rounded-full bg-purple-100 overflow-hidden flex items-center justify-center">
+              <img v-if="seller.meta?.logoUrl" :src="seller.meta.logoUrl" alt="logo" class="w-full h-full object-cover" />
+              <span v-else class="text-2xl">{{ (seller.storeName||seller.name||'J').charAt(0) }}</span>
             </div>
           </div>
-          <div class="text-[11px] text-gray-600 mb-2">
-            {{ sellerFollowText }}
+          <div v-if="seller.meta?.bannerUrl" class="mb-2 rounded overflow-hidden">
+            <img :src="seller.meta.bannerUrl" alt="banner" class="w-full h-16 object-cover rounded" />
           </div>
-          <div class="flex gap-2 mb-3">
+          <div class="text-[12px] text-gray-700 mb-2">
+            {{ seller.meta?.blurb || '' }}
+          </div>
+          <div class="text-[11px] text-gray-600 mb-3">{{ sellerFollowText }}</div>
+          <div class="flex gap-2 mb-3" v-if="pdpMeta.badges && pdpMeta.badges.length">
             <span v-for="(b,i) in (pdpMeta.badges||[])" :key="'bdg-seller-'+i" class="inline-flex items-center px-2 py-0.5 text-white text-[11px] font-bold rounded" :style="b.bgColor ? ('background-color:'+b.bgColor) : 'background-color:#8a1538'">{{ b.title }}</span>
           </div>
-          <div class="text-[12px] text-gray-700 mb-3">
-            {{ pdpMeta.sellerBlurb || '' }}
+          <div class="flex items-center gap-3 mb-3" v-if="seller.meta?.links">
+            <a v-if="seller.meta.links.website" class="text-[12px] underline text-blue-600" :href="seller.meta.links.website" target="_blank" rel="noopener">الموقع</a>
+            <a v-if="seller.meta.links.instagram" class="text-[12px] underline text-pink-600" :href="seller.meta.links.instagram" target="_blank" rel="noopener">انستغرام</a>
+            <a v-if="seller.meta.links.whatsapp" class="text-[12px] underline text-green-600" :href="('https://wa.me/'+seller.meta.links.whatsapp.replace(/[^\d]/g,''))" target="_blank" rel="noopener">واتساب</a>
           </div>
           <div class="flex gap-2">
-            <button class="flex-1 py-2 border border-gray-300 rounded-full text-[13px]">
-              كل المنتجات
-            </button>
-            <button class="flex-1 py-2 bg-gradient-to-r from-violet-500 to-pink-500 text-white rounded-full text-[13px] font-bold">
-              + متابع
-            </button>
+            <button class="flex-1 py-2 border border-gray-300 rounded-full text-[13px]" @click="goTo('/store/'+(seller.id||''))">كل المنتجات</button>
+            <button class="flex-1 py-2 bg-gradient-to-r from-violet-500 to-pink-500 text-white rounded-full text-[13px] font-bold">+ متابع</button>
           </div>
         </div>
       </div>
       </div>
 
     <!-- White Container: Reviews Section -->
-    <div class="bg-white px-4 mt-0.5">
+    <div class="bg-white px-4 mt-0.5" v-if="reviews.length">
       <!-- Section 2: Reviews (Always Visible) -->
       <div ref="reviewsContentRef" class="mt-8">
         <!-- Reviews Header -->
@@ -601,81 +620,117 @@
       <div ref="recommendationsContentRef" class="mt-8">
         <div class="text-[16px] font-bold mb-3">ربما يعجبك هذا أيضاً</div>
         
-        <!-- Sub Tabs -->
+        <!-- Sub Tabs: Recommendation + subcategories of parent category -->
         <div ref="recommendationTabsRef" class="flex gap-4 mb-4 overflow-x-auto no-scrollbar border-b border-gray-200">
-          <button class="pb-2 text-[14px] border-b-2 font-bold whitespace-nowrap" style="border-bottom-color: #8a1538">
-            التوصية
-          </button>
-          <button class="pb-2 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
-            مجوهرات & ساعات
-          </button>
-          <button class="pb-2 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
-            ملابس واكسسوارات
-          </button>
-          <button class="pb-2 text-[14px] border-b-2 border-transparent text-gray-600 whitespace-nowrap">
-            ملابس داخلية & ملابس نوم
+          <button
+            v-for="t in recTabs"
+            :key="t.key"
+            class="pb-2 text-[14px] border-b-2 whitespace-nowrap"
+            :class="activeRecTab===t.key ? 'font-bold text-black' : 'text-gray-600 border-transparent'"
+            :style="activeRecTab===t.key ? 'border-bottom-color: #8a1538' : ''"
+            @click="switchRecTab(t.key)"
+          >
+            {{ t.label }}
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Product Cards - NO container, just cards -->
-    <div class="px-2 pb-2">
-      <!-- Product Cards - same layout as Products.vue -->
-        <div class="columns-2 gap-1 [column-fill:_balance] pb-2">
-          <div v-for="(p,i) in recommendedProducts" :key="'rec-'+i" class="mb-1 break-inside-avoid">
-            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden cursor-pointer" role="button" :aria-label="'افتح '+(p.title||'المنتج')" tabindex="0" @click="openRecommended(p)" @keydown.enter="openRecommended(p)" @keydown.space.prevent="openRecommended(p)">
-              <div class="relative w-full overflow-x-auto snap-x snap-mandatory no-scrollbar">
-                <div class="flex">
-                  <img :src="p.image" :alt="p.title" class="w-full h-auto object-cover block flex-shrink-0 snap-start" style="min-width:100%" loading="lazy" decoding="async" sizes="(max-width:640px) 50vw, 33vw" />
-                </div>
-                <div v-if="p.colors && p.colors.length" class="absolute bottom-2 right-2 flex items-center">
-                  <div class="flex flex-col items-center gap-0.5 bg-black/40 p-0.5 rounded-full">
-                    <span v-for="(c,idx) in p.colors.slice(0,3)" :key="'clr-'+idx" class="w-3 h-3 rounded-full border border-white/20" :style="{ background: c }"></span>
-                    <span v-if="p.colorCount" class="mt-0.5 text-[9px] font-semibold px-1 rounded-full text-white/80 bg-white/5">{{ p.colorCount }}</span>
-                  </div>
-                </div>
+    <!-- Product Cards using ProductCard.vue -->
+    <div class="px-1 pb-1">
+      <div class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 pb-2">
+        <!-- عمود يسار -->
+        <div>
+          <div v-for="(p,ci) in recLeft" :key="'rec-l-'+(p.id||ci)" class="mb-[6px]">
+          <ProductGridCard 
+              :class="'border-t-0 border-b-0 border-l-0'"
+              :product="{
+                id: p.id,
+                title: p.title,
+                images: p.thumbs || (Array.isArray((p as any).images)? (p as any).images : (p.img?[p.img]:[])),
+                overlayBannerSrc: (p as any).overlayBannerSrc,
+                overlayBannerAlt: (p as any).overlayBannerAlt,
+                brand: (p as any).brand,
+                discountPercent: (p as any).discountPercent,
+                bestRank: (p as any).bestRank,
+                bestRankCategory: (p as any).bestRankCategory,
+                basePrice: (p as any).priceText || (p as any).basePrice,
+                soldPlus: (p as any).soldPlus,
+                couponPrice: (p as any).afterCoupon,
+                isTrending: (p as any).isTrending === true
+              }"
+              :ratio="(p as any)._ratio || defaultRatio"
+              :priority="ci<6"
+              @add="openSuggestOptions"
+          />
+        </div>
+      </div>
+        <!-- عمود يمين -->
+        <div>
+          <div v-for="(p,ci) in recRight" :key="'rec-r-'+(p.id||ci)" class="mb-[6px]">
+            <ProductGridCard 
+              :class="'border-t-0 border-b-0 border-l-0'"
+              :product="{
+                id: p.id,
+                title: p.title,
+                images: p.thumbs || (Array.isArray((p as any).images)? (p as any).images : (p.img?[p.img]:[])),
+                overlayBannerSrc: (p as any).overlayBannerSrc,
+                overlayBannerAlt: (p as any).overlayBannerAlt,
+                brand: (p as any).brand,
+                discountPercent: (p as any).discountPercent,
+                bestRank: (p as any).bestRank,
+                bestRankCategory: (p as any).bestRankCategory,
+                basePrice: (p as any).priceText || (p as any).basePrice,
+                soldPlus: (p as any).soldPlus,
+                couponPrice: (p as any).afterCoupon,
+                isTrending: (p as any).isTrending === true
+              }"
+              :ratio="(p as any)._ratio || defaultRatio"
+              :priority="ci<6"
+              @add="openSuggestOptions"
+            />
+          </div>
+        </div>
+      </div>
+      <div v-if="isLoadingRecommended && hasMoreRecommended" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 pb-2">
+        <!-- يسار -->
+        <div>
+          <div v-for="i in recSkLeft" :key="'sk-rec-l-'+i" class="mb-[6px]">
+            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden border-t-0 border-b-0 border-l-0">
+              <div class="relative w-full">
+                <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
               </div>
-              <div class="relative p-2">
-                <div class="inline-flex items-center border border-gray-200 rounded overflow-hidden">
-                  <span class="inline-flex items-center h-[18px] px-1.5 text-[11px] text-white bg-violet-700">ترندات</span>
-                  <span class="inline-flex items-center h-[18px] px-1.5 text-[11px] bg-gray-100 text-violet-700">
-                    <Store :size="14" color="#6D28D9" :stroke-width="2" />
-                    <span class="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{{ p.brand||'' }}</span>
-                    <span class="text-violet-700 ms-0.5">&gt;</span>
-                  </span>
+            <div class="p-2">
+              <div class="inline-flex items-center gap-1 mb-1">
+                <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
+              </div>
+              <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+              <div class="w-24 h-3 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+        <!-- يمين -->
+        <div>
+          <div v-for="i in recSkRight" :key="'sk-rec-r-'+i" class="mb-[6px]">
+            <div class="w-full border border-gray-200 rounded bg-white overflow-hidden border-t-0 border-b-0 border-l-0">
+              <div class="relative w-full">
+                <div class="block w-full bg-gray-200 animate-pulse" :style="{ paddingTop: (placeholderRatios[i%placeholderRatios.length] * 100) + '%' }"></div>
+              </div>
+              <div class="p-2">
+                <div class="inline-flex items-center gap-1 mb-1">
+                  <span class="inline-block w-10 h-4 bg-gray-200 rounded"></span>
+                  <span class="inline-block w-20 h-4 bg-gray-100 rounded"></span>
                 </div>
-                <div class="flex items-center gap-1 mt-1.5">
-                  <div v-if="p.discountPercent" class="px-1 h-4 rounded text-[11px] font-bold border border-orange-300 text-orange-500 flex items-center leading-none">-%{{ p.discountPercent }}</div>
-                  <div class="text-[12px] text-gray-900 font-medium leading-tight truncate">{{ p.title }}</div>
-                </div>
-                <div v-if="p.bestRank" class="mt-1 inline-flex items-stretch rounded overflow-hidden">
-                  <div class="px-1 text-[9px] font-semibold flex items-center leading-none bg-[rgb(255,232,174)] text-[#c77210]">#{{ p.bestRank }} الأفضل مبيعاً</div>
-                </div>
-                <div class="mt-1 flex items-center gap-1">
-                  <span class="text-red-600 font-bold text-[13px]">{{ p.price }} ريال</span>
-                  <span v-if="p.soldPlus" class="text-[11px] text-gray-700">{{ p.soldPlus }}</span>
-                </div>
-                <button class="absolute left-2 bottom-6 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-black bg-white" aria-label="أضف إلى السلة" @click.stop="addToCart">
-                  <ShoppingCart :size="16" class="text-black" />
-                  <span class="text-[11px] font-bold text-black">1+</span>
-                </button>
-                <div v-if="p.couponPrice" class="mt-1 h-7 inline-flex items-center gap-1 px-2 rounded bg-[rgba(249,115,22,.10)]">
-                  <span class="text-[13px] font-extrabold text-orange-500">{{ p.couponPrice }} ريال</span>
-                  <span class="text-[11px] text-orange-500">/بعد الكوبون</span>
-                </div>
+                <div class="w-full h-4 bg-gray-200 rounded mb-1"></div>
+                <div class="w-24 h-3 bg-gray-200 rounded"></div>
               </div>
             </div>
           </div>
         </div>
-        
-      <!-- Loading -->
-      <div v-if="isLoadingRecommended" class="flex items-center justify-center py-8">
-        <div class="flex flex-col items-center gap-2">
-          <div class="w-8 h-8 border-4 border-gray-300 rounded-full animate-spin" style="border-top-color: #8a1538"></div>
-          <span class="text-[12px] text-gray-500">جاري التحميل...</span>
-        </div>
       </div>
+      <div ref="recLoadMoreSentinel" class="h-1"></div>
     </div>
 
     <!-- Back to Top Button -->
@@ -737,6 +792,70 @@
       </div>
     </div>
   </div>
+
+  <!-- ورقة القسائم السفلية -->
+  <div v-if="couponsSheetOpen" class="fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/50" @click="couponsSheetOpen=false"></div>
+    <div class="absolute left-0 right-0 bottom-0 bg-white rounded-t-[12px] p-4 max-h-[80vh] overflow-y-auto" dir="rtl">
+      <div class="flex items-center justify-between mb-3">
+        <button class="text-[20px]" @click="couponsSheetOpen=false" aria-label="إغلاق">×</button>
+        <div class="text-[14px] font-bold">تفاصيل العروض الترويجية</div>
+        <div style="width:24px"></div>
+      </div>
+      <!-- صندوق رمادي يتضمن الأسعار والخصم -->
+      <div class="bg-gray-50 rounded-lg p-3 mb-3">
+        <div class="text-center mb-3">
+          <div class="inline-flex items-center gap-1 px-3 h-8 rounded" :style="{ background:'rgba(250,99,56,.10)' }">
+            <span class="text-[14px] font-extrabold" :style="{ color: themeCouponColor }">{{ afterCouponPriceText || displayPrice }}</span>
+            <span class="text-[11px]" :style="{ color: themeCouponColor }">/بعد الكوبون</span>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 items-center py-1">
+          <div class="text-xs text-gray-500">السعر الأصلي</div>
+          <div class="text-sm font-bold text-gray-900 text-left">{{ displayPrice }}</div>
+        </div>
+        <div class="grid grid-cols-2 items-center py-1">
+          <div class="text-xs text-gray-500">الخصم</div>
+          <div class="text-sm font-bold text-red-500 text-left">-{{ fmtPrice(bestDiscountAmount||0) }}</div>
+        </div>
+        <div class="border-t my-2"></div>
+        <div class="grid grid-cols-2 items-center py-1">
+          <div class="text-xs text-gray-500">السعر بعد الكوبون</div>
+          <div class="text-sm font-extrabold" :style="{ color: themeCouponColor }">{{ afterCouponPriceText || displayPrice }}</div>
+        </div>
+      </div>
+      <button class="w-full h-10 rounded-md text-white font-semibold mb-3" style="background:#8a1538" @click="(async()=>{ if(!isOptionsComplete()){ openOptionsModal(); return } await addToCartInternal(); couponsSheetOpen=false })()">أضف إلى عربة التسوق بنجاح</button>
+      <div class="text-[11px] text-gray-500 mb-3">الخصومات المعروضة تقديرية وتخضع لقواعد الكوبونات. قد يختلف السعر النهائي.</div>
+
+      <div class="text-sm font-bold mb-2">القسيمة</div>
+      <div class="grid gap-3">
+        <article v-for="(coupon,idx) in pdpCouponsCards" :key="coupon.id" class="coupon-card" :class="{ expired: coupon.status==='expired', used: coupon.status==='used' }" :data-category="(coupon.categories||[]).join(' ')">
+          <div v-if="idx===0" class="badge" style="left:16px; right:auto; background:#fa6338">الموصى بها</div>
+          <div class="card-left">
+            <h3 class="coupon-title">{{ coupon.title }}</h3>
+            <p class="coupon-sub">{{ coupon.category }}</p>
+            <div class="expiry-row" @click="toggleSheetCoupon(idx)">
+              <span class="expiry">{{ coupon.expiryText }}</span>
+              <button class="exp-toggle" :class="{ open: sheetExpanded.includes(idx) }" :aria-expanded="sheetExpanded.includes(idx)">▾</button>
+            </div>
+            <div v-show="sheetExpanded.includes(idx)" class="expiry-details">
+              <p v-if="getExpiryTs(coupon)">ينتهي في: <strong>{{ expiryDateText(coupon) }}</strong></p>
+              <ul>
+                <li>خصم {{ coupon.discount }}%</li>
+                <li>{{ coupon.minOrderText }}</li>
+              </ul>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="card-right">
+            <div class="percent">{{ coupon.discount }}%</div>
+            <div class="discount-note">{{ coupon.minOrderText }}</div>
+            <div class="timer" :class="{ warning: isExpiringWithinDay(coupon) }" v-if="getExpiryTs(coupon) && coupon.status==='unused'" aria-label="الوقت المتبقي">{{ countdownText(coupon) }}</div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </div>
   <!-- إشعار: يرجى تحديد الخيارات (يظهر فوق النافذة) -->
   <Transition name="fade">
     <div v-if="requireOptionsNotice" class="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
@@ -745,6 +864,80 @@
       </div>
     </div>
   </Transition>
+  <!-- Policy bottom sheet -->
+  <div v-if="policyOpenKey" class="fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/40" @click="closePolicy"></div>
+    <div class="absolute left-0 right-0 bottom-0 bg-white rounded-t-[12px] p-4 min-h-[50vh] max-h-[70vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold text-[16px]">{{ policyTitle }}</h3>
+        <button class="text-[20px]" @click="closePolicy">×</button>
+      </div>
+      <div class="text-[13px] text-gray-700 leading-relaxed" v-html="policyContent"></div>
+    </div>
+  </div>
+  <!-- Description full-screen sheet -->
+  <div v-if="descOpen" class="fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/40" @click="descOpen=false"></div>
+    <Transition enter-active-class="transition-transform duration-300" enter-from-class="translate-y-full" enter-to-class="translate-y-0" leave-active-class="transition-transform duration-300" leave-from-class="translate-y-0" leave-to-class="translate-y-full">
+    <div class="absolute left-0 right-0 bottom-0 bg-white rounded-t-[12px] p-0 max-h-[70vh] overflow-y-auto shadow-xl">
+      <div class="relative flex items-center justify-center p-3 border-b">
+        <button class="absolute left-3 top-1/2 -translate-y-1/2" @click="descOpen=false" aria-label="إغلاق">
+          <X :size="22" />
+        </button>
+        <div class="text-[16px] font-bold">وصف</div>
+      </div>
+      <div class="p-4">
+         <div v-if="descPairs.length" class="grid grid-cols-[140px_1fr] md:grid-cols-[180px_1fr] gap-y-0 gap-x-6 text-[13px]">
+          <template v-for="(it,idx) in descPairs" :key="'dp-'+idx">
+            <div class="text-gray-600 text-right pr-1">{{ it.k }}</div>
+            <div class="text-gray-800 text-right pl-6" dir="rtl">{{ it.v }}</div>
+          </template>
+          <template v-if="product?.sku">
+            <div class="text-gray-600 text-right pr-1">SKU</div>
+            <div class="text-gray-800 text-right pl-6 flex items-center gap-2" dir="rtl">
+              <span class="font-mono break-all">{{ product.sku }}</span>
+              <button class="w-8 h-8 inline-flex items-center justify-center rounded-md bg-transparent active:scale-95" @click="copyText(String(product.sku))" aria-label="نسخ SKU">
+                <Copy :size="16" class="text-blue-600" />
+              </button>
+            </div>
+          </template>
+          <template v-if="product && product.id">
+            <div class="text-gray-600 text-right pr-1">ID</div>
+            <div class="text-gray-800 text-right pl-6 flex items-center gap-2" dir="rtl">
+              <span class="font-mono break-all">{{ product.id }}</span>
+              <button class="w-8 h-8 inline-flex items-center justify-center rounded-md bg-transparent active:scale-95" @click="copyText(String(product.id))" aria-label="نسخ ID">
+                <Copy :size="16" class="text-blue-600" />
+              </button>
+            </div>
+          </template>
+        </div>
+        <div v-else>
+          <div class="prose prose-sm max-w-none text-gray-800" v-html="safeDescription"></div>
+           <div class="mt-4 grid grid-cols-[140px_1fr] md:grid-cols-[180px_1fr] gap-y-0 gap-x-6 text-[13px]">
+            <template v-if="product?.sku">
+              <div class="text-gray-600 text-right pr-1">SKU</div>
+              <div class="text-gray-800 text-right pl-6 flex items-center gap-2" dir="rtl">
+                <span class="font-mono break-all">{{ product.sku }}</span>
+                <button class="w-8 h-8 inline-flex items-center justify-center rounded-md bg-transparent active:scale-95" @click="copyText(String(product.sku))" aria-label="نسخ SKU">
+                  <Copy :size="16" class="text-blue-600" />
+                </button>
+              </div>
+            </template>
+            <template v-if="product && product.id">
+              <div class="text-gray-600 text-right pr-1">ID</div>
+              <div class="text-gray-800 text-right pl-6 flex items-center gap-2" dir="rtl">
+                <span class="font-mono break-all">{{ product.id }}</span>
+                <button class="w-8 h-8 inline-flex items-center justify-center rounded-md bg-transparent active:scale-95" @click="copyText(String(product.id))" aria-label="نسخ ID">
+                  <Copy :size="16" class="text-blue-600" />
+                </button>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+    </Transition>
+  </div>
   <!-- Modal: pick options if missing -->
 <ProductOptionsModal
     v-if="optionsModalOpen"
@@ -761,46 +954,292 @@
     :onWishlist="toggleWish"
     :wishlistActive="hasWish"
   />
+  <!-- Modal: pick options for recommended product -->
+<ProductOptionsModal
+    v-if="recOptionsOpen"
+    :onClose="()=>{ recOptionsOpen=false }"
+    :onSave="onRecModalSave"
+    :product="recModalProduct"
+    :selectedColor="recModalColor"
+    :selectedSize="recModalSize"
+    :groupValues="undefined"
+    :hideTitle="true"
+    primaryLabel="إضافة إلى السلة"
+    :showWishlist="false"
+  />
+  <!-- Shipping details full-screen sheet -->
+  <Transition enter-active-class="transition-transform duration-300" enter-from-class="-translate-x-full" enter-to-class="translate-x-0" leave-active-class="transition-transform duration-300" leave-from-class="translate-y-0" leave-to-class="-translate-x-full">
+  <div v-if="shippingDetailsOpen" class="fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/50" @click="closeShippingDetails"></div>
+    <div class="absolute inset-0 bg-[#fafafa] flex flex-col transform">
+      <div class="relative flex items-center justify-center p-3 border-b bg-white">
+        <button class="absolute right-3 top-1/2 -translate-y-1/2" @click="closeShippingDetails">
+          <ChevronRight :size="22" />
+        </button>
+        <div class="text-[16px] font-bold">معلومات الشحن والتوصيل</div>
+      </div>
+      <div class="p-3 space-y-3 overflow-y-auto">
+        <!-- Address Selector -->
+        <div class="p-3 rounded-lg border bg-white flex items-center justify-between" role="button" @click="router.push(`/address?return=${encodeURIComponent('/p?id='+id)}`)">
+          <div>
+            <div class="text-[14px] font-semibold mb-0.5">الشحن إلى :</div>
+            <div class="text-[13px] text-gray-700" v-if="selectedAddress">
+              {{ selectedAddress.city }} - {{ selectedAddress.state }}
+              <div class="text-[11px] text-gray-500 mt-0.5">{{ selectedAddress.street || selectedAddress.address }}</div>
+            </div>
+            <div class="text-[13px] text-gray-500" v-else>يرجى تحديد عنوان للشحن</div>
+          </div>
+          <ChevronLeft :size="18" class="text-gray-500" />
+        </div>
+
+        <!-- Shipping Methods Table -->
+        <div class="p-3 rounded-lg border bg-white">
+          <div class="mb-2 text-[14px] font-semibold">خيارات التوصيل المتاحة</div>
+          <div v-if="shippingMethods.length" class="w-full border rounded-lg overflow-hidden">
+            <div class="grid grid-cols-3 text-[13px] bg-gray-50 border-b font-medium">
+              <div class="p-2 text-center">التكلفة</div>
+              <div class="p-2 text-center">المدة</div>
+              <div class="p-2 text-center">الشركة</div>
+            </div>
+            <div v-for="(m,i) in shippingMethods" :key="m.id||i" class="grid grid-cols-3 text-[13px] border-b last:border-b-0 items-center">
+              <div class="p-2 text-center font-bold text-gray-900">{{ Number(m.price)>0 ? fmtPrice(Number(m.price)) : 'مجاني' }}</div>
+              <div class="p-2 text-center text-gray-600">{{ formatEtaRange(m?.etaMinHours, m?.etaMaxHours) || (m.desc||'') }}</div>
+              <div class="p-2 text-center text-[12px]">{{ m.offerTitle || m.name }}</div>
+            </div>
+          </div>
+          <div v-else class="text-center py-8 text-gray-500 text-[13px]">
+            <Truck :size="32" class="mx-auto mb-2 opacity-50" />
+            <div>لا توجد خيارات شحن متاحة لهذا العنوان حالياً.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </Transition>
+  <!-- Fit Profile Modal -->
+  <div v-if="fitModalOpen" class="fixed inset-0 z-50 flex items-center justify-center">
+    <div class="absolute inset-0 bg-black/50" @click="closeFitModal"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl w-[92%] max-w-lg p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-extrabold text-[18px]">بيانات المقاس الشخصية</h3>
+        <button class="text-[20px]" @click="closeFitModal">×</button>
+      </div>
+      <div class="grid gap-4">
+        <label class="text-[13px] text-gray-800 font-medium">الطول (سم)
+          <input type="number" inputmode="numeric" class="input w-full h-11 text-[14px] border border-gray-300 rounded-md placeholder-gray-400" v-model="fitHeight" placeholder="مثال: 170" />
+        </label>
+        <label class="text-[13px] text-gray-800 font-medium">الوزن (كجم)
+          <input type="number" inputmode="numeric" class="input w-full h-11 text-[14px] border border-gray-300 rounded-md placeholder-gray-400" v-model="fitWeight" placeholder="مثال: 65" />
+        </label>
+        <label class="text-[13px] text-gray-800 font-medium">العرض أو قياس الصدر/الوسط (سم)
+          <input type="number" inputmode="numeric" class="input w-full h-11 text-[14px] border border-gray-300 rounded-md placeholder-gray-400" v-model="fitWidth" placeholder="مثال: 90" />
+        </label>
+      </div>
+      <div class="flex gap-2 justify-end mt-5">
+        <button class="btn btn-outline h-10 px-4 text-[14px]" @click="closeFitModal">إلغاء</button>
+        <button class="btn h-10 px-5 text-[14px]" style="background-color:#8a1538;color:white" @click="saveFitProfile">حفظ</button>
+      </div>
+    </div>
+  </div>
   </div>
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'ProductPage' })
 // ==================== IMPORTS ====================
 import { useRoute, useRouter } from 'vue-router'
-import { ref, onMounted, computed, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, onMounted, computed, onBeforeUnmount, watch, nextTick, onActivated, onDeactivated } from 'vue'
 import { useCart } from '@/store/cart'
+import { useRecent } from '@/store/recent'
+import { useWishlist } from '@/store/wishlist'
 import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
 import { API_BASE, apiPost, apiGet } from '@/lib/api'
 import { 
   ShoppingCart, Share, Menu, 
   Star as StarIcon, Heart as HeartIcon,
   ChevronLeft, ChevronRight, Camera, ThumbsUp, Truck, DollarSign, 
-  RotateCcw, ShieldCheck, ChevronUp, CheckCircle, Store
+  RotateCcw, ShieldCheck, ChevronUp, CheckCircle, Store, Copy, X
 } from 'lucide-vue-next'
+import { consumePrefetchPayload } from '@/lib/nav'
+import ProductGridCard from '@/components/ProductGridCard.vue'
+import { buildThumbUrl } from '@/lib/media'
+import { fmtPrice, getCurrency, getSymbol } from '@/lib/currency'
+import { getTrendingIdSet } from '@/lib/trending'
 
 // ==================== ROUTE & ROUTER ====================
 const route = useRoute()
 const router = useRouter()
-const id = route.query.id as string || 'p1'
+const cart = useCart()
+const recent = useRecent()
+const wishlist = useWishlist()
+const id = computed(() => (route.query.id as string) || 'p1')
+const descOpen = ref(false)
+function isAuthenticated(){ return typeof document!=='undefined' && (document.cookie.includes('shop_auth_token=') || document.cookie.includes('auth_token=')) }
 
 // ==================== PRODUCT DATA ====================
 const product = ref<any>(null)
-const title = ref('منتج تجريبي')
-const price = ref<number>(129)
+const isLoadingPdp = ref(true)
+const isLoadingVariants = ref(true)
+const title = ref('')
+const price = ref<number|null>(null)
 const original = ref('')
 const images = ref<string[]>([])
 const allImages = ref<string[]>([])
 const activeIdx = ref(0)
 const activeImg = computed(()=> images.value[activeIdx.value] || '')
-const displayPrice = computed(()=> (Number(price.value)||0) + ' ر.س')
+const displayPrice = computed(()=> price.value==null ? '' : fmtPrice(Number(price.value)||0))
+const afterCouponPriceText = ref('')
+const themeCouponColor = '#fa6338'
+const pdpCoupons = ref<any[]>([])
+const pdpCouponsLimited = computed(()=> pdpCoupons.value.slice(0,2))
+
+// Bottom sheet for coupons details
+const couponsSheetOpen = ref(false)
+const bestDiscountAmount = computed(()=>{
+  try{
+    const base = Number(price.value||0)
+    const best = pdpCoupons.value[0]
+    const after = Number(best?.priceAfter||0)
+    if (!base || !after) return 0
+    return Math.max(0, base - after)
+  }catch{ return 0 }
+})
+
+const sheetExpanded = ref<number[]>([])
+function toggleSheetCoupon(i:number){
+  const k = sheetExpanded.value.indexOf(i)
+  if (k>-1) sheetExpanded.value.splice(k,1); else sheetExpanded.value.push(i)
+}
+
+function pdpGetExpiryTs(c:any){
+  const raw = c?.validUntil || c?.expiresAt || (c?.schedule && c.schedule.to)
+  if (!raw) return null
+  const ts = new Date(raw).getTime()
+  return Number.isFinite(ts)? ts: null
+}
+function pdpExpiryDateText(c:any){
+  const ts = pdpGetExpiryTs(c)
+  if (!ts) return ''
+  try{ return new Date(ts).toLocaleString('ar', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) }catch{ return new Date(ts).toISOString() }
+}
+
+// Map to coupons.vue card shape
+const pdpCouponsCards = computed(()=>{
+  return (pdpCoupons.value||[]).map((c, i)=>{
+    const discountPct = Number(String(c.percentLabel||c.discountLabel||'').toString().replace(/[^0-9.]/g,''))||0
+    const expiryText = pdpExpiryDateText(c)
+    return {
+      id: c.code || 'c'+i,
+      status: 'unused',
+      categories: [],
+      title: c.title || 'كوبون',
+      category: c.kindLabel || 'خصم',
+      discount: discountPct,
+      minOrderText: c.minLabel || '',
+      validUntil: c.validUntil || null,
+      schedule: c.schedule || null,
+      expiresAt: c.expiresAt || null,
+      expiryText,
+      conditions: [c.kindLabel || 'عروض']
+    }
+  })
+})
+
+// Helpers copied to match coupons.vue behavior
+const nowTs = ref(Date.now())
+let countdownInterval2: any = null
+onMounted(()=>{ countdownInterval2 = setInterval(()=> nowTs.value = Date.now(), 1000) })
+onBeforeUnmount(()=>{ if (countdownInterval2) clearInterval(countdownInterval2) })
+function getExpiryTs(coupon:any){
+  const raw = coupon?.validUntil || coupon?.valid_to || coupon?.expiresAt || (coupon?.schedule && coupon.schedule.to)
+  if (!raw) return null
+  const ts = new Date(raw).getTime()
+  return Number.isFinite(ts) ? ts : null
+}
+function countdownText(coupon:any){
+  const ts = getExpiryTs(coupon)
+  if (!ts) return ''
+  const diff = ts - nowTs.value
+  if (diff <= 0) return '00:00:00'
+  const totalSeconds = Math.floor(diff / 1000)
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const dd = String(days).padStart(2, '0')
+  const hh = String(hours).padStart(2, '0')
+  const mm = String(minutes).padStart(2, '0')
+  const ss = String(seconds).padStart(2, '0')
+  return days > 0 ? `${dd}:${hh}:${mm}:${ss}` : `${hh}:${mm}:${ss}`
+}
+function isExpiringWithinDay(coupon:any){
+  const ts = getExpiryTs(coupon)
+  if (!ts) return false
+  const diff = ts - nowTs.value
+  return diff > 0 && diff <= 24 * 60 * 60 * 1000
+}
+function expiryDateText(coupon:any){
+  const ts = getExpiryTs(coupon)
+  if (!ts) return ''
+  try{ return new Date(ts).toLocaleString('ar', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) }catch{ return new Date(ts).toISOString() }
+}
 const categorySlug = ref<string>('')
 const brand = ref<string>('')
 const categoryName = ref<string>('')
+const categoryId = ref<string>('')
+const allCategoryIds = ref<string[]>([])
 const safeDescription = computed(()=>{
   try{
     const html = String(product.value?.description||'')
     return html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi,'')
   }catch{ return '' }
+})
+const descPairs = computed(()=>{
+  try{
+    const div = document.createElement('div')
+    div.innerHTML = safeDescription.value
+    const pairs: Array<{k:string;v:string}> = []
+    // Prefer two-column tables or paragraphs with colon
+    div.querySelectorAll('tr').forEach(tr=>{
+      const tds = tr.querySelectorAll('td,th'); if (tds.length>=2){
+        const k = (tds[0].textContent||'').trim().replace(/^(البند|العنصر|Item)\s*:?\s*/i,'')
+        const v = (tds[1].textContent||'').trim().replace(/^(القيمة|Value)\s*:?\s*/i,'')
+        if (k || v) pairs.push({ k, v })
+      }
+    })
+    if (!pairs.length){
+      const texts: string[] = []
+      div.querySelectorAll('p,li,div').forEach(p=>{ const t=(p.textContent||'').trim(); if(t) texts.push(t) })
+      for (const t of texts){
+        const m = t.split(/[:：]/); if (m.length===2){
+          const k = m[0].trim().replace(/^(البند|العنصر|Item)\s*$/i,'')
+          const v = m[1].trim().replace(/^(القيمة|Value)\s*$/i,'')
+          if (k || v) pairs.push({ k, v })
+        }
+      }
+    }
+    return pairs
+  }catch{ return [] as Array<{k:string;v:string}> }
+})
+const descRef = ref<HTMLElement|null>(null)
+// Remove any built-in labels like "البند"/"القيمة" if present in CMS HTML and add spacing between key/value
+watch(descRef, ()=>{
+  try{
+    const el = descRef.value; if(!el) return;
+    // Normalize simple key:value lines into two-column flex on small HTML structures
+    el.querySelectorAll('p').forEach(p=>{
+      const t = (p.textContent||'').trim();
+      if (!t) return;
+      // Strip explicit labels
+      const stripped = t.replace(/^\s*(البند|العنصر|Item)\s*[:：]\s*/i,'').replace(/\s*(\||\-|\–|—)\s*(القيمة|Value)\s*[:：]\s*/i,' ')
+      // Try split on colon
+      const parts = stripped.split(/[:：]/);
+      if (parts.length===2){
+        const k = parts[0].trim(); const v = parts[1].trim();
+        if (k && v){ p.innerHTML = `<span class="desc-k">${k}</span><span class="desc-v">${v}</span>`; p.classList.add('kv-row') }
+      }
+    })
+  }catch{}
 })
 
 // ==================== PRODUCT VARIANTS ====================
@@ -1044,104 +1483,94 @@ const tabs = ref<Array<{ key:string; label:string }>>([
 
 // ==================== RECOMMENDED PRODUCTS ====================
 const isLoadingRecommended = ref(false)
-const recommendedProducts = ref<any[]>([
-  {
-    brand: 'COSMINA',
-    title: 'فستان أسود كلاسيكي أنيق',
-    image: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=400',
-    price: 149,
-    colors: ['#000000', '#ffffff', '#2a62ff'],
-    colorCount: 3,
-    discountPercent: 20,
-    bestRank: 2,
-    soldPlus: 'باع 300+'
-  },
-  {
-    brand: 'Elenzga',
-    title: 'بلوزة صيفية مريحة',
-    image: 'https://images.unsplash.com/photo-1564584217132-2271feaeb3c5?w=400',
-    price: 89,
-    colors: ['#ff6b6b', '#4ecdc4'],
-    colorCount: 2,
-    discountPercent: 15,
-    soldPlus: 'باع 500+'
-  },
-  {
-    brand: 'SHEIN',
-    title: 'إكسسوار ذهبي فاخر',
-    image: 'https://images.unsplash.com/photo-1611652022419-a9419f74343d?w=400',
-    price: 59,
-    discountPercent: 25,
-    couponPrice: 44,
-    soldPlus: 'باع 200+'
-  },
-  {
-    brand: 'SHEIN',
-    title: 'جاكيت نسائي شتوي دافئ',
-    image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400',
-    price: 120,
-    colors: ['#2c3e50', '#34495e'],
-    colorCount: 2,
-    discountPercent: 18,
-    soldPlus: 'باع 400+'
-  },
-  {
-    brand: 'Elenzga',
-    title: 'بنطلون جينز نسائي كاجوال',
-    image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=400',
-    price: 95,
-    colors: ['#2c3e50'],
-    colorCount: 1,
-    discountPercent: 10,
-    bestRank: 5,
-    soldPlus: 'باع 600+'
-  },
-  {
-    brand: 'COSMINA',
-    title: 'تنورة نسائية قصيرة صيفية',
-    image: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400',
-    price: 75,
-    colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
-    colorCount: 4,
-    discountPercent: 22,
-    soldPlus: 'باع 350+'
-  }
+const hasMoreRecommended = ref(true)
+const placeholderRatios = [1.2, 1.5, 1.35, 1.1, 1.4, 1.25, 1.6, 1.3]
+type RecItem = { id:string; title:string; img:string; brand?:string; priceText:string; originalText?:string; afterCoupon?:string; discountPercent?:number; soldCount?:number; fast?:boolean; bestRank?:number; thumbs?:string[]; href?:string; _ratio?:number; categoryId?: string; categoryIds?: string[] }
+const recommendedProducts = ref<RecItem[]>([])
+const restoredRec = ref(false)
+
+// Rec tabs: recommendation + subcategories
+const recTabs = ref<Array<{ key:string; label:string; catId?:string }>>([
+  { key:'reco', label:'التوصية' }
 ])
+const activeRecTab = ref<string>('reco')
+let recoController: AbortController | null = null
+const nonEmptyCatCache = ref<Record<string, boolean>>({})
+function switchRecTab(key:string){
+  if (activeRecTab.value===key) return
+  activeRecTab.value = key
+  fetchRecommendations()
+}
+
+async function buildRecTabsFromCategory(){
+  try{
+    const j = await apiGet<any>('/api/categories?limit=200')
+    const cats: Array<any> = Array.isArray(j?.categories)? j.categories : []
+    if (!cats.length || !categoryId.value) return
+    const idToCat = new Map<string, any>()
+    cats.forEach(c=> idToCat.set(String(c.id), c))
+    const current = idToCat.get(String(categoryId.value))
+    if (!current) return
+    // Find parent if any
+    const parentId = current.parentId || current.parentID || current.parent_id || null
+    const parent = parentId ? idToCat.get(String(parentId)) : null
+    const children = cats.filter(c=> String(c.parentId||c.parentID||c.parent_id||'') === String(parent ? parent.id : current.id))
+    // build tabs directly without probing (optimization)
+    const baseTabs: Array<{key:string;label:string;catId?:string}> = [ { key:'reco', label:'التوصية' } ]
+    for (const ch of children){
+      baseTabs.push({ key:'cat:'+ch.id, label: String(ch.name||''), catId: String(ch.id) })
+    }
+    recTabs.value = baseTabs
+  }catch{}
+}
 
 // Load More Recommended Products (Infinite Scroll)
-function loadMoreRecommended() {
+async function loadMoreRecommended() {
   if (isLoadingRecommended.value) return
-  
   isLoadingRecommended.value = true
-  
-  // Simulate loading from API
-  setTimeout(() => {
-    const newProducts = [
-      {
-        brand: 'SHEIN',
-        title: 'منتج جديد ' + (recommendedProducts.value.length + 1),
-        image: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=400',
-        price: 85,
-        colors: ['#ff6b6b', '#4ecdc4'],
-        colorCount: 2,
-        discountPercent: 18,
-        soldPlus: 'باع 400+'
-      },
-      {
-        brand: 'Elenzga',
-        title: 'منتج جديد ' + (recommendedProducts.value.length + 2),
-        image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400',
-        price: 105,
-        colors: ['#2c3e50', '#34495e'],
-        colorCount: 3,
-        discountPercent: 22,
-        soldPlus: 'باع 350+'
+  try{
+    const offset = recommendedProducts.value.length
+    let list: any[] = []
+    // If active tab is a category, paginate that category; else use similar/new fallback
+    const tab = recTabs.value.find(t=> t.key===activeRecTab.value)
+    if (tab && tab.catId){
+      const u = new URL(`${API_BASE}/api/catalog/${encodeURIComponent(tab.catId)}`)
+      u.searchParams.set('limit','10')
+      u.searchParams.set('offset', String(offset))
+      const j = await apiGet<any>(`/api/catalog/${encodeURIComponent(tab.catId)}?${u.searchParams.toString()}`).catch(()=>null)
+      list = Array.isArray(j?.items)? j.items : []
+    } else {
+      // Prefer similar; if backend supports offset/limit they'll be used, else we slice locally
+      const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id.value)}?limit=10&offset=${offset}`).catch(()=>null)
+      list = Array.isArray(sim?.items) ? sim!.items : []
+      if (!list.length){
+        const ex = Array.from(new Set(recommendedProducts.value.map(p=> String(p.id)))).slice(0,200)
+        const u = new URL(`${API_BASE}/api/products`)
+        u.searchParams.set('limit','10')
+        u.searchParams.set('sort','new')
+        u.searchParams.set('offset', String(offset))
+        if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
+        const rec = await apiGet<any>(`/api/products?${u.searchParams.toString()}`).catch(()=>null)
+        list = Array.isArray(rec?.items) ? rec!.items : []
       }
-    ]
-    
-    recommendedProducts.value.push(...newProducts)
+    }
+    // Map and de-dup by id
+    const existing = new Set(recommendedProducts.value.map(p=> String(p.id)))
+    const mapped = list
+      .map((it:any)=> toRecItem(it))
+      // exclude current product id to avoid "reload same page" effect
+      .filter((p:any)=> String(p.id) !== String(id.value))
+      .filter((p:any)=> !existing.has(String(p.id)))
+    if (mapped.length){
+      await Promise.all(mapped.map(p=> probeRatioPromise(p)))
+      recommendedProducts.value.push(...mapped)
+      try{ const set = await getTrendingIdSet(); mapped.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
+      try{ await hydrateCouponsForRecommended() }catch{}
+      hasMoreRecommended.value = list.length >= 10
+    } else { hasMoreRecommended.value = false }
+  }catch{} finally {
     isLoadingRecommended.value = false
-  }, 1500)
+  }
 }
 
 // Navigate to recommended product
@@ -1176,6 +1605,36 @@ function scrollToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+// Fit modal state
+const fitModalOpen = ref(false)
+const fitHeight = ref<string>('')
+const fitWeight = ref<string>('')
+const fitWidth = ref<string>('')
+function openFitModal(){
+  fitModalOpen.value = true
+  loadFitProfile()
+}
+function closeFitModal(){ fitModalOpen.value = false }
+async function loadFitProfile(){
+  try{
+    const j = await apiGet<any>('/api/me/fit-profile')
+    const p = j?.profile||{}
+    fitHeight.value = p.heightCm!=null? String(p.heightCm): ''
+    fitWeight.value = p.weightKg!=null? String(p.weightKg): ''
+    fitWidth.value = p.widthCm!=null? String(p.widthCm): ''
+  }catch{}
+}
+async function saveFitProfile(){
+  try{
+    await apiPost('/api/me/fit-profile', {
+      heightCm: fitHeight.value? Number(fitHeight.value): null,
+      weightKg: fitWeight.value? Number(fitWeight.value): null,
+      widthCm: fitWidth.value? Number(fitWidth.value): null,
+    })
+    closeFitModal()
+  }catch{}
+}
+
 // Reviews & Rating (from API)
 const avgRating = ref(4.9)
 const reviews = ref<any[]>([])
@@ -1206,9 +1665,28 @@ function barStyle(pct: number): string {
 }
 
 // Cart & Wishlist
-const cart = useCart()
+
 const toast = ref(false)
 const toastText = ref('تمت الإضافة إلى السلة')
+function showToast(msg?: string){
+  try{ if (msg) toastText.value = msg }catch{}
+  toast.value = true
+  setTimeout(()=>{ 
+    toast.value = false
+    try{ toastText.value = 'تمت الإضافة إلى السلة' }catch{}
+  }, 1200)
+}
+async function copyText(text: string){
+  try{
+    await navigator.clipboard.writeText(text)
+    showToast('تم النسخ')
+  }catch{
+    try{
+      const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
+      showToast('تم النسخ')
+    }catch{}
+  }
+}
 const requireOptionsNotice = ref(false)
 
 async function addToCart(){
@@ -1221,40 +1699,46 @@ async function addToCart(){
 }
 async function addToCartInternal(){
   const chosenSize = sizeGroups.value.length ? Object.entries(selectedGroupValues.value).map(([label,val])=> `${label}:${val}`).join('|') : size.value
-  cart.add({ id, title: title.value, price: Number(price.value)||0, img: activeImg.value, variantColor: currentColorName.value || undefined, variantSize: chosenSize || undefined }, 1)
-  try { await apiPost('/api/cart/add', { productId: id, variantId: selectedVariantId.value, quantity: 1 }) } catch {}
-  try { trackAddToCart() } catch {}
-  toast.value = true
-  setTimeout(()=> toast.value=false, 1200)
+  // cart.add handles the API call internally
+  cart.add({ id: id.value, title: title.value, price: Number(price.value)||0, img: activeImg.value, variantColor: currentColorName.value || undefined, variantSize: chosenSize || undefined }, 1)
+  showToast()
 }
 const hasWish = ref(false)
 // PDP Meta (badges, bestRank, fit, model, shipping destination override)
 const pdpMeta = ref<{ badges?: Array<{ title:string; subtitle?:string; bgColor?:string }>; bestRank?: number|null; fitPercent?: number|null; fitText?: string|null; model?: { size?: string; height?: number; bust?: number; waist?: number; hips?: number }|null; shippingDestinationOverride?: string|null; sellerBlurb?: string|null; clubBanner?: { enabled:boolean; amount:number; discountType:'percent'|'fixed'; discountValue:number; text:string; joinUrl?:string; style?: { theme?: string; rounded?: boolean }; placement?: { pdp?: { enabled:boolean; position?: string } } }|null }>({ badges: [] })
-async function loadPdpMeta(){
+async function loadPdpMeta(pid?: string){
   try{
-    const j = await apiGet<any>(`/api/product/${encodeURIComponent(id)}/meta`)
+    const p = String(pid || id.value)
+    const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/meta`)
     const meta = (j && j.meta) ? j.meta : j
-    if (meta && typeof meta==='object') pdpMeta.value = Object.assign({ badges: [] }, meta)
+    if (meta && typeof meta==='object') {
+      // Filter model image
+      if (meta.model && meta.model.imageUrl && !isValidImageUrl(meta.model.imageUrl)) {
+        meta.model.imageUrl = ''
+      }
+      pdpMeta.value = Object.assign({ badges: [] }, meta)
+    }
   }catch{}
 }
 async function loadWishlist(){
   try{
+    if (!isAuthenticated()) { hasWish.value = false; return }
     const j = await apiGet<any>('/api/wishlist')
     const items: any[] = Array.isArray(j) ? j : Array.isArray(j?.items) ? j!.items : []
-    const found = items.find((w:any)=> String(w.id||w.productId||'') === String(id))
+    const found = items.find((w:any)=> String(w.id||w.productId||'') === String(id.value))
     hasWish.value = !!found
   }catch{ hasWish.value = false }
 }
 async function toggleWish(){
   try{
-    const r = await apiPost<any>('/api/wishlist/toggle', { productId: id })
+    const r = await apiPost<any>('/api/wishlist/toggle', { productId: id.value })
     if (r && (r.added || r.removed)) hasWish.value = !!r.added
     else hasWish.value = !hasWish.value
   }catch{ hasWish.value = !hasWish.value }
 }
 
 // Seller info
-const seller = ref<{ id?: string; name?: string; storeName?: string; storeNumber?: string; updatedAt?: string }|null>(null)
+const seller = ref<{ id?: string; name?: string; storeName?: string; storeNumber?: string; updatedAt?: string; meta?: { blurb?: string; logoUrl?: string; bannerUrl?: string; links?: { website?: string; instagram?: string; whatsapp?: string } } }|null>(null)
 const sellerFollowText = computed(()=>{
   if (!seller.value?.updatedAt) return ''
   try{
@@ -1268,14 +1752,55 @@ const sellerFollowText = computed(()=>{
     return `تمت متابعته منذ ${days} يوم`
   }catch{ return '' }
 })
-async function loadSeller(){
-  try{ const j = await apiGet<any>(`/api/product/${encodeURIComponent(id)}/seller`); seller.value = j?.vendor || null }catch{}
+async function loadSeller(pid?: string){
+  try{ 
+    const p = String(pid || id.value); 
+    const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/seller`); 
+    const v = j?.vendor || null
+    if (v && v.meta) {
+      if (v.meta.logoUrl && !isValidImageUrl(v.meta.logoUrl)) v.meta.logoUrl = ''
+      if (v.meta.bannerUrl && !isValidImageUrl(v.meta.bannerUrl)) v.meta.bannerUrl = ''
+    }
+    seller.value = v
+  }catch{}
 }
 
 // Size Guide Modal
 const sizeGuideOpen = ref(false)
-function openSizeGuide(){ sizeGuideOpen.value = true }
+async function openSizeGuide(){ sizeGuideOpen.value = true; try{ if (!sizeGuideHtml.value) await fetchSizeGuide() }catch{} }
 function closeSizeGuide(){ sizeGuideOpen.value = false }
+// Shipping details modal (full-screen sheet)
+const shippingDetailsOpen = ref(false)
+function openShippingDetails(){ shippingDetailsOpen.value = true; void loadShipping() }
+function closeShippingDetails(){ shippingDetailsOpen.value = false }
+// Policies sheet
+const policyOpenKey = ref<null|'cod'|'returns'|'secure'>(null)
+const policyTitle = computed(()=>{
+  const pol:any = (pdpMeta.value as any)?.policies||{}
+  if (policyOpenKey.value==='cod') return pol?.cod?.title || 'خدمة الدفع عند الاستلام'
+  if (policyOpenKey.value==='returns') return pol?.returns?.title || 'سياسة الإرجاع'
+  if (policyOpenKey.value==='secure') return pol?.secure?.title || 'آمن للتسوق'
+  return ''
+})
+const policyContent = computed(()=>{
+  const pol:any = (pdpMeta.value as any)?.policies||{}
+  if (policyOpenKey.value==='cod') return pol?.cod?.content || ''
+  if (policyOpenKey.value==='returns') return pol?.returns?.content || ''
+  if (policyOpenKey.value==='secure') return pol?.secure?.content || ''
+  return ''
+})
+const policyLink = computed(()=>{
+  const pol:any = (pdpMeta.value as any)?.policies||{}
+  if (policyOpenKey.value==='cod') return pol?.cod?.link || ''
+  if (policyOpenKey.value==='returns') return pol?.returns?.link || ''
+  if (policyOpenKey.value==='secure') return pol?.secure?.link || ''
+  return ''
+})
+function openPolicy(key:'cod'|'returns'|'secure'){
+  // افتح النافذة دائماً؛ المحتوى سيتعامل مع غياب السياسات بفواصل افتراضية
+  policyOpenKey.value = key
+}
+function closePolicy(){ policyOpenKey.value = null }
 
 // ==================== IMAGE GALLERY & LIGHTBOX ====================
 const galleryRef = ref<HTMLDivElement|null>(null)
@@ -1327,7 +1852,7 @@ async function computeGalleryHeight(){
   try{
     const width = galleryRef.value?.clientWidth || window.innerWidth
     const sizes: Array<{w:number,h:number,ratio:number,area:number,scaled:number}> = await Promise.all(
-      images.value.map(src => new Promise<{w:number,h:number,ratio:number,area:number,scaled:number}>(resolve=>{
+      allImages.value.map(src => new Promise<{w:number,h:number,ratio:number,area:number,scaled:number}>(resolve=>{
         const im = new Image()
         im.onload = ()=> {
           const w = im.width||width; const h = im.height||width; const ratio = h/Math.max(1,w); resolve({ w, h, ratio, area: w*h, scaled: width*ratio })
@@ -1352,11 +1877,11 @@ async function computeGalleryHeight(){
 }
 // Recompute when images array updates
 watch(images, async ()=>{ try{ await nextTick(); await computeGalleryHeight() }catch{} }, { deep: true })
+// Recalculate after-coupon price whenever base price changes
+watch(price, ()=>{ try{ hydrateCouponsForPdp() }catch{} })
 
 function getImgFitClass(idx: number): string {
-  try{
-    if (idx === tallestIndex.value) return 'object-contain'
-  }catch{}
+  // Use object-cover to fill space completely (may crop edges)
   return 'object-cover'
 }
 
@@ -1389,7 +1914,7 @@ function onScroll(){
   const scrollTop = window.scrollY
   const clientHeight = window.innerHeight
   
-  if (scrollTop + clientHeight >= scrollHeight - 300 && !isLoadingRecommended.value) {
+  if (scrollTop + clientHeight >= scrollHeight - 300 && !isLoadingRecommended.value && hasMoreRecommended.value) {
     loadMoreRecommended()
   }
   
@@ -1437,16 +1962,20 @@ function onScroll(){
 }
 
 // ==================== LIFECYCLE HOOKS ====================
-onMounted(()=>{ 
+onMounted(async ()=>{ 
   onScroll()
   window.addEventListener('scroll', onScroll, { passive:true })
   computeGalleryHeight()
   window.addEventListener('resize', computeGalleryHeight, { passive:true })
+  // حاول استعادة حالة الصفحة (التوصيات + موضع التمرير) أولاً
+
   loadProductData()
+  await loadAddresses()
   loadShipping()
   loadPdpMeta()
   loadSeller()
   trackViewItem()
+  trackPageViewProduct()
   injectHeadMeta()
   try{
     const hasAny = (!!reviews.value?.length) || (!!customerReviews.value?.length)
@@ -1457,33 +1986,157 @@ onMounted(()=>{
   }catch{}
 })
 
+// Force refresh when navigating to same component with different ?id (URL changes but Vue keeps instance)
+// DISABLE WATCHER: App.vue uses key="route.fullPath", so a new instance is created for every ID change.
+// This watcher was causing the CACHED instance to reload data when the route changed, messing up the state.
+/*
+watch(() => route.query.id, async (nv, ov)=>{
+  try{
+    if (String(nv||'') !== String(ov||'')) {
+      isLoadingPdp.value = true
+      // in-place reload: reset UI state and re-fetch instead of hard reload
+      activeIdx.value = 0
+      colorIdx.value = 0
+      images.value = []
+      allImages.value = []
+      product.value = null
+      title.value = 'منتج'
+      price.value = null
+      colorVariants.value = []
+      sizeOptions.value = []
+      sizeGroups.value = []
+      size.value = ''
+      selectedGroupValues.value = {}
+      variantByKey.value = {}
+      attrsLoaded.value = false
+      pdpMeta.value = { badges: [] }
+      reviews.value = []
+      avgRating.value = 0
+      recommendedProducts.value = []
+      categorySlug.value = ''
+      categoryName.value = ''
+      categoryId.value = ''
+      // re-run loaders using new id from route (pass explicitly to avoid using stale id)
+      const newId = String(nv||'')
+      await loadProductData(newId)
+      await fetchRecommendations(newId)
+      await loadPdpMeta(newId)
+      await loadSeller(newId)
+      computeGalleryHeight()
+      window.scrollTo({ top: 0, behavior: 'instant' as any })
+      try{ await trackViewItem(); await trackPageViewProduct(); }catch{}
+    }
+  }catch{}
+})
+*/
+
+onActivated(() => {
+  window.addEventListener('scroll', onScroll, { passive:true })
+  window.addEventListener('resize', computeGalleryHeight, { passive:true })
+})
+
+onDeactivated(() => {
+  window.removeEventListener('scroll', onScroll)
+  window.removeEventListener('resize', computeGalleryHeight)
+})
+
 onBeforeUnmount(()=> {
   window.removeEventListener('scroll', onScroll)
   window.removeEventListener('resize', computeGalleryHeight)
 })
 
 // ==================== DATA LOADING ====================
-async function loadProductData() {
+async function loadProductData(pid?: string) {
   // Load product details
   try{
-    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id)}`, { 
+    isLoadingPdp.value = true
+    const p = String(pid || id.value)
+    
+    // ✨ NEW: Check for prefetched data and use it immediately
+    const pref = consumePrefetchPayload(String(p))
+    if (pref?.productData) {
+      const pd = pref.productData
+      // Instantly populate images from prefetched data
+      if (Array.isArray(pd.images) && pd.images.length > 0) {
+        const validImgs = pd.images.filter(isValidImageUrl)
+        allImages.value = validImgs
+        images.value = validImgs
+        try { await nextTick(); await computeGalleryHeight() } catch {}
+      }
+      // Instantly show title and price if available
+      if (pd.title) title.value = pd.title
+      if (pd.basePrice) {
+        const priceNum = Number(String(pd.basePrice).replace(/[^\d.]/g,'')) || 0
+        if (priceNum > 0) price.value = priceNum
+      }
+    }
+    
+
+    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(p)}`, { 
       credentials:'omit', 
       headers:{ 'Accept':'application/json' } 
     })
+
     if(res.ok){
       const d = await res.json()
+
       product.value = d
       title.value = d.name || title.value
       price.value = Number(d.price||129)
-      const imgs = Array.isArray(d.images)? d.images : []
-      allImages.value = imgs
-      if (imgs.length) { images.value = imgs; try { await nextTick(); await computeGalleryHeight() } catch {} }
+      const imgs = (Array.isArray(d.images)? d.images : []).filter(isValidImageUrl)
+      try{
+        recent.add({
+          id: d.id,
+          title: d.name,
+          price: Number(d.price),
+          img: imgs[0] || '',
+          brand: d.brand
+        })
+      }catch{}
+      try{
+        // If we have a prefetched hero, place it first and animate from its rect
+        if (pref?.imgUrl && isValidImageUrl(pref.imgUrl)){
+          const list = [pref.imgUrl, ...imgs.filter((u:string)=> u!==pref.imgUrl)]
+          allImages.value = list
+          images.value = list
+          // optional: animate ghost from previous rect if viewTransition unsupported
+          try{
+            if (!(document as any).startViewTransition && pref.rect){
+              const ghost = document.createElement('img')
+              ghost.src = pref.imgUrl
+              Object.assign(ghost.style, { position:'fixed', left: pref.rect.left+'px', top: pref.rect.top+'px', width: pref.rect.width+'px', height: pref.rect.height+'px', zIndex:'9999', borderRadius:'8px', transition:'all .3s ease' })
+              document.body.appendChild(ghost)
+              requestAnimationFrame(()=>{
+                const frame = galleryRef.value
+                const r = frame?.getBoundingClientRect()
+                if (r){ ghost.style.left = (r.left)+'px'; ghost.style.top = (r.top)+'px'; ghost.style.width = (r.width)+'px'; ghost.style.height = (r.height)+'px'; ghost.style.opacity = '0' }
+                setTimeout(()=> ghost.remove(), 320)
+              })
+            }
+          }catch{}
+        } else {
+          allImages.value = imgs
+          images.value = imgs
+        }
+      }catch{ allImages.value = imgs; images.value = imgs }
+      if (images.value.length) { try { await nextTick(); await computeGalleryHeight() } catch {} }
       // Load color galleries if present
-      if (Array.isArray(d.colorGalleries)) colorGalleries.value = d.colorGalleries
+      if (Array.isArray(d.colorGalleries)) {
+        colorGalleries.value = d.colorGalleries.map((g:any) => ({
+          ...g,
+          images: Array.isArray(g.images) ? g.images.filter(isValidImageUrl) : [],
+          primaryImageUrl: isValidImageUrl(g.primaryImageUrl) ? g.primaryImageUrl : ''
+        }))
+      }
       // defer color/size mapping to normalized loader
       original.value = ''
       categorySlug.value = String(d?.category?.slug||'')
       categoryName.value = String(d?.category?.name||'')
+      categoryId.value = String(d?.category?.id||'')
+      // Store all category IDs for coupon targeting
+      if (Array.isArray(d.categoryIds)) allCategoryIds.value = d.categoryIds.map(String)
+      else allCategoryIds.value = [categoryId.value].filter(Boolean)
+      
       brand.value = String(d?.brand||'')
       
       // Sizes from API if available (accept only real size tokens)
@@ -1497,27 +2150,37 @@ async function loadProductData() {
           size.value = ''
         }
       }
-      try { await loadNormalizedVariants() } catch {}
-      // Ensure default color and size after variants load
-      try {
-        if (colorVariants.value.length && (colorIdx.value < 0 || colorIdx.value >= colorVariants.value.length)) colorIdx.value = 0
-        if (!currentColorName.value && colorVariants.value[0]?.name) colorIdx.value = 0
+      // After primary data is ready, stop loading spinner for main info immediately
+      isLoadingPdp.value = false
+
+
+      // Determine if we should show skeleton for variants
+      const hasVars = (Array.isArray(d.variants) && d.variants.length > 0) || (Array.isArray(d.colorGalleries) && d.colorGalleries.length > 0) || (Array.isArray(d.attributes) && d.attributes.some((a:any)=> a.key==='color' || a.key==='size'))
+      isLoadingVariants.value = !!hasVars
+
+      try { 
+
+        await loadNormalizedVariants(p) 
+
       } catch {}
-      try { await nextTick(); await updateImagesForColor() } catch {}
-      
-      // After primary data is ready, fire dependent loads (non-blocking)
-      try { fetchRecommendations() } catch {}
-      try { fetchSizeGuide() } catch {}
-      try { loadWishlist() } catch {}
-      try { injectProductJsonLd() } catch {}
-      try { injectHeadMeta() } catch {}
+      isLoadingVariants.value = false
+
+      // Fire dependent loads (non-blocking)
+
+      buildRecTabsFromCategory().catch(()=>{})
+      if (!restoredRec.value) fetchRecommendations().catch(()=>{})
+      fetchSizeGuide().catch(()=>{})
+      loadWishlist().catch(()=>{})
+      injectProductJsonLd()
+      injectHeadMeta()
+      hydrateCouponsForPdp().catch(()=>{})
     }
   }catch{}
   // Fallback (local preview/dev): synthesize minimal product and variants so UI renders swatches/sizes without API
   try{
     const host = typeof window !== 'undefined' ? window.location.hostname : ''
     if (!product.value && (host === 'localhost' || host === '127.0.0.1')){
-      product.value = { id, name: title.value, price: price.value, images: [] }
+      product.value = { id: id.value, name: title.value, price: price.value, images: [] }
       if (images.value.length === 0){
         images.value = [
           '/images/placeholder-product.jpg',
@@ -1542,29 +2205,54 @@ async function loadProductData() {
   
   // Load reviews
   try{
-    const list = await apiGet<any>(`/api/reviews?productId=${encodeURIComponent(id)}`)
+    const list = await apiGet<any>(`/api/reviews?productId=${encodeURIComponent(id.value)}`)
     if (list && Array.isArray(list.items)){
       reviews.value = list.items
       const sum = list.items.reduce((s:any,r:any)=>s+(r.stars||0),0)
       avgRating.value = list.items.length? (sum/list.items.length) : avgRating.value
+      // Update tabs visibility based on real reviews
+      try {
+        const hasAny = !!reviews.value?.length
+        const base = [ { key:'products', label:'سلع' } ] as Array<{key:string;label:string}>
+        if (hasAny) base.push({ key:'reviews', label:'تعليقات' })
+        base.push({ key:'recommendations', label:'التوصية' })
+        tabs.value = base
+      } catch {}
     }
   }catch{}
 }
 
 // ==================== VARIANTS (normalized API) ====================
 const attrsLoaded = ref(false)
-async function loadNormalizedVariants(){
+async function loadNormalizedVariants(pid?: string){
   // 1) Fetch normalized variants list
-  const j = await apiGet<any>(`/api/product/${encodeURIComponent(id)}/variants`).catch(()=>null)
-  let list: any[] = Array.isArray(j?.items) ? j!.items : []
-  if (!list.length && Array.isArray(product.value?.variants)) list = product.value.variants as any[]
+  const p = String(pid || route.query.id || id.value)
+  // Optimization: if product already has attributes/variants loaded, use them
+  let list: any[] = []
+  let pd: any = product.value || null
+  
+  if (pd && Array.isArray(pd.variants) && pd.variants.length > 0) {
+    list = pd.variants as any[]
+  } else {
+    const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/variants`).catch(()=>null)
+    list = Array.isArray(j?.items) ? j!.items : []
+    // If we fetched variants but still have no pd (unlikely if called from loadProductData), try to use product.value again
+    if (!pd) pd = product.value
+  }
 
   // 2) Prefer grouped attributes from product endpoint to render buttons per group
   try {
-    const pd = await apiGet<any>(`/api/product/${encodeURIComponent(id)}`).catch(()=>null)
+    // Only fetch product if absolutely missing (should not happen if called from loadProductData)
+    if (!pd) pd = await apiGet<any>(`/api/product/${encodeURIComponent(p)}`).catch(()=>null)
     const attrs: Array<{ key:string; label:string; values:string[] }> = Array.isArray(pd?.attributes) ? pd!.attributes : []
     // Ingest server color galleries
-    if (Array.isArray(pd?.colorGalleries)) colorGalleries.value = pd!.colorGalleries
+    if (Array.isArray(pd?.colorGalleries)) {
+      colorGalleries.value = pd!.colorGalleries.map((g:any) => ({
+        ...g,
+        images: Array.isArray(g.images) ? g.images.filter(isValidImageUrl) : [],
+        primaryImageUrl: isValidImageUrl(g.primaryImageUrl) ? g.primaryImageUrl : ''
+      }))
+    }
     // Colors group
     const col = attrs.find(a=> a.key==='color')
     let colVals: string[] = Array.isArray(col?.values) ? col!.values : []
@@ -1757,34 +2445,335 @@ watch(colorIdx, ()=>{
   }catch{}
 })
 
+// ==================== HELPERS ====================
+function isValidImageUrl(u: string): boolean {
+  if (!u || typeof u !== 'string') return false
+  if (u.startsWith('blob:')) return false
+  return true
+}
+
 // ==================== RECOMMENDATIONS FETCH ====================
-async function fetchRecommendations(){
+const defaultRatio = 1.3
+function thumbSrcRec(p:any, _w:number): string {
+  // Use original image to preserve true aspect ratio during probe
+  const u = (Array.isArray((p as any).thumbs) && (p as any).thumbs[0]) || p.img
+  return String(u||'')
+}
+// تقسيم تناوبي بين عمودين
+// (grid-cols-2 يضبط العرض بدقة؛ لا حاجة لتقسيم يدوي)
+// ===== Cache helpers for PDP (per product) =====
+
+function probeRatioPromise(p:any): Promise<void>{
+  return new Promise((resolve)=>{
+    try{
+      if (p._ratio){ resolve(); return }
+      const u = thumbSrcRec(p, 64)
+      const img = new Image()
+      ;(img as any).loading = 'eager'
+      ;(img as any).decoding = 'async'
+      img.onload = ()=>{ try{ const w=(img as any).naturalWidth||64; const h=(img as any).naturalHeight||64; if (w>0&&h>0) p._ratio=h/w }catch{} finally{ resolve() } }
+      img.onerror = ()=> resolve()
+      img.src = u
+    }catch{ resolve() }
+  })
+}
+
+async function fetchRecommendations(pid?: string){
+  isLoadingRecommended.value = true
   try{
-    isLoadingRecommended.value = true
-    const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id)}`)
-    const list = Array.isArray(sim?.items) ? sim!.items : []
-    if (list.length) {
-      recommendedProducts.value = list.map((it:any)=> ({
-        id: it.id,
-        brand: it.brand||'',
-        title: it.name||'',
-        image: Array.isArray(it.images)&&it.images[0]? it.images[0]: '',
-        price: Number(it.price||0),
-      }))
+    if (recoController) { try{ recoController.abort() }catch{} }
+    recoController = new AbortController()
+    const signal = recoController.signal as any
+    // If a subcategory tab is active, fetch catalog for that category
+    const tab = recTabs.value.find(t=> t.key===activeRecTab.value)
+    if (tab && tab.catId){
+      const j = await apiGet<any>(`/api/catalog/${encodeURIComponent(tab.catId)}?limit=10`, { signal }).catch(()=>null)
+      const items = Array.isArray(j?.items)? j.items : []
+      const mapped = items.map((it:any)=> toRecItem(it))
+      // de-duplicate by id
+      const seen: Record<string, boolean> = {}
+      const dedup = mapped.filter(p=>{ const k=String((p as any).id); if (seen[k]) return false; seen[k]=true; return true })
+      await Promise.all(dedup.map(p=> probeRatioPromise(p)))
+      recommendedProducts.value = dedup
+      try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
       return
     }
-  }catch{}
-  try{
-    const rec = await apiGet<any>('/api/recommendations/recent')
-    const items = Array.isArray(rec?.items) ? rec!.items : []
-    recommendedProducts.value = items.map((it:any)=> ({
-      id: it.id,
-      brand: it.brand||'',
-      title: it.name||'',
-      image: Array.isArray(it.images)&&it.images[0]? it.images[0]: '',
-      price: Number(it.price||0),
-    }))
+    // Default: similar by current product's category, then recent
+    const p = String(pid || id.value)
+    const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(p)}`, { signal }).catch(()=>null)
+    let list: any[] = Array.isArray(sim?.items) ? sim!.items : []
+    if (!list.length){
+      const ex = Array.from(new Set(recommendedProducts.value.map(p=> String(p.id)))).slice(0,200)
+      const u = new URL(`${API_BASE}/api/products`)
+      u.searchParams.set('limit','10')
+      u.searchParams.set('sort','new')
+      u.searchParams.set('offset', String(recommendedProducts.value.length))
+      if (ex.length) u.searchParams.set('excludeIds', ex.join(','))
+      const rec = await apiGet<any>(`/api/products?${u.searchParams.toString()}`).catch(()=>null)
+      list = Array.isArray(rec?.items) ? rec!.items : []
+    }
+    // Map and de-dup by id
+    const existing = new Set(recommendedProducts.value.map(p=> String(p.id)))
+    const mapped = list
+      .map((it:any)=> toRecItem(it))
+      // exclude current product id to avoid "reload same page" effect
+      .filter((p:any)=> String(p.id) !== String(id.value))
+      .filter((p:any)=> !existing.has(String(p.id)))
+    if (mapped.length){
+      await Promise.all(mapped.map(p=> probeRatioPromise(p)))
+      recommendedProducts.value.push(...mapped)
+    try{ const set = await getTrendingIdSet(); recommendedProducts.value.forEach((p:any)=>{ if (set.has(String(p.id))) (p as any).isTrending = true }) }catch{}
+    try{ await hydrateCouponsForRecommended() }catch{}
+      hasMoreRecommended.value = list.length >= 10
+    } else { hasMoreRecommended.value = false }
   }catch{} finally { isLoadingRecommended.value = false }
+}
+
+function toRecItem(it:any): RecItem{
+  const imgs = Array.isArray(it?.images)? it.images : []
+  const normalize = (arr:any[]): string[] => {
+    return (arr||[])
+      .map((u:any)=> String(u||'').trim())
+      .filter((u:string)=> /^https?:\/\//i.test(u) && !u.startsWith('blob:'))
+  }
+  const thumbsArr = normalize(imgs)
+  const img = thumbsArr[0] || (it?.image||'')
+  const price = Number(it?.price||0)
+  return {
+    id: String(it?.id||it?.sku||''),
+    title: String(it?.name||''),
+    img,
+    brand: it?.brand||'',
+    priceText: price? String(price) : '',
+    originalText: undefined,
+    afterCoupon: undefined,
+    discountPercent: typeof it?.discountPercent==='number'? it.discountPercent : undefined,
+    soldCount: undefined,
+    fast: false,
+    bestRank: undefined,
+    thumbs: thumbsArr.length? thumbsArr : undefined,
+    href: `/p?id=${encodeURIComponent(String(it?.id||''))}`,
+    categoryId: it?.categoryId,
+    categoryIds: Array.isArray(it?.categoryIds) ? it.categoryIds : undefined,
+    _ratio: undefined
+  }
+}
+
+// ===== كوبونات للتوصيات في صفحة المنتج =====
+type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
+const couponsCacheRec = ref<SimpleCoupon[]>([])
+const couponsCacheRecTs = ref(0)
+
+async function fetchCouponsListRec(): Promise<SimpleCoupon[]> {
+  const { API_BASE, isAuthenticated } = await import('@/lib/api')
+  const tryFetch = async (path: string) => {
+    try{
+      const creds = path.startsWith('/api/coupons/public')? 'omit':'include'
+      const { getAuthHeader } = await import('@/lib/api')
+      const r = await fetch(`${API_BASE}${path}`, { credentials: creds as RequestCredentials, headers:{ 'Accept':'application/json', ...getAuthHeader() } })
+      if(!r.ok) return null; return await r.json()
+    }catch{ return null }
+  }
+  if (isAuthenticated()){
+    const data1: any = await tryFetch('/api/me/coupons')
+    if (data1){
+      const itemsArr = Array.isArray((data1 as any).items) ? (data1 as any).items : []
+      const couponsArr = Array.isArray((data1 as any).coupons) ? (data1 as any).coupons : []
+      const merged = [...itemsArr, ...couponsArr]
+      if (merged.length>0) return normalizeCouponsRec(merged as any[])
+    }
+  }
+  // لا تستخدم مسارات المشرف من الواجهة العامة
+  return []
+}
+
+// ===== كوبونات للمنتج الحالي (سعر بعد الكوبون + عرض كوبونين) =====
+async function hydrateCouponsForPdp(){
+  try{
+    const now = Date.now()
+    if (!couponsCacheRec.value.length || (now - couponsCacheRecTs.value) > 60000){
+      couponsCacheRec.value = await fetchCouponsListRec(); couponsCacheRecTs.value = now
+    }
+    const cups = couponsCacheRec.value||[]
+    const base = Number(price.value||0)
+    if (!base || !cups.length){ afterCouponPriceText.value = ''; pdpCoupons.value = []; return }
+    // build product token object
+    const prod = { 
+      id: id.value, 
+      categoryId: (product.value?.categoryId||product.value?.category?.id||product.value?.category||null), 
+      categoryIds: allCategoryIds.value,
+      brand: product.value?.brand, 
+      sku: product.value?.sku 
+    }
+    // collect matches with resulting prices
+    const items: Array<{ code?:string; title?:string; kindLabel?:string; priceAfter?:number; discountText?:string; discountLabel?:string; percentLabel?:string; minLabel?:string; validUntil?:string|number|null; schedule?:any; expiresAt?:any }>=[]
+    const site = cups.find(isCouponSitewideRec)
+    if (site){
+      const min = (site as any).rules?.min
+      const minLabel = !min || Number(min)<=0 ? 'بدون حد أدنى للشراء' : `للطلبات أكثر من ${fmtPrice(Number(min))}`
+      const isPct = String(site.discountType).toUpperCase()==='FIXED' ? false : true
+      const discountLabel = isPct ? `${Number(site.discountValue||0)}%` : fmtPrice(Number(site.discountValue||0))
+      const percentLabel = isPct ? discountLabel : undefined
+      const title = (site as any).title || (site as any).rules?.title || site.code
+      items.push({ code: site.code, title, kindLabel: (site as any).kind, validUntil: (site as any).validUntil, schedule:(site as any).schedule, expiresAt:(site as any).expiresAt, priceAfter: priceAfterCouponRec(base, site), discountText: site.discountType==='FIXED'? `-${site.discountValue}` : `-${site.discountValue}%`, discountLabel, percentLabel, minLabel })
+    }
+    // token-based matches
+    for (const c of cups){
+      if (site && c.code===site.code) continue
+      if (eligibleByTokensRec(prod, c)){
+        const min = (c as any).rules?.min
+        const minLabel = !min || Number(min)<=0 ? 'بدون حد أدنى للشراء' : `للطلبات أكثر من ${fmtPrice(Number(min))}`
+        const isPct = String(c.discountType).toUpperCase()==='FIXED' ? false : true
+        const discountLabel = isPct ? `${Number(c.discountValue||0)}%` : fmtPrice(Number(c.discountValue||0))
+        const percentLabel = isPct ? discountLabel : undefined
+        const title = (c as any).title || (c as any).rules?.title || c.code
+        items.push({ code: c.code, title, kindLabel:(c as any).kind, validUntil:(c as any).validUntil, schedule:(c as any).schedule, expiresAt:(c as any).expiresAt, priceAfter: priceAfterCouponRec(base, c), discountText: c.discountType==='FIXED'? `-${c.discountValue}` : `-${c.discountValue}%`, discountLabel, percentLabel, minLabel })
+      }
+    }
+    // sort by best (lowest) priceAfter
+    items.sort((a,b)=> (Number(a.priceAfter||base) - Number(b.priceAfter||base)))
+    // update afterCoupon (best one) and map display fields
+    const best = items[0]
+    afterCouponPriceText.value = best && typeof best.priceAfter==='number' ? fmtPrice(best.priceAfter) : ''
+    pdpCoupons.value = items.map(it=> ({ ...it, priceAfterText: typeof it.priceAfter==='number'? fmtPrice(it.priceAfter): undefined }))
+  }catch{ afterCouponPriceText.value = ''; pdpCoupons.value = [] }
+}
+
+function normalizeCouponsRec(list:any[]): SimpleCoupon[] {
+  return (list||[]).map((c:any)=> ({
+    code: c.code,
+    discountType: (String(c.discountType||'PERCENTAGE').toUpperCase()==='FIXED' ? 'FIXED' : 'PERCENTAGE'),
+    discountValue: Number(c.discountValue||c.discount||0),
+    audience: c.audience?.target || c.audience || undefined,
+    kind: c.kind || undefined,
+    rules: { includes: c.includes || c.rules?.includes || [], excludes: c.excludes || c.rules?.excludes || [], min: c.minOrderAmount || c.rules?.min }
+  }))
+}
+
+function priceAfterCouponRec(base:number, cup: SimpleCoupon): number {
+  if (!Number.isFinite(base) || base<=0) return base
+  const v = Number(cup.discountValue||0)
+  if (cup.discountType==='FIXED') return Math.max(0, base - v)
+  return Math.max(0, base * (1 - v/100))
+}
+
+function isCouponSitewideRec(c: SimpleCoupon): boolean { return String(c.kind||'').toLowerCase()==='sitewide' || !Array.isArray(c?.rules?.includes) }
+
+function eligibleByTokensRec(prod: any, c: SimpleCoupon): boolean {
+  const inc = Array.isArray(c?.rules?.includes) ? c.rules!.includes! : []
+  const exc = Array.isArray(c?.rules?.excludes) ? c.rules!.excludes! : []
+  const tokens: string[] = []
+  if (prod?.categoryId) tokens.push(`category:${prod.categoryId}`)
+  if (Array.isArray(prod?.categoryIds)) {
+    prod.categoryIds.forEach((cid:string) => tokens.push(`category:${cid}`))
+  }
+  if (prod?.id) tokens.push(`product:${prod.id}`)
+  if (prod?.brand) tokens.push(`brand:${prod.brand}`)
+  if (prod?.sku) tokens.push(`sku:${prod.sku}`)
+  const hasInc = !inc.length || inc.some(t=> tokens.includes(t))
+  const hasExc = exc.length && exc.some(t=> tokens.includes(t))
+  return hasInc && !hasExc
+}
+
+async function ensureProductMetaRec(p:any): Promise<any> {
+  if (p.categoryId!=null && Array.isArray(p.categoryIds)) return p
+  try{
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(p.id)}`)
+    if (d){ 
+      p.categoryId = d.categoryId || d.category?.id || d.category || null; 
+      p.brand = p.brand || d.brand; 
+      p.sku = p.sku || d.sku;
+      if (Array.isArray(d.categoryIds)) p.categoryIds = d.categoryIds.map(String)
+      else if (p.categoryId) p.categoryIds = [String(p.categoryId)]
+    }
+  }catch{}
+  return p
+}
+
+async function hydrateCouponsForRecommended(){
+  try{
+    const now = Date.now()
+    if (!couponsCacheRec.value.length || (now - couponsCacheRecTs.value) > 60000){
+      couponsCacheRec.value = await fetchCouponsListRec(); couponsCacheRecTs.value = now
+    }
+  }catch{}
+  await computeCouponPricesForRecommended(recommendedProducts.value)
+}
+
+async function computeCouponPricesForRecommended(list:any[]){
+  const cups = couponsCacheRec.value||[]
+  if (!cups.length) return
+  for (const p of list){
+    const base = Number(String((p as any).priceText||'0').replace(/[^0-9.]/g,''))||0
+    if (!base) { (p as any).afterCoupon = undefined; continue }
+    const site = cups.find(isCouponSitewideRec)
+    if (site){ (p as any).afterCoupon = fmtPrice(priceAfterCouponRec(base, site)); continue }
+    await ensureProductMetaRec(p)
+    const match = cups.find(c=> eligibleByTokensRec(p, c))
+    if (match){ (p as any).afterCoupon = fmtPrice(priceAfterCouponRec(base, match)) }
+  }
+}
+
+async function openSuggestOptions(pid: string){
+  try{
+    // probe options
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(pid)}`)
+    const galleries = Array.isArray(d?.colorGalleries) ? d.colorGalleries : []
+    const colorsCount = galleries.filter((g:any)=> String(g?.name||'').trim()).length
+    const hasColors = colorsCount > 1
+    const sizesArr = Array.isArray(d?.sizes) ? (d.sizes as any[]).filter((s:any)=> typeof s==='string' && String(s).trim()) : []
+    const variantsHasSize = Array.isArray(d?.variants) && d.variants.some((v:any)=> !!v?.size || /size|مقاس/i.test(String(v?.name||'')))
+    const hasSizes = (new Set(sizesArr.map((s:string)=> s.trim().toLowerCase()))).size > 1 || (!!variantsHasSize && (sizesArr.length>1))
+    if (!hasColors && !hasSizes){
+      try{ 
+        cart.add({ 
+          id: d.id || pid, 
+          title: d.name || '', 
+          price: Number(d.price || 0), 
+          img: (Array.isArray(d.images) && d.images[0]) || '' 
+        }, 1) 
+      }catch{}
+      try{ showToast() }catch{}
+      return
+    }
+    // open options modal for reco
+    await openRecOptions(pid)
+  }catch{
+    try{ cart.add({ id: pid, title: '', price: 0, img: '' }, 1) }catch{}
+    try{ showToast() }catch{}
+  }
+}
+
+// Reco modal state and helpers (mirror Products.vue behavior)
+const recOptionsOpen = ref(false)
+const recModalProduct = ref<any|null>(null)
+const recModalColor = ref<string>('')
+const recModalSize = ref<string>('')
+async function openRecOptions(pid: string){
+  recOptionsOpen.value = true
+  try{
+    const d = await apiGet<any>(`/api/product/${encodeURIComponent(pid)}`)
+    const imgs = Array.isArray(d.images)? d.images : []
+    const colors = Array.isArray(d.colorGalleries) ? d.colorGalleries.map((g:any)=> ({ label: g.name, img: g.primaryImageUrl || g.images?.[0] || imgs[0] || '/images/placeholder-product.jpg' })) : []
+    const sizes: string[] = Array.isArray(d.sizes)? d.sizes : []
+    const letters = sizes.filter((s:string)=> /^(xxs|xs|s|m|l|xl|2xl|3xl|4xl|5xl)$/i.test(String(s)))
+    const numbers = sizes.filter((s:string)=> /^\d{1,3}$/.test(String(s)))
+    const groups: Array<{label:string; values:string[]}> = []
+    if (letters.length) groups.push({ label:'مقاسات بالأحرف', values: letters })
+    if (numbers.length) groups.push({ label:'مقاسات بالأرقام', values: numbers })
+    recModalProduct.value = { id: d.id||pid, title: d.name||'', price: Number(d.price||0), images: imgs, colors, sizes, sizeGroups: groups }
+    recModalColor.value = colors?.[0]?.label || ''
+    recModalSize.value = ''
+  }catch{ recModalProduct.value = { id: pid, title:'', price:0, images: [], colors: [], sizes: [], sizeGroups: [] } }
+}
+function onRecModalSave(payload: { color: string; size: string }){
+  try{
+    const color = payload?.color || ''
+    const size = payload?.size || ''
+    if (!recModalProduct.value) return
+    cart.add({ id: recModalProduct.value.id, title: recModalProduct.value.title, price: Number(recModalProduct.value.price||0), img: (recModalProduct.value.images?.[0]||''), variantColor: color||undefined, variantSize: size||undefined }, 1)
+    try{ showToast() }catch{}
+  }finally{ recOptionsOpen.value = false }
 }
 
 // ==================== SIZE GUIDE (CMS) ====================
@@ -1803,61 +2792,139 @@ async function fetchSizeGuide(){
 }
 
 // ==================== SHIPPING/RETURNS DYNAMIC ====================
-const shippingMethods = ref<Array<{ id:string; name:string; desc:string; price:number }>>([])
+const shippingMethods = ref<Array<{ id:string; name:string; desc:string; price:number; offerTitle?:string; etaMinHours?:number; etaMaxHours?:number }>>([])
 const shippingQuote = ref<number|undefined>(undefined)
+// Address and destination
+const addresses = ref<any[]>([])
+const selectedAddress = ref<any|null>(null)
+const destinationText = computed(()=>{
+  if (selectedAddress.value) {
+    const st = String(selectedAddress.value.state||'').trim()
+    const ct = String(selectedAddress.value.city||'').trim()
+    const parts = [ct, st].filter(Boolean) // City first, then State
+    if (parts.length) return parts.join(' - ')
+    // Fallback to country if city/state missing
+    if (selectedAddress.value.country) return String(selectedAddress.value.country)
+  }
+  return 'اليمن'
+})
+const shippingCurrency = computed(()=> getSymbol())
+function formatEtaRange(minH:number|undefined|null, maxH:number|undefined|null): string {
+  const min = Number(minH||0); const max = Number(maxH||0)
+  if (max<=0 && min<=0) return ''
+  const a = Math.max(0, min||max)
+  const b = Math.max(a, max)
+  // حوّل إلى أيام عند تجاوز 24 ساعة
+  if (b >= 24) {
+    const da = Math.ceil(a/24)
+    const db = Math.ceil(b/24)
+    if (da === db) return `${db} أيام`
+    return `${da}-${db} أيام`
+  }
+  return `${a}-${b} ساعات`
+}
 const shippingTitleText = computed(()=>{
-  const m = shippingMethods.value?.[0]
-  if (!m) return 'شحن سريع'
+  const m:any = shippingMethods.value?.[0]
+  if (!m){
+    if (typeof shippingQuote.value === 'number') return `(${fmtPrice(Number(shippingQuote.value||0))})`
+    return ''
+  }
   const priceNum = Number(m.price||0)
-  const priceText = priceNum>0 ? `${priceNum} ر.س` : 'مجاني'
-  return `${m.name} (${priceText})`
+  const priceText = priceNum>0 ? fmtPrice(priceNum) : 'مجاني'
+  const offer = (m.offerTitle || m.name || '')
+  return `${offer ? offer + ' ' : ''}(${priceText})`.trim()
 })
 const shippingEtaText = computed(()=>{
-  // Using quote or method desc
-  if (shippingQuote.value!=null) return `التكلفة التقديرية: ${shippingQuote.value} ر.س`
-  const m = shippingMethods.value?.[0]
-  return m?.desc || 'شحن سريع التوصيل'
+  const m:any = shippingMethods.value?.[0]
+  const s = formatEtaRange(m?.etaMinHours, m?.etaMaxHours)
+  return s || m?.desc || ''
 })
 async function loadShipping(){
+  const addr = selectedAddress.value
+  const qp = new URLSearchParams()
+  if (addr){
+    if (addr.city) qp.set('city', String(addr.city))
+    if (addr.state) qp.set('state', String(addr.state))
+    if (addr.area) qp.set('area', String(addr.area))
+    if (addr.country) qp.set('country', String(addr.country))
+  }
+  // Always try to get quick quote (used in summary)
   try{
-    const m = await apiGet<any>('/api/shipping/methods')
-    shippingMethods.value = Array.isArray(m?.items)? m!.items : []
-  }catch{}
-  try{
-    const q = await apiGet<any>('/api/shipping/quote?method=std')
+    const q = await apiGet<any>(`/api/shipping/quote?method=std&${qp.toString()}`)
     if (q && typeof q.price === 'number') shippingQuote.value = Number(q.price)
   }catch{}
+  // Fetch methods in background so summary is not empty
+  try{
+    const m = await apiGet<any>(`/api/shipping/methods?${qp.toString()}`)
+    shippingMethods.value = Array.isArray(m?.items)? m!.items : []
+  }catch{}
+}
+watch(selectedAddress, ()=> loadShipping())
+
+// Load saved addresses and pick default
+async function loadAddresses(){
+  try{
+    const { isAuthenticated } = await import('@/lib/api')
+    if (!isAuthenticated()) { addresses.value = []; selectedAddress.value = null; return }
+    const j = await apiGet<any>('/api/addresses')
+    const list = Array.isArray(j?.items) ? j.items : Array.isArray(j) ? j : []
+    addresses.value = list
+    // Prefer default, then first
+    selectedAddress.value = list.find((a:any)=> a.isDefault) || list[0] || null
+  }catch{ addresses.value = []; selectedAddress.value = null }
 }
 
 // ==================== ANALYTICS EVENTS ====================
-function trackViewItem(){
+async function trackViewItem(){
   try{
     ;(window as any).dataLayer = (window as any).dataLayer || []
-    ;(window as any).dataLayer.push({ event:'view_item', ecommerce:{ items:[{ item_id:id, item_name:title.value, price:Number(price.value||0) }] } })
+    ;(window as any).dataLayer.push({ event:'view_item', ecommerce:{ items:[{ item_id:id.value, item_name:title.value, price:Number(price.value||0), currency:getCurrency() }] } })
   }catch{}
   try{
-    const fbq = (window as any).fbq; if (typeof fbq==='function') fbq('track','ViewContent',{ content_ids:[id], content_type:'product', value:Number(price.value||0), currency:'SAR' })
+    const { trackEvent } = await import('@/lib/track')
+    trackEvent('ViewContent', { value: Number(price.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids:[id.value], content_type:'product_group', contents:[{ id: id.value, item_price: Number(price.value||0), quantity: 1 }] })
   }catch{}
 }
-function trackAddToCart(){
-  try{ (window as any).dataLayer?.push({ event:'add_to_cart', ecommerce:{ items:[{ item_id:selectedVariantId.value||id, item_name:title.value, price:Number(price.value||0), quantity:1 }] } }) }catch{}
-  try{ const fbq = (window as any).fbq; if (typeof fbq==='function') fbq('track','AddToCart',{ content_ids:[selectedVariantId.value||id], content_type:'product', value:Number(price.value||0), currency:'SAR' }) }catch{}
+async function trackPageViewProduct(){
+  try{
+    const { trackEvent } = await import('@/lib/track')
+    trackEvent('PageView', { content_ids:[id.value], content_type:'product' })
+  }catch{}
+}
+async function trackAddToCart(){
+  try{ (window as any).dataLayer?.push({ event:'add_to_cart', ecommerce:{ items:[{ item_id:selectedVariantId.value||id.value, item_name:title.value, price:Number(price.value||0), quantity:1, currency:getCurrency() }] } }) }catch{}
+  try{
+    const { trackEvent } = await import('@/lib/track')
+    // مهم: نستخدم معرف المنتج الأساسي المطابق للكاتالوج (g:id) وليس معرف المتغير
+    const pid = id.value
+    trackEvent('AddToCart', { value: Number(price.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids:[pid], content_type:'product_group', contents:[{ id: pid, item_price: Number(price.value||0), quantity: 1 }] })
+  }catch{}
 }
 
 // ==================== SEO: JSON-LD ====================
 function injectProductJsonLd(){
   try{
+    // Build a plain-text description (strip HTML tags)
+    let descText = ''
+    try{ const d=document.createElement('div'); d.innerHTML = safeDescription.value; descText = (d.textContent||'').replace(/\s+/g,' ').trim() }catch{}
+    // Sanitize URL (drop fbclid/utm params)
+    const href = (()=>{ try{ const u=new URL(window.location.href); ['fbclid','gclid','_fbp','_fbc'].forEach(k=> u.searchParams.delete(k)); Array.from(u.searchParams.keys()).forEach(k=>{ if(/^utm_/i.test(k)) u.searchParams.delete(k) }); return u.href }catch{ return window.location.href } })()
     const data: any = {
       '@context': 'https://schema.org/',
       '@type': 'Product',
+      '@id': (typeof window!=='undefined'? href.split('#')[0]+'#product' : ('/p?id='+id.value+'#product')),
       name: title.value,
       image: images.value && images.value.length ? images.value : undefined,
       brand: brand.value ? { '@type':'Brand', name: brand.value } : undefined,
+      sku: (product.value as any)?.sku || undefined,
+      description: descText || undefined,
       offers: {
         '@type': 'Offer',
-        priceCurrency: 'SAR',
+        url: href,
+        priceCurrency: getCurrency(),
         price: Number(price.value||0),
         availability: 'https://schema.org/InStock',
+        itemCondition: 'https://schema.org/NewCondition'
       }
     }
     if (reviews.value && reviews.value.length){
@@ -1882,15 +2949,24 @@ function injectProductJsonLd(){
 function injectHeadMeta(){
   try{
     const url = new URL(window.location.href)
+    ;['fbclid','gclid','_fbp','_fbc'].forEach(k=> url.searchParams.delete(k))
+    Array.from(url.searchParams.keys()).forEach(k=>{ if(/^utm_/i.test(k)) url.searchParams.delete(k) })
     const canonical = document.querySelector('link[rel="canonical"]') || (()=>{ const l = document.createElement('link'); l.rel='canonical'; document.head.appendChild(l); return l })()
     ;(canonical as HTMLLinkElement).href = url.href
     const setMeta = (p:string,c:string)=>{ let m = document.querySelector(`meta[property="${p}"]`) as HTMLMetaElement|null; if(!m){ m = document.createElement('meta'); m.setAttribute('property', p); document.head.appendChild(m) } m.content = c }
     setMeta('og:title', title.value)
     setMeta('og:type', 'product')
-    if (images.value[0]) setMeta('og:image', images.value[0])
+    if (images.value[0] && isValidImageUrl(images.value[0])) setMeta('og:image', images.value[0])
     setMeta('og:url', url.href)
     setMeta('product:price:amount', String(Number(price.value||0)))
-    setMeta('product:price:currency', 'SAR')
+    setMeta('product:price:currency', getCurrency())
+    setMeta('og:description', (safeDescription.value||'').replace(/\s+/g,' ').slice(0,300))
+    setMeta('product:retailer_item_id', String(id.value))
+    setMeta('product:availability', 'in stock')
+    if (brand.value) setMeta('product:brand', brand.value)
+    setMeta('product:condition', 'new')
+    // Optional site name
+    setMeta('og:site_name', 'jeeey')
   }catch{}
 }
 // ==================== CLUB THEME HELPERS ====================
@@ -1926,7 +3002,7 @@ function imageAt(i:number): string {
     const arr = images.value||[]
     if (!Array.isArray(arr) || arr.length===0) return '/images/placeholder-product.jpg'
     const idx = Math.max(0, (i % arr.length))
-    return arr[idx]
+    return buildThumbUrl(arr[idx], 128)
   }catch{ return '/images/placeholder-product.jpg' }
 }
 
@@ -1989,6 +3065,27 @@ async function updateImagesForColor(){
     }catch{}
   }catch{}
 }
+
+// شبكتا التوصيات (يسار/يمين) + سكيليتون مطابق
+const recLeft = computed(()=> recommendedProducts.value.filter((_p,i)=> i%2===0))
+const recRight = computed(()=> recommendedProducts.value.filter((_p,i)=> i%2===1))
+const recSkLeft = computed(()=> Array.from({length:10}, (_,k)=> k+1).filter(i=> i%2===1))
+const recSkRight = computed(()=> Array.from({length:10}, (_,k)=> k+1).filter(i=> i%2===0))
+const recLoadMoreSentinel = ref<HTMLDivElement|null>(null)
+
+onMounted(()=>{
+  try{
+    if ('IntersectionObserver' in window){
+      const io = new IntersectionObserver((entries)=>{
+        const e = entries[0]
+        if (e && e.isIntersecting && hasMoreRecommended.value && !isLoadingRecommended.value){
+          loadMoreRecommended()
+        }
+      }, { root:null, rootMargin:'0px 0px 300px 0px', threshold:0 })
+      if (recLoadMoreSentinel.value) io.observe(recLoadMoreSentinel.value)
+    }
+  }catch{}
+})
 </script>
 
 <style scoped>
@@ -2139,4 +3236,50 @@ async function updateImagesForColor(){
   font-size: 12px;
   font-weight: 700;
 }
+
+/* Existing styles */
+.kv-row { display:flex; align-items:center; justify-content:space-between; gap: 12px; }
+.kv-row .desc-k { color:#4b5563; font-weight:500; }
+.kv-row .desc-v { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; word-break: break-all; }
+
+/* Coupons sheet mini-cards (consistent with coupons.vue) */
+.sheet-coupon-card{ display:flex; align-items:stretch; gap:12px; background:#fff6f4; border:1px solid #f3d2c8; border-radius:14px; padding:12px; position:relative }
+.sheet-badge{ position:absolute; top:-8px; background:#fa6338; color:#fff; font-size:12px; padding:2px 8px; border-radius:4px; font-weight:600 }
+.sheet-badge-left{ left:16px }
+.sheet-card-left{ flex:1; display:flex; flex-direction:column; gap:6px }
+.sheet-coupon-title{ font-size:14px; font-weight:700; color:#111; margin:0 }
+.sheet-divider{ width:1px; position:relative }
+.sheet-divider:before{ content:""; position:absolute; inset:0 auto 0 auto; left:50%; transform:translateX(-50%); height:100%; border-left:1px dashed rgba(200,120,100,.4) }
+.sheet-divider:after{ content:""; position:absolute; width:14px; height:14px; border-radius:50%; background:#fff; left:calc(50% - 7px); top:-7px; box-shadow:0 0 0 1px #f3d2c8 inset }
+.sheet-card-right{ display:flex; flex-direction:column; align-items:center; justify-content:center; padding:8px 12px; width:120px; min-width:96px }
+.sheet-percent{ font-size:28px; font-weight:800; color:#fa6338; line-height:1 }
+.sheet-discount-note{ font-size:12px; color:#666; text-align:center; margin-top:6px }
+
+/* Coupons.vue card styles (scoped clone) */
+.coupon-card { display:flex; align-items:stretch; gap:12px; background:#fff6f4; border:1px solid #f3d2c8; border-radius:14px; padding:16px; position:relative; transition:transform .2s, box-shadow .2s }
+.coupon-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08) }
+.coupon-card.expired { opacity:.7 }
+.coupon-card.used { opacity:.7; background:#f5f5f5 }
+.coupon-card .badge { position:absolute; top:-8px; right:16px; background:#fa6338; color:#fff; font-size:12px; padding:2px 8px; border-radius:4px; font-weight:600 }
+.divider { width:1px; background:transparent; position:relative }
+.divider:before { content:""; position:absolute; inset:0 auto 0 auto; left:50%; transform:translateX(-50%); height:100%; border-left:1px dashed rgba(200,120,100,.4) }
+.divider:after { content:""; position:absolute; width:14px; height:14px; border-radius:50%; background:#fff; left:calc(50% - 7px); top:-7px; box-shadow:0 0 0 1px #f3d2c8 inset }
+.card-right { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:8px 12px; width:120px; min-width:96px }
+.percent { font-size:32px; font-weight:800; color:#fa6338; line-height:1 }
+.discount-note { font-size:13px; color:#666; text-align:center; margin-top:6px }
+.card-left { flex:1; display:flex; flex-direction:column; gap:8px }
+.coupon-title { font-size:20px; font-weight:700; color:#111; margin:4px 0 }
+.coupon-sub { font-size:13px; color:#8a8a8a; margin:0 }
+.expiry-row { display:flex; align-items:center; gap:8px; margin-top:6px; cursor:pointer }
+.expiry { font-size:13px; color:#8a8a8a }
+.exp-toggle { background:transparent; border:0; cursor:pointer; font-size:14px; color:#8a8a8a; transition: transform .3s }
+.exp-toggle.open { transform: rotate(180deg) }
+.expiry-details { margin-top:8px; padding-top:8px; border-top:1px dashed #f3d2c8; font-size:12px; color:#666 }
+.expiry-details ul { margin-right:20px; margin-top:4px }
+.expiry-details li { margin-bottom:4px }
+.timer { margin-top:8px; font-size:14px; font-weight:700; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:#ffffff; color:#111; padding:4px 8px; border-radius:6px; border:1px solid #f3d2c8 }
+.timer.warning { background:#fff4f0; color:#fa6338; border-color:#fa6338 }
+
+.product-grid{column-gap:5px!important;row-gap:0!important}
 </style>
+
