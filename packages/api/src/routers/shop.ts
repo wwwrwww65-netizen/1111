@@ -1595,7 +1595,7 @@ shop.post('/auth/phone/login', async (req: any, res) => {
   } catch (e: any) { return res.status(500).json({ ok: false, error: e.message || 'login_failed' }); }
 });
 
-shop.post('/api/auth/password/reset', async (req: any, res) => {
+shop.post('/auth/password/reset', async (req: any, res) => {
   try {
     const token = readTokenFromRequest(req);
     if (!token) return res.status(401).json({ error: 'unauthorized' });
