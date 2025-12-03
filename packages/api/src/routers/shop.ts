@@ -1595,6 +1595,36 @@ shop.post('/auth/phone/login', async (req: any, res) => {
   } catch (e: any) { return res.status(500).json({ ok: false, error: e.message || 'login_failed' }); }
 });
 
+shop.post('/api/auth/password/reset', async (req: any, res) => {
+  try {
+    const token = readTokenFromRequest(req);
+    if (!token) return res.status(401).json({ error: 'unauthorized' });
+    const payload = verifyJwt(token);
+    if (!payload || !payload.userId) return res.status(401).json({ error: 'unauthorized' });
+
+    const { password, confirm } = req.body || {};
+    const passRaw = String(password || '').trim();
+    const confRaw = String(confirm || '').trim();
+
+    if (!passRaw) return res.status(400).json({ ok: false, error: 'password_required' });
+    if (passRaw.length < 6) return res.status(400).json({ ok: false, error: 'password_too_short' });
+    if (passRaw !== confRaw) return res.status(400).json({ ok: false, error: 'passwords_mismatch' });
+
+    const bcrypt = require('bcryptjs');
+    const salt = bcrypt.genSaltSync(10);
+    const hash = bcrypt.hashSync(passRaw, salt);
+
+    await db.user.update({
+      where: { id: payload.userId },
+      data: { password: hash }
+    } as any);
+
+    return res.json({ ok: true });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message || 'password_reset_failed' });
+  }
+});
+
 // Test-only: latest OTP code for a phone (protected by maintenance secret)
 shop.get('/test/otp/latest', async (req: any, res) => {
   try {
@@ -4812,8 +4842,12 @@ shop.get('/cart', async (req: any, res) => {
 
 shop.post('/cart/merge', async (req: any, res) => {
   try {
-    const userId = (req as any)?.user?.userId;
-    if (!userId) return res.status(401).json({ error: 'unauthorized' });
+    // Read token and verify
+    const token = readTokenFromRequest(req);
+    if (!token) return res.status(401).json({ error: 'unauthorized' });
+    const payload = verifyJwt(token);
+    if (!payload || !payload.userId) return res.status(401).json({ error: 'unauthorized' });
+    const userId = payload.userId;
     const items: Array<{ productId: string; quantity: number }> = Array.isArray(req.body?.items) ? req.body.items : [];
     if (!items.length) return res.json({ ok: true });
     // Ensure cart exists

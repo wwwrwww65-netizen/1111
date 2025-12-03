@@ -133,10 +133,14 @@ async function submit() {
   errorMessage.value = ''
 
   try {
-    const res = await fetch('/trpc/auth.setPassword', {
+    const res = await fetch('/api/auth/password/reset', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ newPassword: newPassword.value })
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('shop_token') || ''}`
+      },
+      credentials: 'include',
+      body: JSON.stringify({ password: newPassword.value, confirm: confirmPassword.value })
     })
     
     const text = await res.text()
@@ -149,7 +153,12 @@ async function submit() {
     }
 
     if (!res.ok) {
-      throw new Error(data.error?.message || 'فشل تعيين كلمة المرور')
+      if (data.error === 'unauthorized') {
+        throw new Error('يجب تسجيل الدخول أولاً')
+      } else if (data.error === 'invalid_password') {
+        throw new Error('كلمة المرور غير صالحة')
+      }
+      throw new Error(data.error || 'فشل تعيين كلمة المرور')
     }
 
     // Success
