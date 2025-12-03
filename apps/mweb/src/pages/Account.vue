@@ -373,6 +373,11 @@ const cart = useCart()
 const activeTab = ref('wishlist')
 const couponsCount = ref(0)
 
+// ===== Coupon Hydration Logic =====
+type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
+const couponsCache = ref<SimpleCoupon[]>([])
+const couponsCacheTs = ref(0)
+
 const username = computed(() => user.username || 'jeeey')
 
 // --- Dynamic Aspect Ratio Logic (from MasonryForYouBlock) ---
@@ -618,9 +623,6 @@ function onOptionsSave(payload: { color: string; size: string }){
 }
 
 // ===== Coupon Hydration Logic =====
-type SimpleCoupon = { code?:string; discountType:'PERCENTAGE'|'FIXED'; discountValue:number; audience?:string; kind?:string; rules?:{ includes?:string[]; excludes?:string[]; min?:number|null } }
-const couponsCache = ref<SimpleCoupon[]>([])
-const couponsCacheTs = ref(0)
 
 async function fetchCouponsList(): Promise<SimpleCoupon[]> {
   const { isAuthenticated } = await import('@/lib/api')

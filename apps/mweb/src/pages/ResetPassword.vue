@@ -86,7 +86,6 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-vue-next'
-import { API_BASE } from '@/lib/api'
 
 const router = useRouter()
 const primary = '#8a1538'
@@ -134,13 +133,9 @@ async function submit() {
   errorMessage.value = ''
 
   try {
-    // Using absolute URL to avoid Nginx proxy issues on m.jeeey.com
-    const url = `${API_BASE}/trpc/auth.setPassword`
-    const { getAuthHeader } = await import('@/lib/api')
-    const res = await fetch(url, {
+    const res = await fetch('/trpc/auth.setPassword', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ newPassword: newPassword.value })
     })
     

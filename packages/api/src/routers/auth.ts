@@ -62,7 +62,7 @@ export const authRouter = router({
       if (existingUser) {
         throw new TRPCError({
           code: 'CONFLICT',
-          message: 'المستخدم بهذا البريد الإلكتروني موجود بالفعل',
+          message: 'User with this email already exists',
         });
       }
 
@@ -199,9 +199,6 @@ export const authRouter = router({
                   await db.cartItem.create({ data: { cartId, productId: pid, quantity: Number(it.quantity || 1), attributes: (it as any).attributes || undefined } });
                 }
               }
-              // cleanup merged guest cart
-              try { await db.guestCartItem.deleteMany({ where: { cartId: g.id } } as any); } catch { }
-              try { await db.guestCart.delete({ where: { id: g.id } } as any); } catch { }
             }
             try { await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any); } catch { }
           }
@@ -209,7 +206,7 @@ export const authRouter = router({
       } catch { }
 
       const { password: _, ...userWithoutPassword } = user;
-      return { user: userWithoutPassword };
+      return { user: userWithoutPassword, token };
     }),
 
   // Logout user

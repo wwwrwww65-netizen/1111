@@ -13,7 +13,7 @@
         <div class="flex flex-col items-center justify-center py-6">
           <div class="flex flex-col items-center">
             <Gift class="w-6 h-6 text-red-500 mb-2" />
-            <div class="text-sm font-bold text-gray-900">خصم %15</div>
+            <div class="text-sm font-bold text-gray-900">خصم %10</div>
             <div class="text-xs text-gray-600">على طلبك الأول</div>
           </div>
         </div>

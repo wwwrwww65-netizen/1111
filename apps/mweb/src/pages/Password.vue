@@ -74,10 +74,12 @@
 import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-vue-next'
-import { API_BASE } from '@/lib/api'
+import { apiGet, apiPost } from '@/lib/api'
+import { useUser } from '@/store/user'
 
 const router = useRouter()
 const route = useRoute()
+const userStore = useUser()
 const primary = '#8a1538'
 
 const password = ref('')
@@ -118,12 +120,9 @@ const login = async () => {
 
   try {
     // Use phone-based login directly
-    // Using absolute URL to avoid Nginx proxy issues on m.jeeey.com
-    const url = `${API_BASE}/trpc/auth.login`
-    const { getAuthHeader } = await import('@/lib/api')
-    const res = await fetch(url, {
+    const res = await fetch('/trpc/auth.login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({ phone: phone.value, password: password.value })
     })
@@ -133,7 +132,6 @@ const login = async () => {
     try {
       data = text ? JSON.parse(text) : {}
     } catch (e) {
-      console.error('Failed to parse response:', text)
       throw new Error('خطأ في الاتصال: استجابة غير صالحة')
     }
 
@@ -143,12 +141,80 @@ const login = async () => {
 
     // Login successful
     if (data.result?.data?.user) {
-      // Redirect
-      const ret = route.query.return ? String(route.query.return) : '/account'
-      router.replace(ret)
+      // Save token if available
+      if (data.result.data.token) {
+        const token = data.result.data.token
+        try {
+          localStorage.setItem('shop_token', token)
+        } catch {}
+
+        // Manually set cookies to ensure persistence
+        try {
+          const writeCookie = (name: string, value: string) => {
+            try {
+              const host = location.hostname
+              const parts = host.split('.')
+              const apex = parts.length >= 2 ? '.' + parts.slice(-2).join('.') : ''
+              const isHttps = location.protocol === 'https:'
+              const sameSite = isHttps ? 'None' : 'Lax'
+              const secure = isHttps ? ';Secure' : ''
+              const domainPart = apex ? `;domain=${apex}` : ''
+              document.cookie = `${name}=${encodeURIComponent(value)};path=/;max-age=${60 * 60 * 24 * 30}${domainPart};SameSite=${sameSite}${secure}`
+            } catch {}
+          }
+          writeCookie('auth_token', token)
+          writeCookie('shop_auth_token', token)
+        } catch {}
+      }
+      
+      // Verify session and update store
+      const meWithRetry = async (retries = 2) => {
+        for (let i = 0; i <= retries; i++) {
+          try {
+            const me = await apiGet('/api/me?ts=' + Date.now())
+            if (me && me.user) return me
+          } catch {}
+          await new Promise(res => setTimeout(res, 250))
+        }
+        return null
+      }
+
+      const me = await meWithRetry()
+
+      if (me && me.user) {
+        userStore.isLoggedIn = true
+        if (me.user.name || me.user.email || me.user.phone) {
+          userStore.username = String(me.user.name || me.user.email || me.user.phone)
+        }
+
+        // Link analytics
+        try {
+          const sid = localStorage.getItem('sid_v1') || ''
+          if (sid) await apiPost('/api/analytics/link', { sessionId: sid })
+        } catch {}
+
+        // Merge cart
+        try {
+          const { useCart } = await import('@/store/cart')
+          const cart = useCart()
+          const items = Array.isArray(cart.items) ? cart.items.map(i => ({ productId: i.id, quantity: i.qty })) : []
+          if (items.length) await apiPost('/api/cart/merge', { items })
+          await cart.syncFromServer(true)
+          cart.saveLocal()
+        } catch {}
+
+        // Redirect
+        const ret = route.query.return ? String(route.query.return) : '/account'
+        router.replace(ret)
+      } else {
+        // Fallback: if me fails but login said success, force reload
+        const ret = route.query.return ? String(route.query.return) : '/account'
+        window.location.replace(ret)
+      }
+    } else {
+      // User data missing
     }
   } catch (e: any) {
-    console.error(e)
     errorMessage.value = e.message || 'خطأ في الاتصال'
   } finally {
     loading.value = false

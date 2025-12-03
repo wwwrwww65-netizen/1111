@@ -64,11 +64,10 @@ export function facebookLoginUrl(next: string = '/account'): string {
 
 export async function apiGet<T = any>(path: string, init?: RequestInit): Promise<T | null> {
   try {
-    // Always use absolute URL for /api/ to ensure cookies are sent to the correct domain (api.jeeey.com)
-    // This fixes 401 errors when the frontend is on m.jeeey.com but cookies are on api.jeeey.com
+    // Prefer same-origin for relative /api/* so SW and browser cache can help
     const url = path.startsWith('http')
       ? path
-      : `${API_BASE}${path}`
+      : (path.startsWith('/api/') ? path : `${API_BASE}${path}`)
     const isPublic = /^\/api\/(products|categories|search|product|catalog|tabs)/.test(path)
     const headers = { 'Accept': 'application/json', 'X-Shop-Client': 'mweb', ...getAuthHeader(), ...(init?.headers || {}) }
     const key = isPublic ? url : '' // only cache public GETs

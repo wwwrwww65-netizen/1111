@@ -11,10 +11,10 @@
     <main class="flex-1 max-w-md mx-auto px-6 py-8 space-y-8 w-full">
       <section class="text-center space-y-2">
         <div class="text-[14px] text-gray-600">
-          تم إرسال رمز التحقق إلى
+          {{ infoText || `تم إرسال رمز التحقق بواسطة ${methodName} إلى` }}
           <span dir="ltr" class="font-semibold text-gray-900 mx-1">{{ displayPhone }}</span>
         </div>
-        <button class="text-[13px] text-[#8a1538] font-medium hover:underline" @click="editNumber">تغيير الرقم؟</button>
+        <button v-if="!isForgotFlow" class="text-[13px] text-[#8a1538] font-medium hover:underline" @click="editNumber">تعديل الرقم؟</button>
       </section>
 
       <section class="space-y-6">
@@ -34,9 +34,8 @@
           />
         </div>
 
-        <div v-if="errorText" class="flex items-center justify-center gap-2 text-red-600 bg-red-50 p-3 rounded-[8px] text-[12px] animate-fadeIn">
-          <AlertCircle class="w-4 h-4 shrink-0" />
-          <span>{{ errorText }}</span>
+        <div v-if="errorText" class="text-[13px] text-red-600 font-medium animate-fadeIn text-center">
+          {{ errorText }}
         </div>
 
         <div class="flex flex-col items-center gap-3">
@@ -79,7 +78,7 @@
         <div class="relative grid grid-cols-2 rounded-[12px] overflow-hidden shadow-sm" style="background-color:#fff6f3">
           <div class="flex flex-col items-center justify-center py-6 px-2 text-center">
             <Gift class="w-6 h-6 text-[#8a1538] mb-2" />
-            <div class="text-[13px] font-bold text-gray-900">خصم 15%</div>
+            <div class="text-[13px] font-bold text-gray-900">خصم 10%</div>
             <div class="text-[11px] text-gray-600">على طلبك الأول</div>
           </div>
           <div class="absolute left-1/2 top-4 bottom-4 w-px bg-[#8a1538]/10" />
@@ -112,6 +111,7 @@ const primary = '#8a1538'
 const router = useRouter()
 const route = useRoute()
 const user = useUser()
+const isForgotFlow = computed(() => route.query.reason === 'forgot')
 
 const countryDial = ref<string>(route.query.dial ? String(route.query.dial) : '+966')
 const phone = ref<string>(route.query.phone ? String(route.query.phone) : '')
@@ -152,7 +152,29 @@ const shake = ref<boolean>(false)
 const errorText = ref<string>('')
 const verifying = ref<boolean>(false)
 
-onMounted(()=>{ tick(); try{ inputsRef.value[0]?.focus() }catch{} })
+const verificationMethod = ref<string>('whatsapp')
+const infoText = ref<string>('')
+const methodName = computed(() => verificationMethod.value === 'whatsapp' ? 'WhatsApp' : 'SMS')
+
+let timerInterval: any = null
+
+function startTimer(seconds: number) {
+  timeLeft.value = seconds
+  canResend.value = false
+  if (timerInterval) clearInterval(timerInterval)
+  timerInterval = setInterval(() => {
+    if (timeLeft.value > 0) {
+      timeLeft.value--
+    } else {
+      canResend.value = true
+      if (timerInterval) clearInterval(timerInterval)
+    }
+  }, 1000)
+}
+
+onMounted(()=>{ 
+  try{ inputsRef.value[0]?.focus() }catch{} 
+})
 // Auto request on arrive if query auto=1
 // Session storage helpers for OTP cooldown
 function getLastSent(p: string) {
@@ -163,50 +185,80 @@ function setLastSent(p: string) {
 }
 
 onMounted(async ()=>{
-  // 1. Check cooldown immediately regardless of auto param
+  // 1. Resolve Phone/Dial immediately from URL or State to ensure persistence works
+  const params = new URLSearchParams(window.location.search)
+  const urlPhone = params.get('phone') || ''
+  const urlDial = params.get('dial') || ''
+  
+  if ((!phone.value || phone.value === 'undefined') && urlPhone) phone.value = urlPhone
+  if (countryDial.value === '+966' && urlDial) countryDial.value = urlDial
+
+  // 2. Check cooldown immediately with the resolved phone
   const last = getLastSent(phone.value)
   const diff = (Date.now() - last) / 1000
   
-  if (diff < 60) {
-    timeLeft.value = Math.floor(60 - diff)
-    canResend.value = false
-    tick()
-  } else {
-    canResend.value = true
-    timeLeft.value = 0
-  }
+  const auto = params.get('auto') === '1'
+  const ch = params.get('ch') || 'whatsapp'
 
-  const auto = String(route.query.auto||'') === '1'
-  const ch = String(route.query.ch||'')
+  if (diff < 60) {
+    startTimer(Math.floor(60 - diff))
+  } else {
+    if (auto) {
+      canResend.value = false
+      startTimer(60)
+      setLastSent(phone.value) // Optimistic save so refresh works
+    } else {
+      canResend.value = true
+      timeLeft.value = 0
+    }
+  }
   
   if (auto) {
-    // Remove auto from URL so refresh doesn't trigger it again
-    const q = { ...route.query }
-    delete q.auto
-    router.replace({ query: q })
+    // Remove auto from URL silently without triggering router/remount
+    try {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('auto')
+      window.history.replaceState({}, '', url.toString())
+    } catch {}
 
     // If we are already in cooldown (from step 1), do NOT send again
     if (diff < 60) return
 
     try{
-      let local = phone.value.replace(/\D/g,'')
+      // Use the most up-to-date values
+      const pVal = phone.value || urlPhone
+      const dVal = countryDial.value || urlDial
+
+      let local = pVal.replace(/\D/g,'')
       if (local.startsWith('0')) local = local.replace(/^0+/, '')
-      const dial = String(countryDial.value||'').replace(/\D/g,'')
+      const dial = String(dVal||'').replace(/\D/g,'')
       const e164 = local.startsWith(dial) ? local : (dial + local)
-      const r = await apiPost('/api/auth/otp/request', { phone: e164, channel: ch || 'whatsapp' })
+      
+      console.log('[Verify] Requesting OTP for:', e164, 'channel:', ch)
+      const r: any = await apiPost('/api/auth/otp/request', { phone: e164, channel: ch })
+      console.log('[Verify] OTP Response:', r)
+
       if (r && (r.ok || r.sent)) {
-        setLastSent(phone.value)
-        timeLeft.value = 60; canResend.value = false; tick();
-        if ((r as any).channelUsed === 'sms') {
-          errorText.value = 'تم الإرسال عبر SMS تلقائياً.';
+        // Timer already started optimistically
+        if (r.channelUsed === 'sms') {
+          verificationMethod.value = 'sms'
+          infoText.value = 'تم الإرسال عبر SMS تلقائياً.'
+        } else {
+          verificationMethod.value = 'whatsapp'
         }
       } else {
-        errorText.value = 'تعذر إرسال الرمز عبر واتساب. سنحاول SMS تلقائياً أو أعد المحاولة بعد لحظات.';
+        // Failed, BUT do not stop timer as per user request
+        // Just show the error message
+        console.error('[Verify] OTP Request Failed:', r)
+        errorText.value = r?.error ? `خطأ: ${r.error}` : 'تعذر إرسال الرمز عبر واتساب. سنحاول SMS تلقائياً أو أعد المحاولة بعد لحظات.';
       }
-    } catch { errorText.value = 'خطأ في الشبكة' }
+    } catch (e) { 
+      // Network error, do not stop timer
+      console.error('[Verify] OTP Network Error:', e)
+      errorText.value = 'خطأ في الشبكة' 
+    }
   }
 })
-function tick(){ if (timeLeft.value>0){ setTimeout(()=>{ timeLeft.value--; tick() }, 1000) } else { canResend.value = true } }
 
 function onChange(idx:number, v:string){
   const digit = v.replace(/\D/g,'').slice(0,1)
@@ -258,7 +310,14 @@ async function resend(){
     const r = await apiPost('/api/auth/otp/request', { phone: e164, channel: 'whatsapp' })
     if (r && (r.ok || r.sent)){
       setLastSent(phone.value)
-      timeLeft.value = 60; canResend.value = false; tick()
+      startTimer(60)
+      if ((r as any).channelUsed === 'sms') {
+          verificationMethod.value = 'sms'
+          infoText.value = 'تم الإرسال عبر SMS تلقائياً.'
+      } else {
+          verificationMethod.value = 'whatsapp'
+          infoText.value = ''
+      }
     } else { errorText.value = 'تعذر إرسال الرمز' }
   } catch { errorText.value = 'خطأ في الشبكة' } finally { resending.value = false }
 }

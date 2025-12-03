@@ -130,6 +130,10 @@ shop.get('/auth/me', async (req: any, res) => {
     if (!user) return res.status(404).json({ error: 'user_not_found' });
     return res.json(user);
   } catch (e: any) {
+    // If it's a TRPCError with UNAUTHORIZED, return 401
+    if (e?.code === 'UNAUTHORIZED' || e?.message === 'Invalid or expired token') {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
     return res.status(500).json({ error: e?.message || 'auth_me_failed' });
   }
 });

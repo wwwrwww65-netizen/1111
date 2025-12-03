@@ -8,8 +8,8 @@
     <main class="max-w-md mx-auto px-4 py-6 space-y-4">
       <h2 class="text-lg font-bold">اكمال إنشاء الحساب</h2>
       <div>
-        <label class="block text-[12px] text-gray-700 mb-1">الاسم الرباعي</label>
-        <input v-model="fullName" class="w-full h-11 px-3 rounded-[4px] border border-gray-200 text-[13px]" placeholder="مثال: محمد أحمد علي سعيد" />
+        <label class="block text-[12px] text-gray-700 mb-1">الاسم</label>
+        <input v-model="fullName" class="w-full h-11 px-3 rounded-[4px] border border-gray-200 text-[13px]" placeholder="الاسم" />
       </div>
       <div>
         <label class="block text-[12px] text-gray-700 mb-1">كلمة السر</label>
