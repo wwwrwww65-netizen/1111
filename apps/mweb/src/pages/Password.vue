@@ -119,8 +119,8 @@ const login = async () => {
   errorMessage.value = ''
 
   try {
-    // Use phone-based login directly
-    const res = await fetch('/trpc/auth.login', {
+    // Use phone-based login endpoint
+    const res = await fetch('/api/auth/phone/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -136,43 +136,48 @@ const login = async () => {
     }
 
     if (!res.ok) {
-      throw new Error(data.error?.message || 'خطأ في تسجيل الدخول')
+      // Handle specific error messages
+      if (data.error === 'invalid_credentials') {
+        throw new Error('كلمة المرور غير صحيحة')
+      } else if (data.error === 'password_not_set') {
+        throw new Error('لم يتم تعيين كلمة مرور لهذا الحساب')
+      } else {
+        throw new Error(data.error || 'خطأ في تسجيل الدخول')
+      }
     }
 
     // Login successful
-    if (data.result?.data?.user) {
-      // Save token if available
-      if (data.result.data.token) {
-        const token = data.result.data.token
-        try {
-          localStorage.setItem('shop_token', token)
-        } catch {}
+    if (data.ok && data.token) {
+      // Save token
+      const token = data.token
+      try {
+        localStorage.setItem('shop_token', token)
+      } catch {}
 
-        // Manually set cookies to ensure persistence
-        try {
-          const writeCookie = (name: string, value: string) => {
-            try {
-              const host = location.hostname
-              const parts = host.split('.')
-              const apex = parts.length >= 2 ? '.' + parts.slice(-2).join('.') : ''
-              const isHttps = location.protocol === 'https:'
-              const sameSite = isHttps ? 'None' : 'Lax'
-              const secure = isHttps ? ';Secure' : ''
-              const domainPart = apex ? `;domain=${apex}` : ''
-              document.cookie = `${name}=${encodeURIComponent(value)};path=/;max-age=${60 * 60 * 24 * 30}${domainPart};SameSite=${sameSite}${secure}`
-            } catch {}
-          }
-          writeCookie('auth_token', token)
-          writeCookie('shop_auth_token', token)
-        } catch {}
-      }
+      // Manually set cookies to ensure persistence
+      try {
+        const writeCookie = (name: string, value: string) => {
+          try {
+            const host = location.hostname
+            const parts = host.split('.')
+            const apex = parts.length >= 2 ? '.' + parts.slice(-2).join('.') : ''
+            const isHttps = location.protocol === 'https:'
+            const sameSite = isHttps ? 'None' : 'Lax'
+            const secure = isHttps ? ';Secure' : ''
+            const domainPart = apex ? `;domain=${apex}` : ''
+            document.cookie = `${name}=${encodeURIComponent(value)};path=/;max-age=${60 * 60 * 24 * 30}${domainPart};SameSite=${sameSite}${secure}`
+          } catch {}
+        }
+        writeCookie('auth_token', token)
+        writeCookie('shop_auth_token', token)
+      } catch {}
       
       // Verify session and update store
       const meWithRetry = async (retries = 2) => {
         for (let i = 0; i <= retries; i++) {
           try {
-            const me = await apiGet('/api/me?ts=' + Date.now())
-            if (me && me.user) return me
+            const me = await apiGet('/api/auth/me?ts=' + Date.now())
+            if (me && me.id) return me
           } catch {}
           await new Promise(res => setTimeout(res, 250))
         }
@@ -181,10 +186,10 @@ const login = async () => {
 
       const me = await meWithRetry()
 
-      if (me && me.user) {
+      if (me && me.id) {
         userStore.isLoggedIn = true
-        if (me.user.name || me.user.email || me.user.phone) {
-          userStore.username = String(me.user.name || me.user.email || me.user.phone)
+        if (me.name || me.email || me.phone) {
+          userStore.username = String(me.name || me.email || me.phone)
         }
 
         // Link analytics
@@ -212,7 +217,7 @@ const login = async () => {
         window.location.replace(ret)
       }
     } else {
-      // User data missing
+      throw new Error('خطأ في تسجيل الدخول')
     }
   } catch (e: any) {
     errorMessage.value = e.message || 'خطأ في الاتصال'

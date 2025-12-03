@@ -1566,6 +1566,35 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
   } catch (e: any) { return res.status(500).json({ ok: false, error: e.message || 'otp_verify_failed' }); }
 });
 
+shop.post('/auth/phone/login', async (req: any, res) => {
+  try {
+    const phone = String(req.body?.phone || '').trim();
+    const password = String(req.body?.password || '').trim();
+    if (!phone || !password) return res.status(400).json({ ok: false, error: 'phone_password_required' });
+    const normalized = phone.replace(/\s+/g, '');
+    const digitsOnly = normalized.replace(/\D/g, '');
+    const emailLegacy1 = `phone+${normalized}@local`;
+    const emailLegacy2 = `phone+${digitsOnly}@local`;
+    let user = await db.user.findFirst({ where: { OR: [{ email: emailLegacy1 }, { email: emailLegacy2 }, { phone: normalized }, { phone: digitsOnly }, { phone: `+${digitsOnly}` }, { phone: `00${digitsOnly}` }] }, select: { id: true, email: true, password: true, name: true, phone: true, role: true, isVerified: true } } as any);
+    if (!user) return res.status(401).json({ ok: false, error: 'invalid_credentials' });
+    if (!user.password || user.password === '') return res.status(401).json({ ok: false, error: 'password_not_set' });
+    const bcrypt = require('bcryptjs');
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) return res.status(401).json({ ok: false, error: 'invalid_credentials' });
+    const token = signJwt({ userId: user.id, phone: user.phone || normalized, email: user.email, role: (user as any).role || 'USER' });
+    const cookieDomain = process.env.COOKIE_DOMAIN || '.jeeey.com';
+    const isProd = (process.env.NODE_ENV || 'production') === 'production';
+    const host = String(req.headers?.host || '').toLowerCase();
+    const isLocalHost = host.includes('localhost') || host.startsWith('127.0.0.1') || host.startsWith('10.') || host.startsWith('192.168.');
+    try { res.clearCookie('auth_token', { domain: cookieDomain, path: '/' }); const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain; if (root) res.clearCookie('auth_token', { domain: `api.${root}`, path: '/' }); } catch { }
+    try { res.cookie('shop_auth_token', token, { httpOnly: true, domain: isLocalHost ? undefined : cookieDomain, sameSite: isProd && !isLocalHost ? 'none' : 'lax', secure: isProd && !isLocalHost, maxAge: 3600 * 24 * 30 * 1000, path: '/' } as any); } catch { }
+    try { const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain; if (root && !isLocalHost) { res.cookie('shop_auth_token', token, { httpOnly: true, domain: `api.${root}`, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600 * 24 * 30 * 1000, path: '/' }); } } catch { }
+    try { await mergeGuestIntoUserIfPresent(req, res, String(user.id)); } catch { }
+    const { password: _, ...userWithoutPassword } = user;
+    return res.json({ ok: true, token, user: userWithoutPassword });
+  } catch (e: any) { return res.status(500).json({ ok: false, error: e.message || 'login_failed' }); }
+});
+
 // Test-only: latest OTP code for a phone (protected by maintenance secret)
 shop.get('/test/otp/latest', async (req: any, res) => {
   try {
