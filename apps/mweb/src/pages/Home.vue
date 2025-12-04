@@ -356,6 +356,7 @@ onMounted(async ()=>{
   }catch{}
   // Load published tabs for device, then exclude categories tabs
   try{
+    console.log('[Home] Loading tabs...')
     const [allResp, catsResp] = await Promise.all([
       apiGet<any>('/api/tabs/list?device=MOBILE').catch(()=>({ tabs: [] })),
       apiGet<any>('/api/tabs/categories/list').catch(()=>({ tabs: [] }))
@@ -364,9 +365,20 @@ onMounted(async ()=>{
     const cats = new Set((Array.isArray(catsResp?.tabs)? catsResp.tabs: []).map((t:any)=> String(t.slug||'')))
     const filtered = all.filter((t:any)=> !cats.has(String(t.slug||'')))
     tabs.value = filtered.map((t:any)=> ({ label: t.label, slug: String(t.slug||'') }))
+    
+    console.log('[Home] Tabs loaded:', tabs.value.length, tabs.value)
+    
+    if (tabs.value.length === 0) {
+      console.warn('[Home] No tabs found!')
+      isTabLoading.value = false
+      return
+    }
+    
     const paramSlug = String(route.params.slug||'')
     // استخدم أول تبويبة كإعداد افتراضي
     const initial = paramSlug || (tabs.value[0]?.slug || '')
+    console.log('[Home] Initial tab:', initial, 'paramSlug:', paramSlug, 'route.path:', route.path)
+    
     if (!previewActive.value && initial) {
       // Hydrate tab cache from sessionStorage if available
       try{
@@ -385,7 +397,10 @@ onMounted(async ()=>{
         ahead.forEach(s=> { if (s && !tabCache.value[s]) fetchTab(s, true) })
       }catch{}
     }, 300)
-  }catch{}
+  }catch(err){
+    console.error('[Home] Error loading tabs:', err)
+    isTabLoading.value = false
+  }
   // Notify admin that preview is ready (parent iframe or opener window)
   try{ if (window.parent) window.parent.postMessage({ __tabs_preview_ready: true }, '*') }catch{}
   try{ if (window.opener) window.opener.postMessage({ __tabs_preview_ready: true }, '*') }catch{}
