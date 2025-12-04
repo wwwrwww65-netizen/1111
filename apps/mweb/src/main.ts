@@ -112,6 +112,8 @@ const routes = [...manualRoutes, ...genRoutes, { path: '/:pathMatch(.*)*', compo
 
 const app = createApp(App);
 app.use(createPinia());
+import { useUser } from './store/user';
+
 const router = createRouter({
   history: createWebHistory(),
   routes,
@@ -123,129 +125,31 @@ const router = createRouter({
   }
 });
 
-// ============================================
-// GLOBAL NAVIGATION GUARD
-// Based on SHEIN, Amazon, AliExpress best practices
-// ============================================
-
-let navigationHistory: string[] = []
-const MAX_HISTORY_SIZE = 10
-
-// Helper: Check if user is logged in
-function checkUserLoggedIn(): boolean {
-  try {
-    const hasCookie = document.cookie.includes('shop_auth_token=') ||
-      document.cookie.includes('auth_token=')
-    const hasLocalToken = !!localStorage.getItem('shop_token')
-    return hasCookie || hasLocalToken
-  } catch {
-    return false
-  }
-}
-
-// Helper: Check if cart has items
-function checkCartHasItems(): boolean {
-  try {
-    const cartData = localStorage.getItem('cart_items')
-    if (cartData) {
-      const items = JSON.parse(cartData)
-      return Array.isArray(items) && items.length > 0
-    }
-    return false
-  } catch {
-    return false
-  }
-}
-
+// Global Navigation Guard
 router.beforeEach((to, from, next) => {
-  const toPath = to.path
-  const fromPath = from.path
+  const user = useUser();
+  const cart = useCart();
 
-  // ========================================
-  // 1. AUTH PROTECTION
-  // Redirect logged-in users away from auth pages
-  // ========================================
-  const authPages = [
-    '/login', '/register', '/verify', '/password',
-    '/complete-profile', '/reset-password', '/forgot'
-  ]
-
-  if (authPages.some(page => toPath.startsWith(page))) {
-    if (checkUserLoggedIn()) {
-      const returnUrl = (to.query.return as string) || '/account'
-      next({ path: returnUrl, replace: true })
-      return
-    }
+  // 1. Auth Protection: Redirect logged-in users from Auth pages
+  const authPages = ['/login', '/register', '/forgot', '/reset-password', '/verify'];
+  // Check if path starts with any auth page (to handle sub-paths if any, though exact match is usually safer for these)
+  if (authPages.includes(to.path) && user.isLoggedIn) {
+    // Redirect to return URL or Account
+    return next({ path: (to.query.return as string) || '/account', replace: true });
   }
 
-  // ========================================
-  // 2. CHECKOUT PROTECTION
-  // Redirect users with empty cart away from checkout
-  // ========================================
-  if (toPath === '/checkout' && !checkCartHasItems()) {
-    next({ path: '/cart', replace: true })
-    return
+  // 2. Checkout Protection: Redirect empty cart from Checkout
+  if (to.path === '/checkout' && cart.count === 0) {
+    return next({ path: '/cart', replace: true });
   }
 
-  // ========================================
-  // 3. ALWAYS REPLACE PAGES
-  // These pages should never be in history
-  // ========================================
-  const alwaysReplacePages = [
-    '/login', '/verify', '/password', '/register',
-    '/complete-profile', '/reset-password', '/forgot', '/checkout'
-  ]
-
-  const shouldAlwaysReplace = alwaysReplacePages.some(page => toPath.startsWith(page))
-
-  // ========================================
-  // 4. MAIN TABS (Bottom Navigation)
-  // Tab switching should use replace to prevent duplicates
-  // ========================================
-  const mainTabs = ['/', '/categories', '/cart', '/account', '/products']
-  const isTabNavigation = mainTabs.includes(toPath) && mainTabs.includes(fromPath)
-
-  // ========================================
-  // 5. DUPLICATE DETECTION
-  // Prevent navigating to same page twice in a row
-  // ========================================
-  const isDuplicate = navigationHistory.length > 0 &&
-    navigationHistory[navigationHistory.length - 1] === toPath
-
-  // ========================================
-  // 6. ORDER CONFIRMATION FLOW
-  // After checkout, going to order details should replace checkout
-  // ========================================
-  const isOrderConfirmation = fromPath === '/checkout' && toPath.startsWith('/order/')
-
-  // ========================================
-  // 7. APPLY REPLACE LOGIC
-  // ========================================
-  if (isDuplicate || isTabNavigation || shouldAlwaysReplace || isOrderConfirmation) {
-    if (to.redirectedFrom) {
-      next()
-    } else {
-      next({ ...to, replace: true })
-      return
-    }
+  // 3. Duplicate Prevention: Prevent pushing the exact same page
+  if (to.fullPath === from.fullPath) {
+    return next(false);
   }
 
-  // ========================================
-  // 8. UPDATE NAVIGATION HISTORY
-  // ========================================
-  if (!isDuplicate) {
-    navigationHistory.push(toPath)
-    if (navigationHistory.length > MAX_HISTORY_SIZE) {
-      navigationHistory.shift()
-    }
-  }
-
-  next()
-})
-
-// ============================================
-// END NAVIGATION GUARD
-// ============================================
+  next();
+});
 
 app.use(router);
 app.mount('#app');

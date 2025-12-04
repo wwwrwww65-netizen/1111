@@ -1,6 +1,6 @@
 name: Mobile - Build Android APK
 
-#on:
+on:
   workflow_dispatch:
     inputs:
       profile:
