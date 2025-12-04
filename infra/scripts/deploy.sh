@@ -165,6 +165,12 @@ rm -rf "$ROOT_DIR/packages/api/dist" || true
 rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
 # Build db/api via package scripts (ensures tsc and prisma are available in context)
 # Build DB: use local binaries to avoid PATH issues
+# First, pull schema from database to ensure sync (if DB exists)
+if [ -n "${DATABASE_URL:-}" ] || [ -n "${DIRECT_URL:-}" ]; then
+  echo "[deploy] Pulling schema from database to ensure sync..."
+  (cd "$ROOT_DIR/packages/db" && (./node_modules/.bin/prisma db pull --force 2>/dev/null || pnpm --package=prisma@5.14.0 dlx prisma db pull --force --schema "$ROOT_DIR/packages/db/prisma/schema.prisma" || npx -y prisma@5.14.0 db pull --force --schema "$ROOT_DIR/packages/db/prisma/schema.prisma")) || echo "[deploy] db pull skipped (DB may not exist yet)"
+fi
+# Then generate Prisma Client
 (cd "$ROOT_DIR/packages/db" && (./node_modules/.bin/prisma generate 2>/dev/null || pnpm --package=prisma@5.14.0 dlx prisma generate --schema "$ROOT_DIR/packages/db/prisma/schema.prisma" || npx -y prisma@5.14.0 generate --schema "$ROOT_DIR/packages/db/prisma/schema.prisma"))
 (cd "$ROOT_DIR/packages/db" && (./node_modules/.bin/tsc -p tsconfig.json || pnpm --package=typescript@5.3.3 dlx tsc -p tsconfig.json || npx -y typescript@5.3.3 -p tsconfig.json))
 # Build API: clean then compile with local tsc

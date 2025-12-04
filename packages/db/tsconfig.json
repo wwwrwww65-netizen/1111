@@ -6,6 +6,13 @@
     "declaration": true,
     "declarationMap": false
   },
-  "include": ["**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "prisma/seed.ts",
+    "prisma/seed-admin-only.ts"
+  ]
 }

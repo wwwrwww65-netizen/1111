@@ -5,7 +5,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "pnpm exec prisma generate && pnpm exec tsc -p tsconfig.json",
+    "build": "pnpm exec prisma generate && pnpm exec tsc -p tsconfig.json --skipLibCheck",
     "db:generate": "pnpm exec prisma generate",
     "db:migrate": "pnpm exec prisma migrate dev",
     "db:push": "pnpm exec prisma db push",

@@ -58,8 +58,10 @@ try {
 } catch { }
 
 const app = express();
-// Serve uploaded media as static files with long-term cache
+// Serve uploaded media
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads'), { maxAge: '365d', immutable: true }));
+// Serve verification files (Google/Bing HTML files) from root
+app.use('/', express.static(path.resolve(process.cwd(), 'verification')));
 // Android App Links: serve assetlinks.json
 app.get('/.well-known/assetlinks.json', (_req, res) => {
   res.type('application/json').send([{
@@ -405,6 +407,12 @@ app.use('/api', shop);
 // Mount shipping webhooks (required by tests hitting /webhooks/shipping)
 app.use('/webhooks', shippingWebhooks);
 app.use('/api/admin', rbac);
+import seoRouter from './routers/seo';
+app.use('/api/admin/seo', seoRouter);
+import { mediaRouter } from './routers/media';
+app.use('/api/admin/media', mediaRouter);
+import { publicSeoRouter } from './routers/public-seo';
+app.use('/', publicSeoRouter);
 
 // Mobile Remote Config endpoints (tokens/home) for RN apps
 app.get('/mobile/config/tokens.json', async (_req, res) => {
@@ -446,7 +454,7 @@ app.get('/mobile/config/nav.json', (_req, res) => {
   const out = {
     header: {
       title: 'Jeeey',
-      actions: [ { icon: 'search', link: '/search' }, { icon: 'cart', link: '/cart' } ]
+      actions: [{ icon: 'search', link: '/search' }, { icon: 'cart', link: '/cart' }]
     },
     tabs: [
       { key: 'home', title: 'الرئيسية', icon: 'home', link: '/' },
@@ -479,7 +487,7 @@ app.get('/mobile/config/categories.json', (_req, res) => {
   const out = {
     layout: { columns: 3, gap: 8 },
     showImages: true,
-    filters: [ 'price', 'brand', 'size', 'color' ]
+    filters: ['price', 'brand', 'size', 'color']
   };
   res.json(out);
 });
@@ -489,7 +497,7 @@ app.get('/mobile/config/cart.json', (_req, res) => {
   const out = {
     showThumb: true,
     showVendor: false,
-    totals: [ 'subtotal', 'shipping', 'discounts', 'total' ]
+    totals: ['subtotal', 'shipping', 'discounts', 'total']
   };
   res.json(out);
 });
@@ -497,8 +505,8 @@ app.get('/mobile/config/cart.json', (_req, res) => {
 // Checkout manifest
 app.get('/mobile/config/checkout.json', (_req, res) => {
   const out = {
-    steps: [ 'address', 'shipping', 'payment', 'review' ],
-    paymentProviders: [ 'stripe' ],
+    steps: ['address', 'shipping', 'payment', 'review'],
+    paymentProviders: ['stripe'],
     successLink: '/pay/success',
     failureLink: '/pay/failure'
   };
@@ -520,10 +528,10 @@ app.get('/mobile/config/offers.json', (_req, res) => {
 // Pages manifest (arbitrary screens by path)
 app.get('/mobile/config/pages.json', (_req, res) => {
   const out = {
-    '/account': { path: '/account', title: 'حسابي', blocks: [ { type: 'heading', text: 'الحساب' }, { type: 'button', text: 'تسجيل الدخول / OTP', props: { action: 'openLogin' } } ] },
-    '/settings': { path: '/settings', title: 'الإعدادات', blocks: [ { type: 'heading', text: 'الإعدادات' } ] },
-    '/address': { path: '/address', title: 'العناوين', blocks: [ { type: 'heading', text: 'العنوان' }, { type: 'addressForm' } ] },
-    '/search': { path: '/search', title: 'بحث', blocks: [ { type: 'searchBar' }, { type: 'searchResults' } ] },
+    '/account': { path: '/account', title: 'حسابي', blocks: [{ type: 'heading', text: 'الحساب' }, { type: 'button', text: 'تسجيل الدخول / OTP', props: { action: 'openLogin' } }] },
+    '/settings': { path: '/settings', title: 'الإعدادات', blocks: [{ type: 'heading', text: 'الإعدادات' }] },
+    '/address': { path: '/address', title: 'العناوين', blocks: [{ type: 'heading', text: 'العنوان' }, { type: 'addressForm' }] },
+    '/search': { path: '/search', title: 'بحث', blocks: [{ type: 'searchBar' }, { type: 'searchResults' }] },
   };
   res.json(out);
 });
