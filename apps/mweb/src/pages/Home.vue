@@ -195,7 +195,7 @@ const tabsTopPx = computed(()=> layoutShowHeader.value ? headerH.value : 0)
 // Selected tab content from Admin Tabs Designer
 const tabSections = ref<any[]>([])
 const currentSlug = ref<string>('')
-const isTabLoading = ref(false)
+const isTabLoading = ref(true)
 const tabCache = ref<Record<string, any[]>>({})
 let currentTabController: AbortController | null = null
 function renderBlock(s:any){ 
@@ -213,6 +213,7 @@ async function loadTab(slug:string){
   const cached = tabCache.value[slug]
   if (cached && cached.length){
     tabSections.value = cached
+    isTabLoading.value = false
     void fetchTab(slug, true)
     const idx1 = tabs.value.findIndex(t=> t.slug === slug); if (idx1>=0) activeTab.value = idx1
     // استعادة موضع التمرير إن وجد
