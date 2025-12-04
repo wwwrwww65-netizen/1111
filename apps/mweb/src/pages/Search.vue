@@ -334,6 +334,10 @@ function openImagePicker() {
   console.log('Open image picker')
 }
 
+import { smartPush } from '@/lib/smartNavigation'
+
+// ...
+
 async function runSearch() {
   const term = q.value.trim()
   if (!term) return
@@ -350,7 +354,7 @@ async function runSearch() {
     properties: { query: term }
   }).catch(() => {})
 
-  router.push({ path: '/search/result', query: { q: term } })
+  smartPush(router, { path: '/search/result', query: { q: term } })
 }
 
 onMounted(() => {

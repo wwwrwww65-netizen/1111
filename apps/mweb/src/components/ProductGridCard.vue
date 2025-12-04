@@ -234,7 +234,11 @@ onMounted(async ()=>{
 
 function open(ev?: Event){
   if (!id.value) return
-  const go = ()=> {
+import { smartPush } from '@/lib/smartNavigation'
+
+// ...
+
+    const go = ()=> {
     try{
       // اختر الصورة الأكثر ظهوراً داخل شريط البطاقة لتكون مصدر الانتقال
       const root = (ev?.currentTarget as HTMLElement) || null
@@ -261,7 +265,7 @@ function open(ev?: Event){
         productData: props.product // Pass full product data
       })
     }catch{}
-    router.push(`/p?id=${encodeURIComponent(id.value)}`)
+    smartPush(router, `/p?id=${encodeURIComponent(id.value)}`)
   }
   try{
     // عيّن اسم الانتقال على الصورة الأكثر ظهوراً لضمان تطابق الاسم مع الهيرو في صفحة المنتج

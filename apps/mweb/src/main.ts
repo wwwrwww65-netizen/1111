@@ -10,6 +10,7 @@ import { injectTracking } from './tracking';
 import { useCart } from './store/cart'
 import { initCurrency } from './lib/currency'
 import { apiPost } from './lib/api'
+import { trackNavigation } from './lib/smartNavigation'
 // Track affiliate ref
 const ref = new URLSearchParams(location.search).get('ref'); if (ref) { try { sessionStorage.setItem('affiliate_ref', ref) } catch { } }
 
@@ -125,37 +126,6 @@ const router = createRouter({
   }
 });
 
-// Smart URL Deduplication: History Stack Tracker
-const historyStack: string[] = []
-const MAX_HISTORY_SIZE = 20
-
-// Initialize stack with current URL
-try {
-  const currentUrl = location.pathname + location.search + location.hash
-  historyStack.push(currentUrl)
-} catch { }
-
-// Sync stack with browser back/forward buttons
-if (typeof window !== 'undefined') {
-  window.addEventListener('popstate', () => {
-    try {
-      const currentUrl = location.pathname + location.search + location.hash
-      const lastIndex = historyStack.lastIndexOf(currentUrl)
-
-      if (lastIndex !== -1) {
-        // User went back → Remove everything after this URL
-        historyStack.splice(lastIndex + 1)
-      } else {
-        // User went forward or navigated externally → Add to stack
-        historyStack.push(currentUrl)
-        if (historyStack.length > MAX_HISTORY_SIZE) {
-          historyStack.shift()
-        }
-      }
-    } catch { }
-  })
-}
-
 // Global Navigation Guard
 router.beforeEach((to, from, next) => {
   const user = useUser();
@@ -163,9 +133,12 @@ router.beforeEach((to, from, next) => {
 
   // 1. Auth Protection: Redirect logged-in users from Auth pages
   const authPages = ['/login', '/register', '/forgot', '/reset-password', '/verify'];
+  // Check if path starts with any auth page (to handle sub-paths if any, though exact match is usually safer for these)
+  // Also check cookie existence for initial load protection before store hydration
   const hasAuthCookie = (typeof document !== 'undefined') && (document.cookie.includes('shop_auth_token=') || document.cookie.includes('auth_token='));
 
   if (authPages.includes(to.path) && (user.isLoggedIn || hasAuthCookie)) {
+    // Redirect to return URL or Account
     return next({ path: (to.query.return as string) || '/account', replace: true });
   }
 
@@ -174,40 +147,9 @@ router.beforeEach((to, from, next) => {
     return next({ path: '/cart', replace: true });
   }
 
-  // 3. Smart URL Deduplication: Prevent duplicate URLs in history
-  const targetUrl = to.fullPath
-  const currentUrl = from.fullPath
-
-  // Check if target URL exists in recent history
-  const duplicateIndex = historyStack.indexOf(targetUrl)
-  const currentIndex = historyStack.indexOf(currentUrl)
-
-  // Only prevent duplicates when navigating FORWARD (not back)
-  // If duplicateIndex < currentIndex, user is going back (allow it)
-  // If duplicateIndex >= currentIndex, user is going forward to a duplicate (prevent it)
-  const isGoingBack = duplicateIndex !== -1 && currentIndex !== -1 && duplicateIndex < currentIndex
-  const isNavigatingToExistingUrl = duplicateIndex !== -1 && duplicateIndex < historyStack.length - 1 && !isGoingBack
-
-  if (isNavigatingToExistingUrl) {
-    // URL exists earlier in history AND we're not going back → Use replace to avoid duplicate
-    historyStack.splice(duplicateIndex)
-    historyStack.push(targetUrl)
-    return next({ ...to, replace: true })
-  }
-
-  // 4. Exact duplicate prevention (same URL twice in a row)
-  if (targetUrl === currentUrl) {
+  // 3. Duplicate Prevention: Prevent pushing the exact same page
+  if (to.fullPath === from.fullPath) {
     return next(false);
-  }
-
-  // 5. New URL → Add to stack
-  if (historyStack[historyStack.length - 1] !== targetUrl) {
-    historyStack.push(targetUrl)
-
-    // Maintain stack size
-    if (historyStack.length > MAX_HISTORY_SIZE) {
-      historyStack.shift()
-    }
   }
 
   next();
@@ -220,7 +162,10 @@ injectTracking();
 try {
   const firePV = () => { try { const fbq = (window as any).fbq; if (typeof fbq === 'function') { const now = Date.now(); const last = (window as any).__LAST_PV_TS__ || 0; if (now - last > 800) { fbq('track', 'PageView'); (window as any).__LAST_PV_TS__ = now; } } } catch { } }
   if (!(window as any).__FB_PV_BOOT_INIT) { firePV(); }
-  router.afterEach(() => { firePV(); })
+  router.afterEach((to, from) => {
+    firePV();
+    try { trackNavigation(to, from) } catch { }
+  })
 } catch { }
 try {
   const cart = useCart(); cart.loadLocal();
