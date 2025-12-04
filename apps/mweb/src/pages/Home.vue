@@ -367,10 +367,8 @@ onMounted(async ()=>{
     const filtered = all.filter((t:any)=> !cats.has(String(t.slug||'')))
     tabs.value = filtered.map((t:any)=> ({ label: t.label, slug: String(t.slug||'') }))
     const paramSlug = String(route.params.slug||'')
-    // حاول استرجاع آخر تبويب نشط من الزيارة السابقة
-    let savedSlug = ''
-    try{ savedSlug = String(sessionStorage.getItem('home:active_slug')||'') }catch{}
-    const initial = paramSlug || savedSlug || (tabs.value[0]?.slug || '')
+    // استخدم أول تبويبة كإعداد افتراضي
+    const initial = paramSlug || (tabs.value[0]?.slug || '')
     if (!previewActive.value && initial) {
       // If landing on root '/', push the first available tab into the URL for correctness
       try{
