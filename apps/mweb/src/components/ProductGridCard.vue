@@ -81,6 +81,7 @@ import { setPrefetchPayload } from '@/lib/nav'
 import { ShoppingCart, Store } from 'lucide-vue-next'
 import { apiGet, API_BASE } from '@/lib/api'
 import { buildThumbUrl as thumb } from '@/lib/media'
+import { smartPush } from '@/lib/smartNavigation'
 
 type P = {
   id: string
@@ -234,7 +235,6 @@ onMounted(async ()=>{
 
 function open(ev?: Event){
   if (!id.value) return
-import { smartPush } from '@/lib/smartNavigation'
 
 // ...
 
