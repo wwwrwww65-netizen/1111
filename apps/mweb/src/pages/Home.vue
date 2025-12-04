@@ -1,13 +1,5 @@
 <template>
-  <div class="min-h-screen bg-[#f7f7f7] border-4 border-red-500 relative" dir="rtl">
-    <!-- DEBUG OVERLAY -->
-    <div class="bg-yellow-100 p-2 text-xs text-black border-b border-yellow-300 z-[9999] relative">
-      [DEBUG] Home Page Loaded. 
-      Loading: {{ isTabLoading }}, 
-      Tabs: {{ tabs.length }}, 
-      Sections: {{ tabSections.length }}
-      <div v-if="errorMsg" class="bg-red-100 text-red-600 p-2 mt-1 rounded">{{ errorMsg }}</div>
-    </div>
+  <div class="min-h-screen bg-[#f7f7f7]" dir="rtl">
 
     <div v-if="layoutShowHeader" ref="headerRef" :class="['fixed top-0 left-0 right-0 z-50 transition-all duration-200', scrolled ? 'bg-white/95 backdrop-blur-sm h-12' : 'bg-transparent h-16']" aria-label="رأس الصفحة">
       <div class="w-screen px-3 h-full flex items-center justify-between">
@@ -52,12 +44,6 @@
         <div class="easy-pagination absolute left-1/2 -translate-x-1/2 bottom-2 flex items-center gap-1.5" dir="rtl">
           <span v-for="i in 4" :key="'pg-sk-'+i" class="w-1.5 h-1.5 rounded-full bg-white/50"></span>
         </div>
-      </div>
-      
-      <!-- Debug info -->
-      <div v-if="!isTabLoading && !tabSections.length" class="p-4 text-center">
-        <p class="text-gray-600 mb-2">جاري تحميل المحتوى...</p>
-        <p class="text-xs text-gray-400">Tabs: {{ tabs.length }}, Loading: {{ isTabLoading }}</p>
       </div>
     </div>
 
@@ -209,8 +195,7 @@ const tabsTopPx = computed(()=> layoutShowHeader.value ? headerH.value : 0)
 // Selected tab content from Admin Tabs Designer
 const tabSections = ref<any[]>([])
 const currentSlug = ref<string>('')
-const isTabLoading = ref(true)
-const errorMsg = ref('')
+const isTabLoading = ref(false)
 const tabCache = ref<Record<string, any[]>>({})
 let currentTabController: AbortController | null = null
 function renderBlock(s:any){ 
@@ -228,7 +213,6 @@ async function loadTab(slug:string){
   const cached = tabCache.value[slug]
   if (cached && cached.length){
     tabSections.value = cached
-    isTabLoading.value = false
     void fetchTab(slug, true)
     const idx1 = tabs.value.findIndex(t=> t.slug === slug); if (idx1>=0) activeTab.value = idx1
     // استعادة موضع التمرير إن وجد
@@ -372,7 +356,6 @@ onMounted(async ()=>{
   }catch{}
   // Load published tabs for device, then exclude categories tabs
   try{
-    console.log('[Home] Loading tabs...')
     const [allResp, catsResp] = await Promise.all([
       apiGet<any>('/api/tabs/list?device=MOBILE').catch(()=>({ tabs: [] })),
       apiGet<any>('/api/tabs/categories/list').catch(()=>({ tabs: [] }))
@@ -381,21 +364,20 @@ onMounted(async ()=>{
     const cats = new Set((Array.isArray(catsResp?.tabs)? catsResp.tabs: []).map((t:any)=> String(t.slug||'')))
     const filtered = all.filter((t:any)=> !cats.has(String(t.slug||'')))
     tabs.value = filtered.map((t:any)=> ({ label: t.label, slug: String(t.slug||'') }))
-    
-    console.log('[Home] Tabs loaded:', tabs.value.length, tabs.value)
-    
-    if (tabs.value.length === 0) {
-      console.warn('[Home] No tabs found!')
-      isTabLoading.value = false
-      return
-    }
-    
     const paramSlug = String(route.params.slug||'')
     // استخدم أول تبويبة كإعداد افتراضي
     const initial = paramSlug || (tabs.value[0]?.slug || '')
-    console.log('[Home] Initial tab:', initial, 'paramSlug:', paramSlug, 'route.path:', route.path)
-    
     if (!previewActive.value && initial) {
+      // If landing on root '/', redirect to the first available tab to ensure content loads correctly
+      if (route.path === '/') {
+        try {
+          await router.replace(`/tabs/${encodeURIComponent(initial)}`)
+          return // Stop execution here, let the redirect trigger a reload/watch
+        } catch (err) {
+          console.error('Failed to redirect to tab:', err)
+        }
+      }
+      
       // Hydrate tab cache from sessionStorage if available
       try{
         const raw = sessionStorage.getItem('home:tabs_cache')
@@ -404,7 +386,6 @@ onMounted(async ()=>{
           Object.assign(tabCache.value, saved)
         }
       }catch{}
-      // Load the initial tab (either from URL param or first tab)
       await loadTab(initial)
     }
     setTimeout(()=>{
@@ -413,11 +394,7 @@ onMounted(async ()=>{
         ahead.forEach(s=> { if (s && !tabCache.value[s]) fetchTab(s, true) })
       }catch{}
     }, 300)
-  }catch(err:any){
-    console.error('[Home] Error loading tabs:', err)
-    errorMsg.value = String(err?.message || err)
-    isTabLoading.value = false
-  }
+  }catch{}
   // Notify admin that preview is ready (parent iframe or opener window)
   try{ if (window.parent) window.parent.postMessage({ __tabs_preview_ready: true }, '*') }catch{}
   try{ if (window.opener) window.opener.postMessage({ __tabs_preview_ready: true }, '*') }catch{}
