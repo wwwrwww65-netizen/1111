@@ -1,5 +1,13 @@
 <template>
-  <div class="min-h-screen bg-[#f7f7f7]" dir="rtl">
+  <div class="min-h-screen bg-[#f7f7f7] border-4 border-red-500 relative" dir="rtl">
+    <!-- DEBUG OVERLAY -->
+    <div class="bg-yellow-100 p-2 text-xs text-black border-b border-yellow-300 z-[9999] relative">
+      [DEBUG] Home Page Loaded. 
+      Loading: {{ isTabLoading }}, 
+      Tabs: {{ tabs.length }}, 
+      Sections: {{ tabSections.length }}
+      <div v-if="errorMsg" class="bg-red-100 text-red-600 p-2 mt-1 rounded">{{ errorMsg }}</div>
+    </div>
 
     <div v-if="layoutShowHeader" ref="headerRef" :class="['fixed top-0 left-0 right-0 z-50 transition-all duration-200', scrolled ? 'bg-white/95 backdrop-blur-sm h-12' : 'bg-transparent h-16']" aria-label="رأس الصفحة">
       <div class="w-screen px-3 h-full flex items-center justify-between">
@@ -44,6 +52,12 @@
         <div class="easy-pagination absolute left-1/2 -translate-x-1/2 bottom-2 flex items-center gap-1.5" dir="rtl">
           <span v-for="i in 4" :key="'pg-sk-'+i" class="w-1.5 h-1.5 rounded-full bg-white/50"></span>
         </div>
+      </div>
+      
+      <!-- Debug info -->
+      <div v-if="!isTabLoading && !tabSections.length" class="p-4 text-center">
+        <p class="text-gray-600 mb-2">جاري تحميل المحتوى...</p>
+        <p class="text-xs text-gray-400">Tabs: {{ tabs.length }}, Loading: {{ isTabLoading }}</p>
       </div>
     </div>
 
@@ -196,6 +210,7 @@ const tabsTopPx = computed(()=> layoutShowHeader.value ? headerH.value : 0)
 const tabSections = ref<any[]>([])
 const currentSlug = ref<string>('')
 const isTabLoading = ref(true)
+const errorMsg = ref('')
 const tabCache = ref<Record<string, any[]>>({})
 let currentTabController: AbortController | null = null
 function renderBlock(s:any){ 
@@ -398,8 +413,9 @@ onMounted(async ()=>{
         ahead.forEach(s=> { if (s && !tabCache.value[s]) fetchTab(s, true) })
       }catch{}
     }, 300)
-  }catch(err){
+  }catch(err:any){
     console.error('[Home] Error loading tabs:', err)
+    errorMsg.value = String(err?.message || err)
     isTabLoading.value = false
   }
   // Notify admin that preview is ready (parent iframe or opener window)
