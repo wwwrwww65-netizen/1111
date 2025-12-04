@@ -132,8 +132,9 @@ router.beforeEach((to, from, next) => {
 
   // 1. Auth Protection: Redirect logged-in users from Auth pages
   const authPages = ['/login', '/register', '/forgot', '/reset-password', '/verify'];
-  // Check if path starts with any auth page (to handle sub-paths if any, though exact match is usually safer for these)
-  if (authPages.includes(to.path) && user.isLoggedIn) {
+  // Check if path starts with any auth page
+  const hasAuthCookie = document.cookie.includes('shop_auth_token=') || document.cookie.includes('auth_token=');
+  if (authPages.includes(to.path) && (user.isLoggedIn || hasAuthCookie)) {
     // Redirect to return URL or Account
     return next({ path: (to.query.return as string) || '/account', replace: true });
   }
