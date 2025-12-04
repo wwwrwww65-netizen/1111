@@ -249,10 +249,9 @@ async function fetchTab(slug:string, silent:boolean){
 function switchTab(slug:string, idx:number){
   activeTab.value = idx
   // Update URL to reflect the active tab (improves shareability and back/forward navigation)
+  // Always show the tab slug in URL when clicking on any tab
   try{ router.push(`/tabs/${encodeURIComponent(slug)}`) }catch{}
   void loadTab(slug)
-  // احفظ التبويب النشط
-  try{ sessionStorage.setItem('home:active_slug', slug) }catch{}
 }
 function clickTrack(){ try{ if(currentSlug.value) fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug: currentSlug.value, type:'click' }) }) }catch{} }
 
@@ -279,7 +278,6 @@ onBeforeUnmount(()=>{
   try{
     sessionStorage.setItem('home:scrollY', String(window.scrollY||0))
     const slug = currentSlug.value || tabs.value[activeTab.value]?.slug || ''
-    if (slug) sessionStorage.setItem('home:active_slug', slug)
     // احفظ محتوى التبويب الحالي في ذاكرة الجلسة (لتفادي إعادة جلبه عند الرجوع)
     if (slug && (tabSections.value||[]).length){
       const payload = { [slug]: tabSections.value }
@@ -370,12 +368,6 @@ onMounted(async ()=>{
     // استخدم أول تبويبة كإعداد افتراضي
     const initial = paramSlug || (tabs.value[0]?.slug || '')
     if (!previewActive.value && initial) {
-      // If landing on root '/', push the first available tab into the URL for correctness
-      try{
-        if (route.path === '/' || route.matched.length === 0){
-          router.replace(`/tabs/${encodeURIComponent(initial)}`)
-        }
-      }catch{}
       // Hydrate tab cache from sessionStorage if available
       try{
         const raw = sessionStorage.getItem('home:tabs_cache')
@@ -384,6 +376,7 @@ onMounted(async ()=>{
           Object.assign(tabCache.value, saved)
         }
       }catch{}
+      // Load the initial tab (either from URL param or first tab)
       await loadTab(initial)
     }
     setTimeout(()=>{
@@ -471,6 +464,19 @@ watch(()=> route.params.slug, (nv, ov)=>{
   if (previewActive.value) return
   const slug = String(nv||'')
   if (slug && slug !== String(ov||'')) loadTab(slug)
+})
+
+// React to navigating back to root path '/'
+watch(()=> route.path, (newPath)=>{
+  if (previewActive.value) return
+  // If navigating to root '/', load the first tab
+  if (newPath === '/' && tabs.value.length > 0) {
+    const firstSlug = tabs.value[0]?.slug
+    if (firstSlug) {
+      activeTab.value = 0
+      void loadTab(firstSlug)
+    }
+  }
 })
 
 const rows = 3
