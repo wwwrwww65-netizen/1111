@@ -28,15 +28,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowRight } from 'lucide-vue-next'
 import { apiPost, apiGet } from '@/lib/api'
 import { useUser } from '@/store/user'
+
 const primary = '#8a1538'
 const router = useRouter()
 const route = useRoute()
 function goBack(){ try{ router.back() } catch{} }
+
+onMounted(async () => {
+  // Check if user is already complete to prevent access by logged-in users who don't need this
+  try {
+    const me = await apiGet<any>('/api/me')
+    if (me && me.user) {
+       const rawName = String(me.user.name||'').trim()
+       const incomplete = !rawName || rawName.length < 2 || /^\d+$/.test(rawName)
+       if (!incomplete) {
+         // User is already complete, redirect to return URL or Account
+         router.replace((route.query.return as string) || '/account')
+       }
+    }
+  } catch {}
+})
+
 const fullName = ref('')
 const password = ref('')
 const confirm = ref('')

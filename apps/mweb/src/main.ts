@@ -131,7 +131,7 @@ router.beforeEach((to, from, next) => {
   const cart = useCart();
 
   // 1. Auth Protection: Redirect logged-in users from Auth pages
-  const authPages = ['/login', '/register', '/forgot', '/reset-password', '/verify'];
+  const authPages = ['/login', '/register', '/forgot', '/reset-password', '/verify', '/password'];
   // Check if path starts with any auth page (to handle sub-paths if any, though exact match is usually safer for these)
   // Also check cookie existence for initial load protection before store hydration
   const hasAuthCookie = (typeof document !== 'undefined') && (document.cookie.includes('shop_auth_token=') || document.cookie.includes('auth_token='));
