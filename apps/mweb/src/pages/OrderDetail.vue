@@ -1,7 +1,17 @@
 <template>
   <div dir="rtl" class="container page">
-    <HeaderBar />
-    <h1 class="title">تفاصيل الطلب #{{ (order && (order as any).code) || id }}</h1>
+    <!-- Custom header with back button -->
+    <header class="fixed top-0 left-0 right-0 h-12 bg-white border-b border-gray-200 z-50 flex items-center px-3">
+      <button @click="goBack" class="p-2 -mr-2" aria-label="رجوع">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-gray-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+        </svg>
+      </button>
+      <h1 class="text-base font-semibold mr-3 text-gray-900">تفاصيل الطلب #{{ (order && (order as any).code) || id }}</h1>
+    </header>
+    
+    <div class="pt-12">
+      <h1 class="title">تفاصيل الطلب #{{ (order && (order as any).code) || id }}</h1>
     <div v-if="!order" class="card">جارٍ التحميل…</div>
     <div v-else class="space-y-12">
       <div class="card row" style="justify-content:space-between;align-items:center">
@@ -63,21 +73,27 @@
         </div>
       </div>
     </div>
+    </div>
     <BottomNav />
   </div>
 </template>
 
 <script setup lang="ts">
-import HeaderBar from '@/components/HeaderBar.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import { apiGet, apiPost } from '@/lib/api'
 import { onMounted, ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
+const router = useRouter()
 const id = String(route.params.id||'')
 const order = ref<any|null>(null)
 const currencySymbol = ref('ر.س')
+
+// Custom back button handler - navigate to orders page
+function goBack() {
+  router.push('/orders')
+}
 // احتفاظ محلي من صفحة الدفع لعرض العنوان والصور المختارة عند غيابها من الخادم
 const lastCheckoutAddr = ref<any>(null)
 const lastCheckoutLines = ref<Array<{ productId:string; quantity:number; attributes?:{ color?:string; size?:string; image?:string } }>>([])

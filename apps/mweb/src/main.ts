@@ -123,6 +123,77 @@ const router = createRouter({
   }
 });
 app.use(router);
+
+// ============================================
+// GLOBAL NAVIGATION GUARD - Prevent Duplicate Pages
+// ============================================
+// Track navigation history to prevent duplicates (like SHEIN, Amazon, AliExpress)
+let navigationHistory: string[] = []
+const MAX_HISTORY_SIZE = 10
+
+router.beforeEach((to, from, next) => {
+  // Get normalized paths (without query params for comparison)
+  const toPath = to.path
+  const fromPath = from.path
+
+  // Special pages that should always use replace (never add to history)
+  const alwaysReplacePages = [
+    '/login',
+    '/verify',
+    '/password',
+    '/register',
+    '/complete-profile',
+    '/reset-password',
+    '/checkout' // After order confirmation, can't go back
+  ]
+
+  // Main navigation tabs (bottom nav) - should use replace to prevent duplicates
+  const mainTabs = [
+    '/',
+    '/categories',
+    '/cart',
+    '/account',
+    '/products'
+  ]
+
+  // Check if this is a duplicate navigation
+  const isDuplicate = navigationHistory.length > 0 &&
+    navigationHistory[navigationHistory.length - 1] === toPath
+
+  // Check if navigating between main tabs
+  const isTabNavigation = mainTabs.includes(toPath) && mainTabs.includes(fromPath)
+
+  // Check if target page should always use replace
+  const shouldAlwaysReplace = alwaysReplacePages.some(page => toPath.startsWith(page))
+
+  // Determine if we should use replace instead of push
+  if (isDuplicate || isTabNavigation || shouldAlwaysReplace) {
+    // Use replace to avoid duplicate in history
+    if (to.redirectedFrom) {
+      // Already a redirect, just continue
+      next()
+    } else {
+      // Replace current entry instead of pushing
+      next({ ...to, replace: true })
+      return
+    }
+  }
+
+  // Update navigation history
+  if (!isDuplicate) {
+    navigationHistory.push(toPath)
+    // Keep history size manageable
+    if (navigationHistory.length > MAX_HISTORY_SIZE) {
+      navigationHistory.shift()
+    }
+  }
+
+  next()
+})
+// ============================================
+// END NAVIGATION GUARD
+// ============================================
+
 app.mount('#app');
 injectTracking();
 // Ensure PageView fires on SPA navigations (avoid duplicate on initial load if index.html already fired)
