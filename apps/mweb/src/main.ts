@@ -178,13 +178,18 @@ router.beforeEach((to, from, next) => {
   const targetUrl = to.fullPath
   const currentUrl = from.fullPath
 
-  // Check if target URL exists in recent history (excluding current position)
+  // Check if target URL exists in recent history
   const duplicateIndex = historyStack.indexOf(targetUrl)
-  const isNavigatingToExistingUrl = duplicateIndex !== -1 && duplicateIndex < historyStack.length - 1
+  const currentIndex = historyStack.indexOf(currentUrl)
+
+  // Only prevent duplicates when navigating FORWARD (not back)
+  // If duplicateIndex < currentIndex, user is going back (allow it)
+  // If duplicateIndex >= currentIndex, user is going forward to a duplicate (prevent it)
+  const isGoingBack = duplicateIndex !== -1 && currentIndex !== -1 && duplicateIndex < currentIndex
+  const isNavigatingToExistingUrl = duplicateIndex !== -1 && duplicateIndex < historyStack.length - 1 && !isGoingBack
 
   if (isNavigatingToExistingUrl) {
-    // URL exists earlier in history → Use replace to avoid duplicate
-    // Remove all entries after the duplicate (we're going back to it)
+    // URL exists earlier in history AND we're not going back → Use replace to avoid duplicate
     historyStack.splice(duplicateIndex)
     historyStack.push(targetUrl)
     return next({ ...to, replace: true })
