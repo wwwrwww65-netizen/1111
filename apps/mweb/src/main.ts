@@ -125,25 +125,36 @@ const router = createRouter({
   }
 });
 
-// Smart Push: Automatically convert push to replace for Tab-to-Tab navigation
-const originalPush = router.push;
-router.push = function (to) {
-  const currentPath = router.currentRoute.value.path;
-  // Resolve target path to handle objects/names/strings
-  const resolved = router.resolve(to);
-  const targetPath = resolved.path;
+// Smart URL Deduplication: History Stack Tracker
+const historyStack: string[] = []
+const MAX_HISTORY_SIZE = 20
 
-  // Define Tab Routes (Root Level)
-  const tabs = ['/', '/categories', '/products', '/cart', '/account'];
+// Initialize stack with current URL
+try {
+  const currentUrl = location.pathname + location.search + location.hash
+  historyStack.push(currentUrl)
+} catch { }
 
-  // If navigating FROM a tab TO a tab, use REPLACE to prevent history loops
-  if (tabs.includes(currentPath) && tabs.includes(targetPath)) {
-    return router.replace(to);
-  }
+// Sync stack with browser back/forward buttons
+if (typeof window !== 'undefined') {
+  window.addEventListener('popstate', () => {
+    try {
+      const currentUrl = location.pathname + location.search + location.hash
+      const lastIndex = historyStack.lastIndexOf(currentUrl)
 
-  // Otherwise, proceed with standard PUSH
-  return originalPush.call(this, to);
-};
+      if (lastIndex !== -1) {
+        // User went back → Remove everything after this URL
+        historyStack.splice(lastIndex + 1)
+      } else {
+        // User went forward or navigated externally → Add to stack
+        historyStack.push(currentUrl)
+        if (historyStack.length > MAX_HISTORY_SIZE) {
+          historyStack.shift()
+        }
+      }
+    } catch { }
+  })
+}
 
 // Global Navigation Guard
 router.beforeEach((to, from, next) => {
@@ -152,10 +163,9 @@ router.beforeEach((to, from, next) => {
 
   // 1. Auth Protection: Redirect logged-in users from Auth pages
   const authPages = ['/login', '/register', '/forgot', '/reset-password', '/verify'];
-  // Check if path starts with any auth page
-  const hasAuthCookie = document.cookie.includes('shop_auth_token=') || document.cookie.includes('auth_token=');
+  const hasAuthCookie = (typeof document !== 'undefined') && (document.cookie.includes('shop_auth_token=') || document.cookie.includes('auth_token='));
+
   if (authPages.includes(to.path) && (user.isLoggedIn || hasAuthCookie)) {
-    // Redirect to return URL or Account
     return next({ path: (to.query.return as string) || '/account', replace: true });
   }
 
@@ -164,9 +174,35 @@ router.beforeEach((to, from, next) => {
     return next({ path: '/cart', replace: true });
   }
 
-  // 3. Duplicate Prevention: Prevent pushing the exact same page
-  if (to.fullPath === from.fullPath) {
+  // 3. Smart URL Deduplication: Prevent duplicate URLs in history
+  const targetUrl = to.fullPath
+  const currentUrl = from.fullPath
+
+  // Check if target URL exists in recent history (excluding current position)
+  const duplicateIndex = historyStack.indexOf(targetUrl)
+  const isNavigatingToExistingUrl = duplicateIndex !== -1 && duplicateIndex < historyStack.length - 1
+
+  if (isNavigatingToExistingUrl) {
+    // URL exists earlier in history → Use replace to avoid duplicate
+    // Remove all entries after the duplicate (we're going back to it)
+    historyStack.splice(duplicateIndex)
+    historyStack.push(targetUrl)
+    return next({ ...to, replace: true })
+  }
+
+  // 4. Exact duplicate prevention (same URL twice in a row)
+  if (targetUrl === currentUrl) {
     return next(false);
+  }
+
+  // 5. New URL → Add to stack
+  if (historyStack[historyStack.length - 1] !== targetUrl) {
+    historyStack.push(targetUrl)
+
+    // Maintain stack size
+    if (historyStack.length > MAX_HISTORY_SIZE) {
+      historyStack.shift()
+    }
   }
 
   next();
