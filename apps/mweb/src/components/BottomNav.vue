@@ -2,7 +2,7 @@
   <div class="bottom-nav-container">
     <nav class="nav-content">
       <!-- Home (Right in RTL) -->
-      <RouterLink to="/" class="nav-item home-item" :class="{ active: active === 'home' }" replace>
+      <RouterLink to="/" class="nav-item home-item" :class="{ active: active === 'home' }">
         <svg class="icon home-icon" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 10 L12 3 L21 10 V21 H15 V14 H9 V21 H3 Z" />
         </svg>
@@ -10,7 +10,7 @@
       </RouterLink>
 
       <!-- Categories -->
-      <RouterLink to="/categories" class="nav-item categories-item" :class="{ active: active === 'categories' }" replace>
+      <RouterLink to="/categories" class="nav-item categories-item" :class="{ active: active === 'categories' }">
         <svg class="icon categories-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 6H21" />
           <path d="M3 11H10" />
@@ -24,7 +24,7 @@
 
       <!-- Trends (Center Floating) -->
       <div class="nav-item center-placeholder">
-        <RouterLink to="/products" class="fab-wrapper" replace>
+        <RouterLink to="/products" class="fab-wrapper">
           <div class="fab-circle">
             <span class="fab-text-lg">جديدنا</span>
             <div class="fab-badge"></div>
@@ -33,7 +33,7 @@
       </div>
 
       <!-- Cart -->
-      <RouterLink to="/cart" class="nav-item" :class="{ active: active === 'cart' }" replace>
+      <RouterLink to="/cart" class="nav-item" :class="{ active: active === 'cart' }">
         <div class="relative">
           <ShoppingCart class="icon" stroke-width="1.5" />
           <span class="badge" v-if="count > 0">{{ count }}</span>
@@ -42,7 +42,7 @@
       </RouterLink>
 
       <!-- Account -->
-      <RouterLink to="/account" class="nav-item account-item" :class="{ active: active === 'account' }" replace>
+      <RouterLink to="/account" class="nav-item account-item" :class="{ active: active === 'account' }">
         <User class="icon account-icon" stroke-width="1.5" />
         <span class="label">أنا</span>
       </RouterLink>

@@ -1573,10 +1573,8 @@ async function loadMoreRecommended() {
   }
 }
 
-import { smartPush } from '@/lib/smartNavigation'
-
 // Navigate to recommended product
-function openRecommended(p:any){ smartPush(router, `/p?id=${encodeURIComponent(p.id||'')}`) }
+function openRecommended(p:any){ router.push(`/p?id=${encodeURIComponent(p.id||'')}`) }
 
 // ==================== UTILITY FUNCTIONS ====================
 // Format Review Date

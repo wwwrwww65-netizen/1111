@@ -10,7 +10,6 @@ import { injectTracking } from './tracking';
 import { useCart } from './store/cart'
 import { initCurrency } from './lib/currency'
 import { apiPost } from './lib/api'
-import { trackNavigation } from './lib/smartNavigation'
 // Track affiliate ref
 const ref = new URLSearchParams(location.search).get('ref'); if (ref) { try { sessionStorage.setItem('affiliate_ref', ref) } catch { } }
 
@@ -162,10 +161,7 @@ injectTracking();
 try {
   const firePV = () => { try { const fbq = (window as any).fbq; if (typeof fbq === 'function') { const now = Date.now(); const last = (window as any).__LAST_PV_TS__ || 0; if (now - last > 800) { fbq('track', 'PageView'); (window as any).__LAST_PV_TS__ = now; } } } catch { } }
   if (!(window as any).__FB_PV_BOOT_INIT) { firePV(); }
-  router.afterEach((to, from) => {
-    firePV();
-    try { trackNavigation(to, from) } catch { }
-  })
+  router.afterEach(() => { firePV(); })
 } catch { }
 try {
   const cart = useCart(); cart.loadLocal();

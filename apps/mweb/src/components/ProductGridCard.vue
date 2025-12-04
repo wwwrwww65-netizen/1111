@@ -81,7 +81,6 @@ import { setPrefetchPayload } from '@/lib/nav'
 import { ShoppingCart, Store } from 'lucide-vue-next'
 import { apiGet, API_BASE } from '@/lib/api'
 import { buildThumbUrl as thumb } from '@/lib/media'
-import { smartPush } from '@/lib/smartNavigation'
 
 type P = {
   id: string
@@ -235,10 +234,7 @@ onMounted(async ()=>{
 
 function open(ev?: Event){
   if (!id.value) return
-
-// ...
-
-    const go = ()=> {
+  const go = ()=> {
     try{
       // اختر الصورة الأكثر ظهوراً داخل شريط البطاقة لتكون مصدر الانتقال
       const root = (ev?.currentTarget as HTMLElement) || null
@@ -265,7 +261,7 @@ function open(ev?: Event){
         productData: props.product // Pass full product data
       })
     }catch{}
-    smartPush(router, `/p?id=${encodeURIComponent(id.value)}`)
+    router.push(`/p?id=${encodeURIComponent(id.value)}`)
   }
   try{
     // عيّن اسم الانتقال على الصورة الأكثر ظهوراً لضمان تطابق الاسم مع الهيرو في صفحة المنتج

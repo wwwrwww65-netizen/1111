@@ -162,7 +162,6 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { API_BASE, apiGet, apiPost } from '@/lib/api'
 import { fmtPrice } from '@/lib/currency'
-import { smartPush } from '@/lib/smartNavigation'
 
 const router = useRouter()
 const route = useRoute()
@@ -335,10 +334,6 @@ function openImagePicker() {
   console.log('Open image picker')
 }
 
-
-
-// ...
-
 async function runSearch() {
   const term = q.value.trim()
   if (!term) return
@@ -355,7 +350,7 @@ async function runSearch() {
     properties: { query: term }
   }).catch(() => {})
 
-  smartPush(router, { path: '/search/result', query: { q: term } })
+  router.push({ path: '/search/result', query: { q: term } })
 }
 
 onMounted(() => {

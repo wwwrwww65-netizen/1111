@@ -3,7 +3,7 @@
     <!-- Custom Header -->
     <header class="fixed top-0 left-0 right-0 h-[50px] bg-white z-50 flex items-center justify-between px-4 border-b border-gray-100">
       <!-- Right: Back Button -->
-      <button @click="goBack" class="w-8 h-8 flex items-center justify-center">
+      <button @click="$router.back()" class="w-8 h-8 flex items-center justify-center">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
         </svg>
@@ -129,16 +129,10 @@
 <script setup lang="ts">
 import BottomNav from '@/components/BottomNav.vue'
 import { onMounted, ref, computed, nextTick, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { apiGet } from '@/lib/api'
-import { smartBack } from '@/lib/smartNavigation'
 
 const route = useRoute()
-const router = useRouter()
-
-function goBack() {
-  smartBack(router, '/')
-}
 
 const tabs = [
   { id: 'ALL', label: 'جميع الطلبات' },
