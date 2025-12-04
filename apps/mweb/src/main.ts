@@ -125,6 +125,26 @@ const router = createRouter({
   }
 });
 
+// Smart Push: Automatically convert push to replace for Tab-to-Tab navigation
+const originalPush = router.push;
+router.push = function (to) {
+  const currentPath = router.currentRoute.value.path;
+  // Resolve target path to handle objects/names/strings
+  const resolved = router.resolve(to);
+  const targetPath = resolved.path;
+
+  // Define Tab Routes (Root Level)
+  const tabs = ['/', '/categories', '/products', '/cart', '/account'];
+
+  // If navigating FROM a tab TO a tab, use REPLACE to prevent history loops
+  if (tabs.includes(currentPath) && tabs.includes(targetPath)) {
+    return router.replace(to);
+  }
+
+  // Otherwise, proceed with standard PUSH
+  return originalPush.call(this, to);
+};
+
 // Global Navigation Guard
 router.beforeEach((to, from, next) => {
   const user = useUser();
