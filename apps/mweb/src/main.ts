@@ -101,6 +101,7 @@ const manualRoutes = [
   , { path: '/points', component: () => import('./pages/Points.vue') }
   , { path: '/prefs', component: () => import('./pages/Prefs.vue') }
   , { path: '/tabs/:slug', component: () => import('./pages/Home.vue') }
+  , { path: '/tabs', component: () => import('./pages/Home.vue') }
   , { path: '/tabs/preview', component: () => import('./pages/tabs/preview.vue') }
   , { path: '/__preview/tabs', component: () => import('./pages/__preview/tabs.vue') }
   , { path: '/__admin_preview', component: () => import('./pages/__admin_preview.vue') }

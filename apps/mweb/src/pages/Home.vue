@@ -371,8 +371,8 @@ onMounted(async ()=>{
       // If landing on root '/', redirect to the first available tab to ensure content loads correctly
       if (route.path === '/') {
         try {
-          await router.replace(`/tabs/${encodeURIComponent(initial)}`)
-          return // Stop execution here, let the redirect trigger a reload/watch
+          await router.replace('/tabs/')
+          // return // Stop execution here, let the redirect trigger a reload/watch
         } catch (err) {
           console.error('Failed to redirect to tab:', err)
         }
