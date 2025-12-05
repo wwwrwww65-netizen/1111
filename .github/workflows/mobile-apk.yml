@@ -1,9 +1,6 @@
 name: Mobile - Build Android APK
 
-#on:
-  #push:
-    #branches:
-      #- '**'
+on:
   workflow_dispatch:
     inputs:
       profile:
@@ -16,6 +13,7 @@ permissions:
 
 jobs:
   build-android-apk:
+    if: false  # Disabled - run manually only via workflow_dispatch
     runs-on: ubuntu-latest
     env:
       # keep these simple and let them be empty if secrets not provided
