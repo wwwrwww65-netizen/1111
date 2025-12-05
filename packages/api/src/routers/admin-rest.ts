@@ -10282,7 +10282,7 @@ function transliterateSkuToken(raw?: string): string {
 adminRest.get('/products/:id', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.read'))) return res.status(403).json({ error: 'forbidden' });
   const { id } = req.params;
-  const p = await db.product.findUnique({ where: { id }, include: { variants: true, category: { select: { id: true, name: true } }, colors: { include: { images: true } } } });
+  const p = await db.product.findUnique({ where: { id }, include: { variants: true, category: { select: { id: true, name: true } }, colors: { include: { images: true } }, seo: true } });
   if (!p) return res.status(404).json({ error: 'product_not_found' });
   // Fetch additional category links
   let additionalCategoryIds: string[] = [];
@@ -10391,6 +10391,27 @@ adminRest.post('/products', async (req, res) => {
       }
     }
   } catch { }
+
+  // Create Product SEO entry
+  try {
+    const { slug, seoTitle, seoDescription, seoKeywords, canonicalUrl, metaRobots, hiddenContent, ogTags, schema } = req.body || {};
+    let finalSlug = slug;
+    if (!finalSlug) {
+      const base = String(name || 'product').toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, '-').replace(/^-+|-+$/g, '');
+      finalSlug = `${base}-${p.id.slice(-4)}`;
+    }
+    await db.productSeo.create({
+      data: {
+        productId: p.id,
+        slug: finalSlug,
+        seoTitle: seoTitle || name,
+        seoDescription: seoDescription || description?.slice(0, 160),
+        seoKeywords: Array.isArray(seoKeywords) ? seoKeywords : [],
+        canonicalUrl, metaRobots, hiddenContent, ogTags, schema
+      }
+    });
+  } catch { }
+
   await audit(req, 'products', 'create', { id: p.id });
   res.json({ product: p });
 });
@@ -10717,6 +10738,31 @@ adminRest.patch('/products/:id', async (req, res) => {
         }
       }
     } catch { }
+
+    // Update SEO fields
+    try {
+      const { slug, seoTitle, seoDescription, seoKeywords, canonicalUrl, metaRobots, hiddenContent, ogTags, schema } = req.body || {};
+      const seoPatch: any = {};
+
+      if (slug !== undefined) seoPatch.slug = slug;
+      if (seoTitle !== undefined) seoPatch.seoTitle = seoTitle;
+      if (seoDescription !== undefined) seoPatch.seoDescription = seoDescription;
+      if (seoKeywords !== undefined) seoPatch.seoKeywords = Array.isArray(seoKeywords) ? seoKeywords : undefined;
+      if (canonicalUrl !== undefined) seoPatch.canonicalUrl = canonicalUrl;
+      if (metaRobots !== undefined) seoPatch.metaRobots = metaRobots;
+      if (hiddenContent !== undefined) seoPatch.hiddenContent = hiddenContent;
+      if (ogTags !== undefined) seoPatch.ogTags = ogTags;
+      if (schema !== undefined) seoPatch.schema = schema;
+
+      if (Object.keys(seoPatch).length > 0) {
+        await db.productSeo.upsert({
+          where: { productId: id },
+          create: { productId: id, ...seoPatch },
+          update: seoPatch
+        });
+      }
+    } catch { }
+
     // Upsert variants if provided
     try {
       const rows: any[] = Array.isArray((req.body || {}).variants) ? (req.body as any).variants : [];
@@ -11771,6 +11817,40 @@ adminRest.get('/notifications/rules', async (req, res) => {
     const rows: any[] = await db.$queryRawUnsafe(`SELECT id, trigger, template, channel, enabled, COALESCE(criteria, '{}') as criteria, name, COALESCE("rateLimitSeconds",0) as "rateLimitSeconds" FROM "NotificationRule" ORDER BY "createdAt" DESC`);
     res.json({ rules: rows });
   } catch (e: any) { res.status(500).json({ error: e.message || 'rules_list_failed' }); }
+});
+
+// Generic Settings CRUD (Site Name, Logo, URL, etc.)
+adminRest.get('/settings/list', async (req, res) => {
+  try {
+    const u = (req as any).user;
+    if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error: 'forbidden' });
+    const settings = await db.setting.findMany({});
+    res.json({ settings });
+  } catch (e: any) { res.status(500).json({ error: e.message || 'settings_list_failed' }); }
+});
+
+adminRest.post('/settings', async (req, res) => {
+  try {
+    const u = (req as any).user;
+    if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error: 'forbidden' });
+    const { key, value } = req.body;
+    if (!key) return res.status(400).json({ error: 'key_required' });
+
+    // Special handling for site_url to ensure it doesn't have trailing slash
+    let valToSave = value;
+    if (key === 'site_url' && value?.value) {
+      valToSave = { ...value, value: String(value.value).replace(/\/$/, '') };
+    }
+
+    await db.setting.upsert({
+      where: { key },
+      update: { value: valToSave },
+      create: { key, value: valToSave }
+    });
+
+    await audit(req, 'settings', 'update', { key });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.message || 'settings_save_failed' }); }
 });
 
 // ===== Promotions: Campaigns & Rewards (MVP) =====

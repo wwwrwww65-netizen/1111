@@ -4,7 +4,10 @@ import { resolveApiBase } from "../../lib/apiBase";
 
 export default function GeneralSettingsPage() {
     const [siteName, setSiteName] = useState('');
+    const [siteUrl, setSiteUrl] = useState('');
     const [siteLogo, setSiteLogo] = useState('');
+    const [googleHtmlName, setGoogleHtmlName] = useState('');
+    const [googleHtmlContent, setGoogleHtmlContent] = useState('');
     const [uploading, setUploading] = useState(false);
     const [saving, setSaving] = useState(false);
     const apiBase = React.useMemo(() => resolveApiBase(), []);
@@ -31,10 +34,17 @@ export default function GeneralSettingsPage() {
             const settings = data.settings || [];
 
             const nameRow = settings.find((s: any) => s.key === 'site_name');
+            const urlRow = settings.find((s: any) => s.key === 'site_url');
             const logoRow = settings.find((s: any) => s.key === 'site_logo');
+            const googleRow = settings.find((s: any) => s.key === 'google_html_file');
 
             if (nameRow?.value?.value) setSiteName(nameRow.value.value);
+            if (urlRow?.value?.value) setSiteUrl(urlRow.value.value);
             if (logoRow?.value?.value) setSiteLogo(logoRow.value.value);
+            if (googleRow?.value) {
+                setGoogleHtmlName(googleRow.value.name || '');
+                setGoogleHtmlContent(googleRow.value.content || '');
+            }
         } catch (err) {
             console.error(err);
         }
@@ -92,6 +102,20 @@ export default function GeneralSettingsPage() {
                 })
             });
 
+            // Save site url
+            await fetch(`${apiBase}/api/admin/settings`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders()
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    key: 'site_url',
+                    value: { value: siteUrl }
+                })
+            });
+
             // Save site logo
             await fetch(`${apiBase}/api/admin/settings`, {
                 method: 'POST',
@@ -105,6 +129,22 @@ export default function GeneralSettingsPage() {
                     value: { value: siteLogo }
                 })
             });
+
+            // Save Google Verification
+            if (googleHtmlName && googleHtmlContent) {
+                await fetch(`${apiBase}/api/admin/settings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...authHeaders()
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        key: 'google_html_file',
+                        value: { name: googleHtmlName, content: googleHtmlContent }
+                    })
+                });
+            }
 
             alert('تم الحفظ بنجاح! ✅');
         } catch (err) {
@@ -134,6 +174,24 @@ export default function GeneralSettingsPage() {
                     />
                     <p className="text-sm text-gray-500 mt-2">
                         سيظهر هذا الاسم في العنوان والشعار
+                    </p>
+                </div>
+
+                {/* Site URL */}
+                <div>
+                    <label className="block text-lg font-semibold text-gray-300 mb-3">
+                        رابط الموقع (URL)
+                    </label>
+                    <input
+                        type="text"
+                        value={siteUrl}
+                        onChange={(e) => setSiteUrl(e.target.value)}
+                        className="w-full bg-[#0b0e14] border border-[#1f2937] rounded-lg p-4 text-white text-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="https://jeeey.com"
+                        dir="ltr"
+                    />
+                    <p className="text-sm text-gray-500 mt-2">
+                        الرابط الأساسي للموقع (يستخدم في SEO و Sitemap)
                     </p>
                 </div>
 
@@ -180,6 +238,36 @@ export default function GeneralSettingsPage() {
                     <p className="text-sm text-gray-500 mt-2">
                         يفضل استخدام صورة PNG بخلفية شفافة (200x50 بكسل)
                     </p>
+                </div>
+
+                {/* Google Verification File */}
+                <div className="pt-4 border-t border-[#1f2937]">
+                    <h3 className="text-xl font-bold text-white mb-4">ملف التحقق (Google Search Console)</h3>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-gray-400 mb-1">اسم الملف (HTML Filename)</label>
+                            <input
+                                type="text"
+                                value={googleHtmlName}
+                                onChange={(e) => setGoogleHtmlName(e.target.value)}
+                                className="w-full bg-[#0b0e14] border border-[#1f2937] rounded-lg p-3 text-white"
+                                placeholder="google123456789.html"
+                                dir="ltr"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-gray-400 mb-1">محتوى الملف (HTML Content)</label>
+                            <input
+                                type="text"
+                                value={googleHtmlContent}
+                                onChange={(e) => setGoogleHtmlContent(e.target.value)}
+                                className="w-full bg-[#0b0e14] border border-[#1f2937] rounded-lg p-3 text-white"
+                                placeholder="google-site-verification: google123456789.html"
+                                dir="ltr"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">انسخ محتوى الملف الذي قمت بتحميله من Google والصقه هنا.</p>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Save Button */}

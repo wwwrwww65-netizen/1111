@@ -1870,7 +1870,6 @@ shop.get('/products', async (req, res) => {
             where: finalWhere,
             select: {
               id: true, name: true, price: true, images: true, categoryId: true,
-              categoryLinks: { select: { categoryId: true } },
               colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
             },
             orderBy,
@@ -1978,17 +1977,36 @@ shop.get('/products', async (req, res) => {
   }
 });
 
+
+// Public: category detail (for SEO/metadata)
+shop.get('/category/:slug', async (req, res) => {
+  try {
+    setPublicCache(res, 10, 60);
+    const slug = String(req.params.slug);
+    const cat = await db.category.findFirst({
+      where: { OR: [{ slug }, { id: slug }] },
+      include: { seo: true }
+    });
+    if (!cat) return res.status(404).json({ error: 'not_found' });
+    return res.json({ category: cat });
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || 'category_failed' });
+  }
+});
+
 // Public: product detail
 shop.get('/product/:id', async (req, res) => {
   try {
     setPublicCache(res, 10, 60);
-    const p = await db.product.findUnique({
-      where: { id: String(req.params.id) },
+    const idParam = String(req.params.id);
+    const p = await db.product.findFirst({
+      where: { OR: [{ id: idParam }, { seo: { slug: idParam } }] },
       include: {
         category: { select: { id: true, name: true, slug: true } },
         categoryLinks: { select: { categoryId: true } },
         reviews: true,
         variants: true,
+        seo: true,
       },
     });
     if (!p || (p as any).isActive === false) return res.status(404).json({ error: 'not_found' });
@@ -2015,8 +2033,10 @@ shop.get('/product/:id', async (req, res) => {
         (p as any).soldPlus = found ? String(found.qty) : undefined;
       }
     } catch { }
+
     // Load color galleries (ProductColor + ProductColorImage)
     let colorGalleries: Array<{ name: string; primaryImageUrl?: string | null; isPrimary: boolean; order: number; images: string[] }> = [];
+
     try {
       const colors: Array<{ id: string; name: string; primaryImageUrl: string | null; isPrimary: boolean; order: number }> = await db.productColor.findMany({
         where: { productId: p.id },
@@ -3428,8 +3448,7 @@ shop.post('/pricing/effective', async (req: any, res) => {
     for (const p of prods) {
       const pAny = p as any;
       pAny.categoryIds = Array.from(new Set([
-        p.categoryId,
-        ...(p.categoryLinks || []).map((l: any) => l.categoryId)
+        p.categoryId
       ].filter(Boolean)));
       prodMap.set(p.id, pAny);
     }
@@ -3695,15 +3714,14 @@ shop.get('/catalog/:slug', async (req, res) => {
       where,
       select: {
         id: true, name: true, price: true, images: true, brand: true, tags: true, categoryId: true,
-        categoryLinks: { select: { categoryId: true } }
+
       },
       orderBy,
       take: limit
     });
     const items = itemsRaw.map((it: any) => {
       it.categoryIds = Array.from(new Set([
-        it.categoryId,
-        ...(it.categoryLinks || []).map((l: any) => l.categoryId)
+        it.categoryId
       ].filter(Boolean)));
       return it;
     });
@@ -4262,10 +4280,10 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       _hasCatLoyalty = !!(chk && chk[0] && (chk[0] as any).exists);
     } catch { }
     const productInclude = _hasCatLoyalty
-      ? { include: { category: { select: { loyaltyMultiplier: true } }, vendor: { select: { loyaltyMultiplier: true } } } }
+      ? { include: { category: { select: { loyaltyMultiplier: true } as any }, vendor: { select: { loyaltyMultiplier: true } } } }
       : { include: { vendor: { select: { loyaltyMultiplier: true } } } };
     const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: productInclude } } } });
-    if (!linesInput && (!cart || cart.items.length === 0)) return res.status(400).json({ error: 'Cart is empty' });
+    if (!linesInput && (!cart || (cart as any).items.length === 0)) return res.status(400).json({ error: 'Cart is empty' });
     const selectedProductIds = Array.isArray(selectedIds) && selectedIds.length ? new Set(selectedIds.map(String)) : null;
     const selectedUidsList: string[] = Array.isArray(selectedUids) && selectedUids.length ? selectedUids.map(String) : [];
     const selectedCartUids = selectedUidsList.length ? new Set(selectedUidsList) : null;
@@ -4281,13 +4299,12 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
     let cartItems: Array<{ productId: string; quantity: number; product?: any; id?: string }> = []
     if (linesInput && linesInput.length) {
       const pids = Array.from(new Set(linesInput.map(l => String(l.productId)).filter(Boolean)))
-      const prods = pids.length ? await db.product.findMany({ where: { id: { in: pids } }, include: { categoryLinks: { select: { categoryId: true } } } }) : []
+      const prods = pids.length ? await db.product.findMany({ where: { id: { in: pids } } }) : []
       const byId = new Map<string, any>()
       for (const p of prods) {
         const pAny = p as any;
         pAny.categoryIds = Array.from(new Set([
-          p.categoryId,
-          ...(p.categoryLinks || []).map((l: any) => l.categoryId)
+          p.categoryId
         ].filter(Boolean)));
         byId.set(String(p.id), pAny)
       }
@@ -4298,8 +4315,8 @@ shop.post('/orders', requireAuth, async (req: any, res) => {
       }
     } else if (cart) {
       cartItems = (unionSelectedPids
-        ? cart.items.filter(ci => unionSelectedPids.has(String(ci.productId)))
-        : cart.items) as any
+        ? (cart as any).items.filter((ci: any) => unionSelectedPids.has(String(ci.productId)))
+        : (cart as any).items) as any
       // إذا تم تمرير اختيار (selectedIds أو selectedUids) ولم ينتج أي عناصر، لا نستعمل أي fallback حتى لا نكرر أو نمزج عناصر قديمة
       if ((selectedProductIds || selectedFromUids) && (!cartItems.length)) {
         return res.status(400).json({ error: 'No items selected' });
@@ -4742,12 +4759,11 @@ shop.get('/cart', async (req: any, res) => {
       const productIds = Array.from(new Set(cart.items.map((it: any) => it.productId)));
       const prods = await db.product.findMany({
         where: { id: { in: productIds } },
-        select: { id: true, name: true, price: true, images: true, categoryId: true, categoryLinks: { select: { categoryId: true } } }
+        select: { id: true, name: true, price: true, images: true, categoryId: true }
       });
       const byId = new Map(prods.map((p: any) => {
         p.categoryIds = Array.from(new Set([
-          p.categoryId,
-          ...(p.categoryLinks || []).map((l: any) => l.categoryId)
+          p.categoryId
         ].filter(Boolean)));
         return [String(p.id), p];
       }));
@@ -4760,12 +4776,11 @@ shop.get('/cart', async (req: any, res) => {
     const productIds = Array.from(new Set((rows || []).map(r => String(r.productId))));
     const prods = productIds.length ? await db.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, name: true, price: true, images: true, categoryId: true, categoryLinks: { select: { categoryId: true } } }
+      select: { id: true, name: true, price: true, images: true, categoryId: true }
     }) : [];
     const byId = new Map(prods.map((p: any) => {
       p.categoryIds = Array.from(new Set([
-        p.categoryId,
-        ...(p.categoryLinks || []).map((l: any) => l.categoryId)
+        p.categoryId
       ].filter(Boolean)));
       return [String(p.id), p];
     }));
@@ -5184,13 +5199,13 @@ shop.post('/orders/:id/pay', requireAuth, async (req: any, res) => {
           const items = await db.orderItem.findMany({ where: { orderId: order.id as any }, include: { product: { include: { category: true, vendor: true } } } })
           const subtotal = items.reduce((s, it) => s + Number(it.price || 0) * Number(it.quantity || 1), 0)
           const { points } = await computeCartPoints(userId, items.map(it => ({ product: it.product, quantity: it.quantity })), subtotal)
-          if (points > 0) await db.pointsLedger.create({ data: { userId, points, status: 'CONFIRMED' as any, trigger: 'order_paid', orderId: order.id as any, reason: 'ORDER_PAID' } as any })
+          if (points > 0) await db.pointsLedger.create({ data: { userId, points, status: 'CONFIRMED' as any, orderId: order.id as any, reason: 'ORDER_PAID' } as any })
         }
       }
     } catch { }
     // Referral/Share: confirm pending points
     try {
-      const pend = await db.pointsLedger.findMany({ where: { orderId: order.id as any, trigger: { in: ['ref_purchase', 'share_purchase'] } as any, status: 'PENDING' as any } })
+      const pend = await db.pointsLedger.findMany({ where: { orderId: order.id as any, reason: { in: ['ref_purchase', 'share_purchase'] } as any, status: 'PENDING' as any } })
       for (const p of pend) { await db.pointsLedger.update({ where: { id: p.id }, data: { status: 'CONFIRMED' as any } }) }
     } catch { }
     // Affiliate: approve commission
@@ -6081,7 +6096,7 @@ shop.get('/products/recent', async (req: any, res) => {
       where: { id: { in: pids }, isActive: true },
       select: {
         id: true, name: true, price: true, images: true, brand: true, categoryId: true,
-        categoryLinks: { select: { categoryId: true } },
+
         colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
       }
     });
@@ -6493,7 +6508,7 @@ shop.post('/points/event', requireAuth, async (req: any, res) => {
     } catch { }
     // Prevent duplicates via eventId when provided
     if (eventId) {
-      try { const exists = await db.pointsLedger.findUnique({ where: { eventId: String(eventId) } }); if (exists) return res.json({ ok: true, duplicate: true }); } catch { }
+      try { const exists = await db.pointsLedger.findFirst({ where: { eventId: String(eventId) } }); if (exists) return res.json({ ok: true, duplicate: true }); } catch { }
     }
     const trig = await loadTriggers()
     if (trig?.enabled === false) return res.status(400).json({ error: 'disabled' })
@@ -6518,7 +6533,7 @@ shop.post('/points/event', requireAuth, async (req: any, res) => {
     }
     pts = await applyCaps(userId, pts, trig)
     if (!pts) return res.json({ ok: true, points: 0 })
-    await db.pointsLedger.create({ data: { userId, points: Math.trunc(pts), status: status as any, trigger: String(type), reason, eventId: eventId ? String(eventId) : null as any, meta: meta || null } as any })
+    await db.pointsLedger.create({ data: { userId, points: Math.trunc(pts), status: status as any, reason, eventId: eventId ? String(eventId) : null as any, meta: meta || null } as any })
     const agg = await db.pointsLedger.aggregate({ _sum: { points: true }, where: { userId, status: 'CONFIRMED' as any } }) as any
     return res.json({ ok: true, balance: Number(agg?._sum?.points || 0) })
   } catch (e: any) { res.status(500).json({ error: e?.message || 'failed' }) }

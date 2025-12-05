@@ -4,62 +4,62 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { resolveApiBase } from "../../lib/apiBase";
 
-function useApiBase(){
-  return React.useMemo(()=> resolveApiBase(), []);
+function useApiBase() {
+  return React.useMemo(() => resolveApiBase(), []);
 }
-function useAuthHeaders(){
+function useAuthHeaders() {
   return React.useCallback(() => {
-    if (typeof document === 'undefined') return {} as Record<string,string>;
+    if (typeof document === 'undefined') return {} as Record<string, string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
     let token = m ? m[1] : '';
-    try { token = decodeURIComponent(token); } catch {}
+    try { token = decodeURIComponent(token); } catch { }
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
 }
 
-function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange, options }:{ value: string[]; onChange:(ids:string[])=>void; primaryId: string; onPrimaryChange:(id:string)=>void; options: Array<{id:string;name:string}> }): JSX.Element {
+function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange, options }: { value: string[]; onChange: (ids: string[]) => void; primaryId: string; onPrimaryChange: (id: string) => void; options: Array<{ id: string; name: string }> }): JSX.Element {
   const authHeaders = useAuthHeaders();
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [tree, setTree] = React.useState<any[]>([]);
   const [filter, setFilter] = React.useState('');
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
-  const containerRef = React.useRef<HTMLDivElement|null>(null);
-  const panelRef = React.useRef<HTMLDivElement|null>(null);
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const panelRef = React.useRef<HTMLDivElement | null>(null);
 
-  const selectedSet = React.useMemo(()=> new Set(value||[]), [value]);
-  const nameOf = React.useCallback((id?:string)=> options.find(o=>o.id===id)?.name || id || '', [options]);
+  const selectedSet = React.useMemo(() => new Set(value || []), [value]);
+  const nameOf = React.useCallback((id?: string) => options.find(o => o.id === id)?.name || id || '', [options]);
 
-  React.useEffect(()=>{
-    function onEsc(e: KeyboardEvent){
+  React.useEffect(() => {
+    function onEsc(e: KeyboardEvent) {
       if (!open) return;
       if (e.key === 'Escape') setOpen(false);
     }
     document.addEventListener('keydown', onEsc as any, true);
-    return ()=> {
+    return () => {
       document.removeEventListener('keydown', onEsc as any, true);
     };
   }, [open]);
 
-  async function loadTree(){
-    try{
+  async function loadTree() {
+    try {
       setLoading(true);
-      const r = await fetch(`/api/admin/categories/tree`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
-      const j = await r.json().catch(()=>({}));
+      const r = await fetch(`/api/admin/categories/tree`, { credentials: 'include', headers: { ...authHeaders() }, cache: 'no-store' });
+      const j = await r.json().catch(() => ({}));
       setTree(Array.isArray(j?.tree) ? j.tree : []);
     } finally { setLoading(false); }
   }
 
   function filtered(nodes: any[], q: string): any[] {
-    const t = String(q||'').trim().toLowerCase();
+    const t = String(q || '').trim().toLowerCase();
     if (!t) return nodes;
-    const matchNode = (n:any): boolean => String(n?.name||'').toLowerCase().includes(t);
-    const dfs = (arr:any[]): any[] => {
-      const out:any[] = [];
-      for (const n of (arr as any[] || [])){
-        const kids = Array.isArray((n as any).children)? (n as any).children : [];
+    const matchNode = (n: any): boolean => String(n?.name || '').toLowerCase().includes(t);
+    const dfs = (arr: any[]): any[] => {
+      const out: any[] = [];
+      for (const n of (arr as any[] || [])) {
+        const kids = Array.isArray((n as any).children) ? (n as any).children : [];
         const fk = dfs(kids);
-        if (matchNode(n) || fk.length){
+        if (matchNode(n) || fk.length) {
           out.push({ ...(n as any), children: fk });
         }
       }
@@ -68,15 +68,15 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
     return dfs(nodes);
   }
 
-  function toggleExpand(id: string){
+  function toggleExpand(id: string) {
     setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
     try {
       const p = panelRef.current;
       const top = p?.scrollTop || 0;
-      requestAnimationFrame(()=> { try { if (panelRef.current) panelRef.current.scrollTop = top; } catch {} });
-    } catch {}
+      requestAnimationFrame(() => { try { if (panelRef.current) panelRef.current.scrollTop = top; } catch { } });
+    } catch { }
   }
-  function toggleSelect(id: string){
+  function toggleSelect(id: string) {
     const next = new Set(selectedSet);
     if (next.has(id)) next.delete(id); else next.add(id);
     const arr = Array.from(next);
@@ -85,70 +85,70 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
     if (primaryId && !next.has(primaryId)) onPrimaryChange(arr[0] || '');
   }
 
-  function Node({ node, depth }:{ node:any; depth:number }): JSX.Element {
-    const kids = Array.isArray(node.children)? node.children : [];
-    const hasKids = kids.length>0;
+  function Node({ node, depth }: { node: any; depth: number }): JSX.Element {
+    const kids = Array.isArray(node.children) ? node.children : [];
+    const hasKids = kids.length > 0;
     const isOpen = !!filter || !!expanded[node.id];
     return (
-      <div onMouseDown={(e)=> e.stopPropagation()}>
+      <div onMouseDown={(e) => e.stopPropagation()}>
         <div
-          onClick={(e)=> {
+          onClick={(e) => {
             const tag = (e.target as HTMLElement).tagName.toLowerCase();
             if (tag === 'input' || tag === 'button' || tag === 'svg' || tag === 'path') return;
             if (hasKids) toggleExpand(node.id);
             else toggleSelect(node.id);
           }}
-          style={{ display:'flex', alignItems:'center', gap:12, padding:8, paddingInlineStart: 6 + depth*14, borderBottom:'1px solid #0f1320', cursor: hasKids? 'pointer':'default' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 8, paddingInlineStart: 6 + depth * 14, borderBottom: '1px solid #0f1320', cursor: hasKids ? 'pointer' : 'default' }}
         >
           {/* Leading chevron to indicate children */}
           {hasKids ? (
-            <span role="button" aria-label={isOpen? 'طيّ':'توسيع'} onClick={(e)=>{ e.stopPropagation(); toggleExpand(node.id); }} style={{ width:20, height:20, display:'grid', placeItems:'center' }}>
-              <svg viewBox="0 0 24 24" width="14" height="14" style={{ transition:'transform .15s ease', transform: isOpen? 'rotate(180deg)':'rotate(0deg)' }} aria-hidden="true">
-                <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <span role="button" aria-label={isOpen ? 'طيّ' : 'توسيع'} onClick={(e) => { e.stopPropagation(); toggleExpand(node.id); }} style={{ width: 20, height: 20, display: 'grid', placeItems: 'center' }}>
+              <svg viewBox="0 0 24 24" width="14" height="14" style={{ transition: 'transform .15s ease', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} aria-hidden="true">
+                <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </span>
-          ) : (<span style={{ width:20 }} />)}
+          ) : (<span style={{ width: 20 }} />)}
           <input
             type="checkbox"
             checked={selectedSet.has(node.id)}
-            onClick={(e)=>{ e.stopPropagation(); toggleSelect(node.id); }}
-            onChange={()=>{}}
+            onClick={(e) => { e.stopPropagation(); toggleSelect(node.id); }}
+            onChange={() => { }}
           />
-          <div style={{ display:'flex', alignItems:'center', gap:6, flex:1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
             <span>{node.name}</span>
             {primaryId === node.id ? (
               <span className="badge">رئيسي</span>
             ) : selectedSet.has(node.id) ? (
-              <button type="button" className="btn btn-outline" onClick={()=> onPrimaryChange(node.id)} style={{ padding:'2px 6px', fontSize:12 }}>تعيين كرئيسي</button>
+              <button type="button" className="btn btn-outline" onClick={() => onPrimaryChange(node.id)} style={{ padding: '2px 6px', fontSize: 12 }}>تعيين كرئيسي</button>
             ) : null}
           </div>
-          <span style={{ width:18 }} />
+          <span style={{ width: 18 }} />
         </div>
-        {hasKids && isOpen && kids.map((k:any)=> (<Node key={k.id} node={k} depth={depth+1} />))}
+        {hasKids && isOpen && kids.map((k: any) => (<Node key={k.id} node={k} depth={depth + 1} />))}
       </div>
     );
   }
 
-  const summary = React.useMemo(()=>{
-    if (!value || value.length===0) return 'اختر فئة';
+  const summary = React.useMemo(() => {
+    if (!value || value.length === 0) return 'اختر فئة';
     const primaryName = nameOf(primaryId) || nameOf(value[0]);
-    const extraCount = value.filter(id=> id && id!==primaryId).length;
-    return extraCount>0 ? `${primaryName} +${extraCount}` : (primaryName || `${value.length} تصنيف(ات)`);
+    const extraCount = value.filter(id => id && id !== primaryId).length;
+    return extraCount > 0 ? `${primaryName} +${extraCount}` : (primaryName || `${value.length} تصنيف(ات)`);
   }, [value, primaryId, nameOf]);
 
-  const shown = React.useMemo(()=> filtered(tree, filter), [tree, filter]);
+  const shown = React.useMemo(() => filtered(tree, filter), [tree, filter]);
 
   return (
-    <div ref={containerRef} style={{ position:'relative' }}>
-      <button type="button" className="select" onClick={()=>{ if (!open) { setOpen(true); loadTree(); } }} aria-haspopup="listbox" aria-expanded={open} style={{ width:'100%', textAlign:'start' }}>
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <button type="button" className="select" onClick={() => { if (!open) { setOpen(true); loadTree(); } }} aria-haspopup="listbox" aria-expanded={open} style={{ width: '100%', textAlign: 'start' }}>
         {summary}
       </button>
       {Array.isArray(value) && value.length > 0 && (
-        <div style={{ marginTop:6, display:'flex', flexWrap:'wrap', gap:6 }}>
-          {value.map((id)=> (
-            <span key={id} className="badge" style={{ display:'inline-flex', alignItems:'center', gap:6, background:'#111827', border:'1px solid #1c2333' }}>
+        <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {value.map((id) => (
+            <span key={id} className="badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#111827', border: '1px solid #1c2333' }}>
               <span>{nameOf(id)}</span>
-              <button type="button" className="icon-btn" onClick={(e)=>{ e.stopPropagation(); toggleSelect(id); }} aria-label="إزالة">×</button>
+              <button type="button" className="icon-btn" onClick={(e) => { e.stopPropagation(); toggleSelect(id); }} aria-label="إزالة">×</button>
             </span>
           ))}
         </div>
@@ -157,33 +157,33 @@ function CategoryMultiTreeDropdown({ value, onChange, primaryId, onPrimaryChange
         <>
           {/* Backdrop to capture outside clicks without relying on document listeners */}
           <div
-            style={{ position:'fixed', inset:0, zIndex:59, background:'transparent' }}
-            onMouseDown={()=> setOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 59, background: 'transparent' }}
+            onMouseDown={() => setOpen(false)}
           />
-        <div
-          ref={panelRef}
-          className="panel"
-          role="listbox"
-          style={{ position:'absolute', insetInlineStart:0, insetBlockStart:'calc(100% + 6px)', zIndex:60, width:'min(560px, 96vw)', maxHeight:420, overflow:'auto', border:'1px solid #1c2333', borderRadius:10, padding:8, background:'#0b0e14', boxShadow:'0 8px 24px rgba(0,0,0,.35)' }}
-          onPointerDown={(e)=> e.stopPropagation()}
-          onMouseDown={(e)=> e.stopPropagation()}
-          onClick={(e)=> e.stopPropagation()}
-        >
-          <div style={{ position:'sticky', top:0, background:'#0b0e14', display:'flex', gap:8, marginBottom:8, alignItems:'center', paddingBottom:8 }}>
-            <input value={filter} onChange={(e)=> setFilter(e.target.value)} placeholder="بحث عن تصنيف" className="input" />
-            <button type="button" className="btn btn-outline" onClick={()=> setFilter('')}>مسح</button>
-            <div style={{ marginInlineStart:'auto', display:'flex', gap:8 }}>
-              <button type="button" className="btn btn-outline" onClick={()=> setOpen(false)}>إغلاق</button>
+          <div
+            ref={panelRef}
+            className="panel"
+            role="listbox"
+            style={{ position: 'absolute', insetInlineStart: 0, insetBlockStart: 'calc(100% + 6px)', zIndex: 60, width: 'min(560px, 96vw)', maxHeight: 420, overflow: 'auto', border: '1px solid #1c2333', borderRadius: 10, padding: 8, background: '#0b0e14', boxShadow: '0 8px 24px rgba(0,0,0,.35)' }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ position: 'sticky', top: 0, background: '#0b0e14', display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', paddingBottom: 8 }}>
+              <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="بحث عن تصنيف" className="input" />
+              <button type="button" className="btn btn-outline" onClick={() => setFilter('')}>مسح</button>
+              <div style={{ marginInlineStart: 'auto', display: 'flex', gap: 8 }}>
+                <button type="button" className="btn btn-outline" onClick={() => setOpen(false)}>إغلاق</button>
+              </div>
             </div>
+            {loading ? (
+              <div className="skeleton" style={{ height: 140 }} />
+            ) : (
+              <div>
+                {shown.length ? shown.map((n: any) => (<Node key={n.id} node={n} depth={0} />)) : (<div style={{ color: '#94a3b8', padding: 8 }}>لا توجد نتائج</div>)}
+              </div>
+            )}
           </div>
-          {loading ? (
-            <div className="skeleton" style={{ height:140 }} />
-          ) : (
-            <div>
-              {shown.length ? shown.map((n:any)=> (<Node key={n.id} node={n} depth={0} />)) : (<div style={{ color:'#94a3b8', padding:8 }}>لا توجد نتائج</div>)}
-            </div>
-          )}
-        </div>
         </>
       )}
     </div>
@@ -196,19 +196,19 @@ export default function AdminProductCreate(): JSX.Element {
   const apiBase = useApiBase();
   const authHeaders = useAuthHeaders();
   const [paste, setPaste] = React.useState('');
-  const [review, setReview] = React.useState<any|null>(null);
+  const [review, setReview] = React.useState<any | null>(null);
   const [loadingExisting, setLoadingExisting] = React.useState<boolean>(false);
-  const [dsHint, setDsHint] = React.useState<any|null>(null);
+  const [dsHint, setDsHint] = React.useState<any | null>(null);
   const [dsHintKey, setDsHintKey] = React.useState<string>('');
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string>('');
-  const [toast, setToast] = React.useState<{ type:'ok'|'err'; text:string }|null>(null);
-  const showToast = (text:string, type:'ok'|'err'='ok')=>{ setToast({ type, text }); setTimeout(()=> setToast(null), 2200); };
+  const [toast, setToast] = React.useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const showToast = (text: string, type: 'ok' | 'err' = 'ok') => { setToast({ type, text }); setTimeout(() => setToast(null), 2200); };
   // Preview tab removed: fill fields directly
-  const [activeMobileTab, setActiveMobileTab] = React.useState<'compose'|'review'>('compose');
+  const [activeMobileTab, setActiveMobileTab] = React.useState<'compose' | 'review'>('compose');
   const [deepseekOn, setDeepseekOn] = React.useState<boolean>(true);
-  React.useEffect(()=>{ try{ const v = localStorage.getItem('aiDeepseekOn'); if (v!==null) setDeepseekOn(v==='1'); } catch {} },[]);
-  React.useEffect(()=>{ try{ localStorage.setItem('aiDeepseekOn', deepseekOn? '1':'0'); } catch {} },[deepseekOn]);
+  React.useEffect(() => { try { const v = localStorage.getItem('aiDeepseekOn'); if (v !== null) setDeepseekOn(v === '1'); } catch { } }, []);
+  React.useEffect(() => { try { localStorage.setItem('aiDeepseekOn', deepseekOn ? '1' : '0'); } catch { } }, [deepseekOn]);
   const [lastMeta, setLastMeta] = React.useState<any>(null);
   const [useOpenRouter, setUseOpenRouter] = React.useState<boolean>(false);
   // default to published when creating via form, allow draft toggle later if needed
@@ -216,63 +216,91 @@ export default function AdminProductCreate(): JSX.Element {
   const [seoTitle, setSeoTitle] = React.useState("");
   const [seoDescription, setSeoDescription] = React.useState("");
   const [files, setFiles] = React.useState<File[]>([]);
+  const [slug, setSlug] = React.useState("");
+  const [seoKeywords, setSeoKeywords] = React.useState("");
+  const [canonicalUrl, setCanonicalUrl] = React.useState("");
+  const [metaRobots, setMetaRobots] = React.useState("");
+  const [hiddenContent, setHiddenContent] = React.useState("");
   // Becomes true after any successful analysis (rules/AI preview or full analyze)
   const [analysisDone, setAnalysisDone] = React.useState<boolean>(false);
-  const longDescRef = React.useRef<HTMLTextAreaElement|null>(null);
-  React.useEffect(()=>{ const el=longDescRef.current; if (!el) return; el.style.height='auto'; el.style.height = el.scrollHeight + 'px'; }, [review?.longDesc]);
-  React.useEffect(()=>{ try{ const v = localStorage.getItem('aiOpenRouterOn'); if (v!==null) setUseOpenRouter(v==='1'); } catch {} },[]);
-  React.useEffect(()=>{ try{ localStorage.setItem('aiOpenRouterOn', useOpenRouter? '1':'0'); } catch {} },[useOpenRouter]);
+
+  const [siteName, setSiteName] = React.useState("");
+  const [siteUrl, setSiteUrl] = React.useState("");
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/settings/list`, { credentials: 'include', headers: { ...authHeaders() } });
+        const data = await res.json();
+        const settings = data.settings || [];
+        const n = settings.find((s: any) => s.key === 'site_name');
+        const u = settings.find((s: any) => s.key === 'site_url');
+        if (n?.value?.value) setSiteName(n.value.value);
+        if (u?.value?.value) setSiteUrl(u.value.value);
+      } catch { }
+    })();
+  }, [apiBase]);
+  const longDescRef = React.useRef<HTMLTextAreaElement | null>(null);
+  React.useEffect(() => { const el = longDescRef.current; if (!el) return; el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }, [review?.longDesc]);
+  React.useEffect(() => { try { const v = localStorage.getItem('aiOpenRouterOn'); if (v !== null) setUseOpenRouter(v === '1'); } catch { } }, []);
+  React.useEffect(() => { try { localStorage.setItem('aiOpenRouterOn', useOpenRouter ? '1' : '0'); } catch { } }, [useOpenRouter]);
   // Load existing product when id is provided in query (?id=...)
-  React.useEffect(()=>{
+  React.useEffect(() => {
     const id = search?.get('id');
     if (!id) return;
-    (async ()=>{
+    (async () => {
       try {
         setLoadingExisting(true);
         // Use admin REST (proxied) to fetch full product for edit
-        const r = await fetch(`/api/admin/products/${id}`, { credentials:'include' });
-        const j = await r.json().catch(()=>({}));
+        const r = await fetch(`/api/admin/products/${id}`, { credentials: 'include' });
+        const j = await r.json().catch(() => ({}));
         const p = j?.product || j;
         if (p && p.id) {
           // Prefill primary fields for editing
-          setName(String(p.name||''));
-          setDescription(String(p.description||''));
-          setCategoryId(String(p.categoryId||''));
+          setName(String(p.name || ''));
+          setDescription(String(p.description || ''));
+          setCategoryId(String(p.categoryId || ''));
           try {
-            const extra: string[] = Array.isArray((j?.additionalCategoryIds||p?.additionalCategoryIds)) ? (j?.additionalCategoryIds||p?.additionalCategoryIds) : [];
-            const all = Array.from(new Set([String(p.categoryId||'')].concat(extra).filter(Boolean)));
+            const extra: string[] = Array.isArray((j?.additionalCategoryIds || p?.additionalCategoryIds)) ? (j?.additionalCategoryIds || p?.additionalCategoryIds) : [];
+            const all = Array.from(new Set([String(p.categoryId || '')].concat(extra).filter(Boolean)));
             setSelectedCategoryIds(all);
-          } catch {}
-          setVendorId(String(p.vendorId||''));
-          setSku(String(p.sku||''));
+          } catch { }
+          setVendorId(String(p.vendorId || ''));
+          setSku(String(p.sku || ''));
           if (typeof p.price === 'number') setSalePrice(p.price);
           if (typeof p.stockQuantity === 'number') setStockQuantity(p.stockQuantity);
-          setBrand(String(p.brand||''));
+          setBrand(String(p.brand || ''));
           setImages(Array.isArray(p.images) ? p.images.join(', ') : '');
-          setSeoTitle(String(p.seoTitle||''));
-          setSeoDescription(String(p.seoDescription||''));
+          const seo = p.seo || {};
+          setSlug(String(seo.slug || ''));
+          setSeoTitle(String(seo.seoTitle || p.seoTitle || ''));
+          setSeoDescription(String(seo.seoDescription || p.seoDescription || ''));
+          setSeoKeywords(String(seo.seoKeywords || ''));
+          setCanonicalUrl(String(seo.canonicalUrl || ''));
+          setMetaRobots(String(seo.metaRobots || ''));
+          setHiddenContent(String(seo.hiddenContent || ''));
           setDraft(!Boolean(p.isActive));
           // Loyalty fields
-          try{
-            setPointsFixed(p.pointsFixed!=null ? String(p.pointsFixed) : '');
-            setPointsPercent(p.pointsPercent!=null ? String(p.pointsPercent) : '');
-            setLoyaltyMultiplier(p.loyaltyMultiplier!=null ? String(p.loyaltyMultiplier) : '');
+          try {
+            setPointsFixed(p.pointsFixed != null ? String(p.pointsFixed) : '');
+            setPointsPercent(p.pointsPercent != null ? String(p.pointsPercent) : '');
+            setLoyaltyMultiplier(p.loyaltyMultiplier != null ? String(p.loyaltyMultiplier) : '');
             setExcludeFromPoints(!!p.excludeFromPoints);
-          }catch{}
+          } catch { }
           // Restore purchase price from tags or variants if available
           try {
-            const tag = (Array.isArray(p.tags)? p.tags: []).find((t:any)=> String(t||'').startsWith('purchase:'));
-            const val = tag ? Number(String(tag).split(':')[1]||'') : undefined;
+            const tag = (Array.isArray(p.tags) ? p.tags : []).find((t: any) => String(t || '').startsWith('purchase:'));
+            const val = tag ? Number(String(tag).split(':')[1] || '') : undefined;
             if (Number.isFinite(val as any) && (val as any) > 0) setPurchasePrice(val as any);
             else {
-              const v0 = (Array.isArray(p.variants)? p.variants: []).map((v:any)=> Number(v?.purchasePrice)).find((n)=> Number.isFinite(n) && n>0);
+              const v0 = (Array.isArray(p.variants) ? p.variants : []).map((v: any) => Number(v?.purchasePrice)).find((n: number) => Number.isFinite(n) && n > 0);
               if (Number.isFinite(v0)) setPurchasePrice(v0 as any);
             }
-          } catch {}
+          } catch { }
           if (Array.isArray(p.variants) && p.variants.length) {
             setType('variable');
             try {
-              const rows = (p.variants||[]).map((v:any)=> {
+              const rows = (p.variants || []).map((v: any) => {
                 // Derive size token string: prefer explicit v.size; otherwise build from option_values
                 let sizeToken: string | undefined = undefined;
                 const rawSize = (typeof v.size === 'string' ? v.size : undefined) || undefined;
@@ -280,25 +308,25 @@ export default function AdminProductCreate(): JSX.Element {
                   sizeToken = String(rawSize);
                 } else if (Array.isArray(v.option_values)) {
                   const sizeParts = (v.option_values as any[])
-                    .filter((o:any)=> String(o?.name||'').toLowerCase()==='size')
-                    .map((o:any)=> String(o?.value||'').trim())
+                    .filter((o: any) => String(o?.name || '').toLowerCase() === 'size')
+                    .map((o: any) => String(o?.value || '').trim())
                     .filter(Boolean);
                   if (sizeParts.length) {
                     // If parts already contain label:value, keep; else prefix with a generic label
-                    const normalized = sizeParts.map((part:string)=> part.includes(':') ? part : `المقاس: ${part}`);
+                    const normalized = sizeParts.map((part: string) => part.includes(':') ? part : `المقاس: ${part}`);
                     sizeToken = normalized.join('|');
                   }
                 }
                 // Derive color value: prefer v.color; else from option_values
                 const colorVal = v.color || (Array.isArray(v.option_values)
-                  ? ((v.option_values as any[]).find((o:any)=> String(o?.name||'').toLowerCase()==='color')?.value)
+                  ? ((v.option_values as any[]).find((o: any) => String(o?.name || '').toLowerCase() === 'color')?.value)
                   : undefined);
                 return {
                   name: (colorVal && sizeToken) ? 'لون/مقاس' : (colorVal ? 'لون' : (sizeToken ? 'مقاس' : 'متغير')),
                   value: [colorVal, sizeToken].filter(Boolean).join(' / '),
-                  price: typeof v.price==='number' ? v.price : undefined,
-                  purchasePrice: typeof v.purchasePrice==='number' ? v.purchasePrice : undefined,
-                  stockQuantity: typeof v.stock==='number' ? v.stock : (typeof v.stockQuantity==='number' ? v.stockQuantity : 0),
+                  price: typeof v.price === 'number' ? v.price : undefined,
+                  purchasePrice: typeof v.purchasePrice === 'number' ? v.purchasePrice : undefined,
+                  stockQuantity: typeof v.stock === 'number' ? v.stock : (typeof v.stockQuantity === 'number' ? v.stockQuantity : 0),
                   sku: v.sku || undefined,
                   size: sizeToken,
                   color: colorVal || undefined,
@@ -306,38 +334,38 @@ export default function AdminProductCreate(): JSX.Element {
                 };
               });
               setVariantRows(rows);
-              const colorNames = Array.from(new Set((p.variants||[]).map((x:any)=> x.color).filter(Boolean)));
+              const colorNames = Array.from(new Set((p.variants || []).map((x: any) => x.color).filter(Boolean)));
               if (colorNames.length) setSelectedColors(colorNames as string[]);
               // Prebuild color cards from existing colors and images for better edit UX
               try {
                 const imgs: string[] = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
-                const urlIndex = (u?:string)=> imgs.findIndex(x=> x===u);
-                const cards = (colorNames as string[]).map((c:string)=> {
+                const urlIndex = (u?: string) => imgs.findIndex(x => x === u);
+                const cards = (colorNames as string[]).map((c: string) => {
                   // Use any existing review.mapping if available; mapping below is defined later
-                  const mapped = (((review as any)?.mapping)||{})[c];
+                  const mapped = (((review as any)?.mapping) || {})[c];
                   const idx = mapped ? urlIndex(mapped) : -1;
-                  return { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: c, selectedImageIdxs: [], primaryImageIdx: idx>=0? idx : undefined };
+                  return { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: c, selectedImageIdxs: [], primaryImageIdx: idx >= 0 ? idx : undefined };
                 });
                 if (cards.length) setColorCards(cards);
-              } catch {}
+              } catch { }
               // Restore mapping/cards from tags if present
               try {
                 const tags: string[] = Array.isArray(p.tags) ? p.tags : [];
-                const parsed = parseColorTagsToState(tags, Array.isArray(p.images)? p.images: []);
-                if (Object.keys(parsed.mapping).length) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), ...parsed.mapping } }));
+                const parsed = parseColorTagsToState(tags, Array.isArray(p.images) ? p.images : []);
+                if (Object.keys(parsed.mapping).length) setReview((r: any) => ({ ...(r || {}), mapping: { ...((r || {}).mapping || {}), ...parsed.mapping } }));
                 if (parsed.cards.length) setColorCards(parsed.cards);
-              } catch {}
+              } catch { }
               // Reconstruct selected size types and picks from variants
               try {
                 const sizeMap = new Map<string, Set<string>>();
-                for (const v of (p.variants||[])) {
-                  const token: string | undefined = typeof v.size==='string' && v.size ? v.size : (Array.isArray(v.option_values)? (v.option_values as any[]).filter((o:any)=> String(o?.name||'').toLowerCase()==='size').map((o:any)=> String(o?.value||'').trim()).filter(Boolean).join('|') : undefined);
-                  const raw = String(token||''); if (!raw) continue;
+                for (const v of (p.variants || [])) {
+                  const token: string | undefined = typeof v.size === 'string' && v.size ? v.size : (Array.isArray(v.option_values) ? (v.option_values as any[]).filter((o: any) => String(o?.name || '').toLowerCase() === 'size').map((o: any) => String(o?.value || '').trim()).filter(Boolean).join('|') : undefined);
+                  const raw = String(token || ''); if (!raw) continue;
                   for (const part of raw.split('|')) {
-                    const t = String(part||'').trim(); if (!t) continue;
+                    const t = String(part || '').trim(); if (!t) continue;
                     const idx = t.indexOf(':');
-                    if (idx>0) {
-                      const label = t.slice(0,idx).trim(); const val = t.slice(idx+1).trim();
+                    if (idx > 0) {
+                      const label = t.slice(0, idx).trim(); const val = t.slice(idx + 1).trim();
                       if (!label || !val) continue;
                       if (!sizeMap.has(label)) sizeMap.set(label, new Set<string>());
                       sizeMap.get(label)!.add(val);
@@ -350,97 +378,97 @@ export default function AdminProductCreate(): JSX.Element {
                   }
                 }
                 // Load size types and sizes to build UI picks
-                const typesRes = await fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials:'include', headers: { ...authHeaders() } });
-                const typesJson = await typesRes.json().catch(()=>({types:[]}));
-                const types: Array<{id:string;name:string}> = typesJson.types||[];
-                const picks: Array<{ id:string; name:string; sizes:Array<{id:string;name:string}>; selectedSizes:string[] }>=[];
-                for (const [label, valsSet] of sizeMap.entries()) {
-                  const type = types.find(t=> String(t.name||'')===label);
+                const typesRes = await fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials: 'include', headers: { ...authHeaders() } });
+                const typesJson = await typesRes.json().catch(() => ({ types: [] }));
+                const types: Array<{ id: string; name: string }> = typesJson.types || [];
+                const picks: Array<{ id: string; name: string; sizes: Array<{ id: string; name: string }>; selectedSizes: string[] }> = [];
+                for (const [label, valsSet] of Array.from(sizeMap.entries())) {
+                  const type = types.find(t => String(t.name || '') === label);
                   if (!type) continue;
                   const sizes = await loadSizesForType(type.id);
-                  const selectedSizes = sizes.filter(s=> valsSet.has(s.name)).map(s=> s.name);
+                  const selectedSizes = sizes.filter(s => valsSet.has(s.name)).map(s => s.name);
                   picks.push({ id: type.id, name: type.name, sizes, selectedSizes });
                 }
                 if (picks.length) setSelectedSizeTypes(picks);
-              } catch {}
-            } catch {}
+              } catch { }
+            } catch { }
           }
           // Keep review in sync for any dependent UI (with safe mapping)
-          const mapping: Record<string,string|undefined> = {};
+          const mapping: Record<string, string | undefined> = {};
           try {
             // If product has a primary image per color (e.g., from previous generation), attempt a heuristic mapping
             const imgs: string[] = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
-            const colorsList: string[] = Array.from(new Set((p.variants||[]).map((x:any)=> x.color).filter(Boolean)));
+            const colorsList: string[] = Array.from(new Set((p.variants || []).map((x: any) => x.color).filter(Boolean)));
             for (const c of colorsList) {
-              const candidate = imgs.find(u => u.toLowerCase().includes(String(c||'').toLowerCase()));
+              const candidate = imgs.find(u => u.toLowerCase().includes(String(c || '').toLowerCase()));
               if (candidate) mapping[String(c)] = candidate;
             }
-          } catch {}
+          } catch { }
           // Prefer server-provided colorGalleries when available to restore primary + gallery
           try {
             const galleries = Array.isArray((p as any).colorGalleries) ? (p as any).colorGalleries : [];
             for (const g of galleries) {
               if (g?.name && g?.primaryImageUrl) mapping[String(g.name)] = String(g.primaryImageUrl);
             }
-            const primary = galleries.find((g:any)=> !!g?.isPrimary);
+            const primary = galleries.find((g: any) => !!g?.isPrimary);
             if (primary?.name) setPrimaryColorName(String(primary.name));
             // Rebuild color cards from galleries when present
             if (galleries.length) {
               const imgs: string[] = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
-              const urlIndex = (u?:string)=> imgs.findIndex(x=> x===u);
-              const cards = galleries.map((g:any)=> {
+              const urlIndex = (u?: string) => imgs.findIndex(x => x === u);
+              const cards = galleries.map((g: any) => {
                 const idx = g?.primaryImageUrl ? urlIndex(String(g.primaryImageUrl)) : -1;
-                const selIdxs = Array.isArray(g?.images) ? g.images.map((u:string)=> urlIndex(u)).filter((i:number)=> i>=0) : [];
-                return { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: g?.name, selectedImageIdxs: Array.from(new Set(selIdxs)), primaryImageIdx: idx>=0? idx : undefined };
+                const selIdxs = Array.isArray(g?.images) ? g.images.map((u: string) => urlIndex(u)).filter((i: number) => i >= 0) : [];
+                return { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: g?.name, selectedImageIdxs: Array.from(new Set(selIdxs)), primaryImageIdx: idx >= 0 ? idx : undefined };
               });
               if (cards.length) setColorCards(cards);
             }
-          } catch {}
+          } catch { }
           setReview({
             name: p.name,
             description: p.description,
             price: p.price,
-            images: Array.isArray(p.images)? p.images : [],
+            images: Array.isArray(p.images) ? p.images : [],
             categoryId: p.categoryId,
             vendorId: p.vendorId || '',
             stockQuantity: p.stockQuantity,
             sku: p.sku || '',
             brand: p.brand || '',
-            tags: Array.isArray(p.tags)? p.tags : [],
-            variants: Array.isArray(p.variants)? p.variants : [],
+            tags: Array.isArray(p.tags) ? p.tags : [],
+            variants: Array.isArray(p.variants) ? p.variants : [],
             isActive: !!p.isActive,
             mapping,
           });
           // Load PDP meta for model section
           try {
-            const gr = await fetch(`${apiBase}/api/admin/pdp/meta/${encodeURIComponent(id)}`, { credentials:'include', headers:{ ...authHeaders() } });
-            const gj = await gr.json().catch(()=>({}));
-            const meta = (gj?.meta && typeof gj.meta==='object') ? gj.meta : {};
+            const gr = await fetch(`${apiBase}/api/admin/pdp/meta/${encodeURIComponent(id)}`, { credentials: 'include', headers: { ...authHeaders() } });
+            const gj = await gr.json().catch(() => ({}));
+            const meta = (gj?.meta && typeof gj.meta === 'object') ? gj.meta : {};
             if (typeof meta.modelEnabled === 'boolean') setModelEnabled(!!meta.modelEnabled);
             const mm = (meta as any).model || {};
             if (mm && typeof mm === 'object') {
-              setModelImageUrl(String(mm.imageUrl||''));
+              setModelImageUrl(String(mm.imageUrl || ''));
               const fields = Array.isArray(mm.fields) ? mm.fields : [];
-              setModelFields(fields.map((f:any)=> ({ label: String(f?.label||''), value: String(f?.value||'') })).filter((f:any)=> f.label || f.value));
+              setModelFields(fields.map((f: any) => ({ label: String(f?.label || ''), value: String(f?.value || '') })).filter((f: any) => f.label || f.value));
             }
-          } catch {}
+          } catch { }
         }
       } finally { setLoadingExisting(false); }
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
-  function SourceBadge({ src }: { src?: string }){
-    const s = String(src||'rules').toLowerCase();
+  function SourceBadge({ src }: { src?: string }) {
+    const s = String(src || 'rules').toLowerCase();
     const isAi = s === 'ai';
     return (
-      <span style={{ marginInlineStart:8, fontSize:11, padding:'2px 6px', borderRadius:999, border:'1px solid var(--muted2)', color: isAi? '#22c55e':'#9ca3af' }}>{isAi? 'AI':'Rules'}</span>
+      <span style={{ marginInlineStart: 8, fontSize: 11, padding: '2px 6px', borderRadius: 999, border: '1px solid var(--muted2)', color: isAi ? '#22c55e' : '#9ca3af' }}>{isAi ? 'AI' : 'Rules'}</span>
     );
   }
 
   function keyForText(s: string): string {
     try {
-      const norm = String(s||'').toLowerCase().replace(/\s+/g,' ').slice(0, 256);
+      const norm = String(s || '').toLowerCase().replace(/\s+/g, ' ').slice(0, 256);
       return `ds_hint:${norm}`;
     } catch {
       return 'ds_hint:';
@@ -448,37 +476,37 @@ export default function AdminProductCreate(): JSX.Element {
   }
 
   function escapeHtml(text: string): string {
-    return String(text||'').replace(/[&<>"']/g, (ch) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[ch] as string));
+    return String(text || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] as string));
   }
-  function detailsToHtmlTable(rows: Array<{ label: string; value: string }>|undefined|null): string {
-    if (!Array.isArray(rows) || rows.length===0) return '';
-    const body = rows.map(r=> `<tr><td>${escapeHtml(r.label)}</td><td>${escapeHtml(r.value)}</td></tr>`).join('');
+  function detailsToHtmlTable(rows: Array<{ label: string; value: string }> | undefined | null): string {
+    if (!Array.isArray(rows) || rows.length === 0) return '';
+    const body = rows.map(r => `<tr><td>${escapeHtml(r.label)}</td><td>${escapeHtml(r.value)}</td></tr>`).join('');
     return `<table><thead><tr><th>البند</th><th>القيمة</th></tr></thead><tbody>${body}</tbody></table>`;
   }
 
   // Lightweight image dropdown with thumbnails (custom select)
-  function ImageDropdown({ value, options, onChange, placeholder = '(بدون)' }: { value?: string; options: string[]; onChange: (v: string | undefined) => void; placeholder?: string }){
+  function ImageDropdown({ value, options, onChange, placeholder = '(بدون)' }: { value?: string; options: string[]; onChange: (v: string | undefined) => void; placeholder?: string }) {
     const [open, setOpen] = React.useState(false);
-    const ref = React.useRef<HTMLDivElement|null>(null);
-    React.useEffect(()=>{
-      function onDoc(e: MouseEvent){ if (!ref.current) return; if (!ref.current.contains(e.target as Node)) setOpen(false); }
+    const ref = React.useRef<HTMLDivElement | null>(null);
+    React.useEffect(() => {
+      function onDoc(e: MouseEvent) { if (!ref.current) return; if (!ref.current.contains(e.target as Node)) setOpen(false); }
       document.addEventListener('mousedown', onDoc);
-      return ()=> document.removeEventListener('mousedown', onDoc);
-    },[]);
+      return () => document.removeEventListener('mousedown', onDoc);
+    }, []);
     const list = Array.from(new Set(options.filter(Boolean)));
     return (
-      <div ref={ref} style={{ position:'relative' }}>
-        <button type="button" className="btn btn-outline" onClick={()=> setOpen(v=>!v)} style={{ minHeight:32, padding:'0 8px', display:'inline-flex', alignItems:'center', gap:8 }}>
-          {value ? (<img src={value} alt="" className="thumb" style={{ width:24, height:24 }} />) : (<span style={{ color:'var(--sub)', fontSize:12 }}>{placeholder}</span>)}
-          <span style={{ fontSize:12 }}>اختر صورة</span>
+      <div ref={ref} style={{ position: 'relative' }}>
+        <button type="button" className="btn btn-outline" onClick={() => setOpen(v => !v)} style={{ minHeight: 32, padding: '0 8px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          {value ? (<img src={value} alt="" className="thumb" style={{ width: 24, height: 24 }} />) : (<span style={{ color: 'var(--sub)', fontSize: 12 }}>{placeholder}</span>)}
+          <span style={{ fontSize: 12 }}>اختر صورة</span>
         </button>
         {open && (
-          <div className="menu" style={{ position:'absolute', insetInlineStart:0, top:'100%', marginTop:6, zIndex:20, padding:8, width:260 }}>
-            <div className="item" role="button" onClick={()=> { onChange(undefined); setOpen(false); }} style={{ padding:6, cursor:'pointer', color:'var(--sub)' }}>{placeholder}</div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
-              {list.map((u, i)=> (
-                <button type="button" key={i} className="btn ghost" onClick={()=> { onChange(u); setOpen(false); }} style={{ padding:0, borderRadius:8 }}>
-                  <img src={u} alt={String(i)} style={{ width:'100%', height:72, objectFit:'cover', borderRadius:8, border:'1px solid rgba(255,255,255,.06)' }} />
+          <div className="menu" style={{ position: 'absolute', insetInlineStart: 0, top: '100%', marginTop: 6, zIndex: 20, padding: 8, width: 260 }}>
+            <div className="item" role="button" onClick={() => { onChange(undefined); setOpen(false); }} style={{ padding: 6, cursor: 'pointer', color: 'var(--sub)' }}>{placeholder}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              {list.map((u, i) => (
+                <button type="button" key={i} className="btn ghost" onClick={() => { onChange(u); setOpen(false); }} style={{ padding: 0, borderRadius: 8 }}>
+                  <img src={u} alt={String(i)} style={{ width: '100%', height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,.06)' }} />
                 </button>
               ))}
             </div>
@@ -503,44 +531,44 @@ export default function AdminProductCreate(): JSX.Element {
     onToggle: (i: number) => void;
     onSetPrimary: (i: number) => void;
     buttonLabel?: string;
-  }){
+  }) {
     const [open, setOpen] = React.useState(false);
-    const [pos, setPos] = React.useState<{ left:number; top:number; width:number }>({ left:0, top:0, width:320 });
-    const btnRef = React.useRef<HTMLButtonElement|null>(null);
-    const wrapRef = React.useRef<HTMLDivElement|null>(null);
-    React.useEffect(()=>{
-      function onDoc(e: MouseEvent){
+    const [pos, setPos] = React.useState<{ left: number; top: number; width: number }>({ left: 0, top: 0, width: 320 });
+    const btnRef = React.useRef<HTMLButtonElement | null>(null);
+    const wrapRef = React.useRef<HTMLDivElement | null>(null);
+    React.useEffect(() => {
+      function onDoc(e: MouseEvent) {
         if (!wrapRef.current) return;
         if (wrapRef.current.contains(e.target as Node)) return;
         setOpen(false);
       }
       document.addEventListener('mousedown', onDoc);
-      return ()=> document.removeEventListener('mousedown', onDoc);
-    },[]);
+      return () => document.removeEventListener('mousedown', onDoc);
+    }, []);
     const uniq = Array.from(new Set(urls.filter(Boolean)));
-    function openMenu(){
+    function openMenu() {
       try {
         const r = btnRef.current?.getBoundingClientRect();
         if (r) {
           const width = Math.min(360, Math.max(260, r.width));
           setPos({ left: Math.max(8, Math.min(window.innerWidth - width - 8, r.left)), top: Math.min(window.innerHeight - 12, r.bottom + 6), width });
         }
-      } catch {}
+      } catch { }
       setOpen(true);
     }
     const menu = open ? (
-      <div ref={wrapRef} className="menu" style={{ position:'fixed', left: pos.left, top: pos.top, zIndex: 200000, padding:8, width: pos.width, maxHeight: '60vh', overflowY:'auto', borderRadius:8, background:'var(--panel, #0b0f17)', boxShadow:'0 10px 30px rgba(0,0,0,.45)', border:'1px solid rgba(255,255,255,.08)' }}>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
-          {uniq.map((u, i)=> (
-            <div key={i} className="panel" style={{ position:'relative', padding:0 }}>
-              <img src={u} alt={String(i)} style={{ width:'100%', height:88, objectFit:'cover', borderRadius:8, border:'1px solid rgba(255,255,255,.06)' }} onClick={()=> onToggle(i)} />
-              <label style={{ position:'absolute', insetInlineStart:6, top:6, display:'inline-flex', alignItems:'center', gap:4, background:'rgba(0,0,0,.35)', padding:'2px 6px', borderRadius:6 }}>
-                <input type="checkbox" checked={selected.includes(i)} onChange={()=> onToggle(i)} />
-                <span style={{ fontSize:11 }}>تحديد</span>
+      <div ref={wrapRef} className="menu" style={{ position: 'fixed', left: pos.left, top: pos.top, zIndex: 200000, padding: 8, width: pos.width, maxHeight: '60vh', overflowY: 'auto', borderRadius: 8, background: 'var(--panel, #0b0f17)', boxShadow: '0 10px 30px rgba(0,0,0,.45)', border: '1px solid rgba(255,255,255,.08)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          {uniq.map((u, i) => (
+            <div key={i} className="panel" style={{ position: 'relative', padding: 0 }}>
+              <img src={u} alt={String(i)} style={{ width: '100%', height: 88, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,.06)' }} onClick={() => onToggle(i)} />
+              <label style={{ position: 'absolute', insetInlineStart: 6, top: 6, display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(0,0,0,.35)', padding: '2px 6px', borderRadius: 6 }}>
+                <input type="checkbox" checked={selected.includes(i)} onChange={() => onToggle(i)} />
+                <span style={{ fontSize: 11 }}>تحديد</span>
               </label>
-              <label style={{ position:'absolute', insetInlineEnd:6, top:6, display:'inline-flex', alignItems:'center', gap:4, background:'rgba(0,0,0,.35)', padding:'2px 6px', borderRadius:6 }}>
-                <input type="radio" name="primary-variant-image" checked={primaryIdx===i} onChange={()=> onSetPrimary(i)} />
-                <span style={{ fontSize:11 }}>رئيسية</span>
+              <label style={{ position: 'absolute', insetInlineEnd: 6, top: 6, display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(0,0,0,.35)', padding: '2px 6px', borderRadius: 6 }}>
+                <input type="radio" name="primary-variant-image" checked={primaryIdx === i} onChange={() => onSetPrimary(i)} />
+                <span style={{ fontSize: 11 }}>رئيسية</span>
               </label>
             </div>
           ))}
@@ -548,31 +576,32 @@ export default function AdminProductCreate(): JSX.Element {
       </div>
     ) : null;
     return (
-      <div style={{ position:'relative' }}>
+      <div style={{ position: 'relative' }}>
         <button ref={btnRef} type="button" className="btn btn-outline" onClick={openMenu}>{buttonLabel}</button>
-        {typeof document!=='undefined' && menu ? createPortal(menu, document.body) : null}
+        {typeof document !== 'undefined' && menu ? createPortal(menu, document.body) : null}
       </div>
     );
   }
 
-  function RichTextEditor({ value, onChange }: { value: string; onChange: (html: string) => void }){
-    const editorRef = React.useRef<HTMLDivElement|null>(null);
+  function RichTextEditor({ value, onChange }: { value: string; onChange: (html: string) => void }) {
+    const editorRef = React.useRef<HTMLDivElement | null>(null);
     const lastHtmlRef = React.useRef<string>('');
-    React.useEffect(()=>{
+    React.useEffect(() => {
       const el = editorRef.current; if (!el) return;
-      if (lastHtmlRef.current !== value && el.innerHTML !== value){
+      if (lastHtmlRef.current !== value && el.innerHTML !== value) {
         el.innerHTML = value || '';
         lastHtmlRef.current = value || '';
       }
     }, [value]);
-    function focusEditor(){ try{ editorRef.current?.focus(); } catch {}
+    function focusEditor() {
+      try { editorRef.current?.focus(); } catch { }
     }
-    function exec(cmd: string, arg?: string){
+    function exec(cmd: string, arg?: string) {
       focusEditor();
-      try { document.execCommand(cmd, false, arg); } catch {}
-      try { const el = editorRef.current; if (el) onChange(el.innerHTML); } catch {}
+      try { document.execCommand(cmd, false, arg); } catch { }
+      try { const el = editorRef.current; if (el) onChange(el.innerHTML); } catch { }
     }
-    function insertTable(rows = 2, cols = 2){
+    function insertTable(rows = 2, cols = 2) {
       const cells = new Array(cols).fill('<td> </td>').join('');
       const body = new Array(rows).fill(`<tr>${cells}</tr>`).join('');
       const html = `<table><tbody>${body}</tbody></table>`;
@@ -580,14 +609,14 @@ export default function AdminProductCreate(): JSX.Element {
     }
     return (
       <div className="panel" style={{ padding: 8 }}>
-        <div className="toolbar" style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
-          <button type="button" className="btn btn-outline" onClick={()=> exec('bold')}>B</button>
-          <button type="button" className="btn btn-outline" onClick={()=> exec('italic')}>I</button>
-          <button type="button" className="btn btn-outline" onClick={()=> exec('underline')}>U</button>
-          <button type="button" className="btn btn-outline" onClick={()=> exec('insertUnorderedList')}>• قائمة</button>
-          <button type="button" className="btn btn-outline" onClick={()=> exec('insertOrderedList')}>1. قائمة</button>
-          <button type="button" className="btn btn-outline" onClick={()=> insertTable(2,2)}>إدراج جدول 2×2</button>
-          <button type="button" className="btn btn-outline" onClick={()=> exec('removeFormat')}>إزالة التنسيق</button>
+        <div className="toolbar" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+          <button type="button" className="btn btn-outline" onClick={() => exec('bold')}>B</button>
+          <button type="button" className="btn btn-outline" onClick={() => exec('italic')}>I</button>
+          <button type="button" className="btn btn-outline" onClick={() => exec('underline')}>U</button>
+          <button type="button" className="btn btn-outline" onClick={() => exec('insertUnorderedList')}>• قائمة</button>
+          <button type="button" className="btn btn-outline" onClick={() => exec('insertOrderedList')}>1. قائمة</button>
+          <button type="button" className="btn btn-outline" onClick={() => insertTable(2, 2)}>إدراج جدول 2×2</button>
+          <button type="button" className="btn btn-outline" onClick={() => exec('removeFormat')}>إزالة التنسيق</button>
         </div>
         <div
           ref={editorRef}
@@ -595,71 +624,71 @@ export default function AdminProductCreate(): JSX.Element {
           aria-multiline="true"
           contentEditable
           suppressContentEditableWarning
-          onInput={(e)=> onChange((e.currentTarget as HTMLDivElement).innerHTML)}
+          onInput={(e) => onChange((e.currentTarget as HTMLDivElement).innerHTML)}
           className="input"
-          style={{ minHeight: 160, padding: 10, overflowY:'auto' }}
+          style={{ minHeight: 160, padding: 10, overflowY: 'auto' }}
         />
       </div>
     );
   }
 
-  React.useEffect(()=>{
-    try{
+  React.useEffect(() => {
+    try {
       const k = keyForText(paste);
       const raw = localStorage.getItem(k);
       if (raw) { setDsHint(JSON.parse(raw)); setDsHintKey(k); }
       else { setDsHint(null); setDsHintKey(k); }
     } catch { setDsHint(null); }
   }, [paste]);
-  React.useEffect(()=>{
-    try{
-      const rows = (review as any)?.strictDetails as Array<{label:string; value:string}> | undefined;
-      if (Array.isArray(rows) && rows.length>0) {
+  React.useEffect(() => {
+    try {
+      const rows = (review as any)?.strictDetails as Array<{ label: string; value: string }> | undefined;
+      if (Array.isArray(rows) && rows.length > 0) {
         const html = detailsToHtmlTable(rows);
         if (html && html.length) setDescription(html);
       }
-    } catch {}
+    } catch { }
   }, [review?.strictDetails]);
-  
-  function Section({ title, subtitle, toolbar, children }:{ title:string; subtitle?:string; toolbar?:React.ReactNode; children:React.ReactNode }){
+
+  function Section({ title, subtitle, toolbar, children }: { title: string; subtitle?: string; toolbar?: React.ReactNode; children: React.ReactNode }) {
     return (
-      <section className="panel" style={{ marginBottom:16, padding:16 }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+      <section className="panel" style={{ marginBottom: 16, padding: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div>
-            <h2 style={{ margin:0, fontSize:16 }}>{title}</h2>
-            {subtitle && <div style={{ color:'var(--sub)', fontSize:12, marginTop:4 }}>{subtitle}</div>}
+            <h2 style={{ margin: 0, fontSize: 16 }}>{title}</h2>
+            {subtitle && <div style={{ color: 'var(--sub)', fontSize: 12, marginTop: 4 }}>{subtitle}</div>}
           </div>
-          {toolbar && <div className="toolbar" style={{ gap:8 }}>{toolbar}</div>}
+          {toolbar && <div className="toolbar" style={{ gap: 8 }}>{toolbar}</div>}
         </div>
-        <div style={{ display:'grid', gap:12 }}>
+        <div style={{ display: 'grid', gap: 12 }}>
           {children}
         </div>
       </section>
     );
   }
 
-  const stopwords = React.useMemo(()=> new Set<string>([
+  const stopwords = React.useMemo(() => new Set<string>([
     // Arabic marketing/noise
-    'لايفوتك','العرض','محدود','جديد','جديدة','جديده','فقط','دلع','واناقة','واناقه','انيق','انيقه','أنيف','انيقة','اناقه','تشكيله','تشكيلة','عرض','عروض','خصم','تخفيض','مميز','حصري','اصلي','اصلية','ضمان','شحن','مجاني','سريع','متوفر','متوووفر','متاح','هديه','هدية',
+    'لايفوتك', 'العرض', 'محدود', 'جديد', 'جديدة', 'جديده', 'فقط', 'دلع', 'واناقة', 'واناقه', 'انيق', 'انيقه', 'أنيف', 'انيقة', 'اناقه', 'تشكيله', 'تشكيلة', 'عرض', 'عروض', 'خصم', 'تخفيض', 'مميز', 'حصري', 'اصلي', 'اصلية', 'ضمان', 'شحن', 'مجاني', 'سريع', 'متوفر', 'متوووفر', 'متاح', 'هديه', 'هدية',
     // Numeric/labels
-    'السعر','للشمال','الشمال','جنوبي','الجنوب','عمله','عملة','فقط','فوق','تحت','اليوم','الآن',
+    'السعر', 'للشمال', 'الشمال', 'جنوبي', 'الجنوب', 'عمله', 'عملة', 'فقط', 'فوق', 'تحت', 'اليوم', 'الآن',
     // English marketing
-    'new','sale','offer','best','free','original','premium','amazing','awesome','great'
+    'new', 'sale', 'offer', 'best', 'free', 'original', 'premium', 'amazing', 'awesome', 'great'
   ]), []);
 
   function cleanText(raw: string): string {
-    let s = String(raw||'');
+    let s = String(raw || '');
     // Remove HTML
     s = s.replace(/<[^>]*>/g, ' ');
     // Convert Arabic-Indic digits to Latin
-    s = s.replace(/[\u0660-\u0669]/g, (d)=> String(d.charCodeAt(0) - 0x0660));
-    s = s.replace(/[\u06F0-\u06F9]/g, (d)=> String(d.charCodeAt(0) - 0x06F0));
+    s = s.replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660));
+    s = s.replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
     // Remove emojis and pictographs blocks + variation selectors
-    s = s.replace(/[\u{1F300}-\u{1FAFF}\u{1F900}-\u{1F9FF}\u{2700}-\u{27BF}\u{2600}-\u{26FF}\u{FE0F}]/gu, ' ');
+    s = s.replace(new RegExp('[\\u{1F300}-\\u{1FAFF}\\u{1F900}-\\u{1F9FF}\\u{2700}-\\u{27BF}\\u{2600}-\u{26FF}\\u{FE0F}]', 'gu'), ' ');
     // Remove common marketing noise phrases (AR/EN)
     const noise = [
-      'لايفوتك','العرض محدود','جديد اليوم','حاجة فخمة','شغل خارجي','تميز','تخفيض','خصم','عرض','افضل','الأفضل','حصري','مجاني','شحن مجاني',
-      'free','sale','offer','best','amazing','awesome','premium','original','new','🔥','👇','💎','🤩','👌'
+      'لايفوتك', 'العرض محدود', 'جديد اليوم', 'حاجة فخمة', 'شغل خارجي', 'تميز', 'تخفيض', 'خصم', 'عرض', 'افضل', 'الأفضل', 'حصري', 'مجاني', 'شحن مجاني',
+      'free', 'sale', 'offer', 'best', 'amazing', 'awesome', 'premium', 'original', 'new', '🔥', '👇', '💎', '🤩', '👌'
     ];
     for (const w of noise) s = s.replace(new RegExp(w, 'gi'), ' ');
     // Normalize whitespace and punctuation
@@ -711,7 +740,7 @@ export default function AdminProductCreate(): JSX.Element {
 
   const mergeUniqueFiles = React.useCallback((prev: File[], incoming: File[]): File[] => {
     const map = new Map<string, File>();
-    const put = (f: File) => { map.set(`${f.name}__${f.size}__${(f as any).lastModified||0}`, f); };
+    const put = (f: File) => { map.set(`${f.name}__${f.size}__${(f as any).lastModified || 0}`, f); };
     prev.forEach(put); incoming.forEach(put);
     return Array.from(map.values());
   }, []);
@@ -719,14 +748,14 @@ export default function AdminProductCreate(): JSX.Element {
   // Stable object URLs for local files to prevent duplicates and flicker
   const fileUrlMapRef = React.useRef<Map<string, string>>(new Map());
   const [fileUrls, setFileUrls] = React.useState<string[]>([]);
-  const fileKey = (f: File) => `${f.name}__${f.size}__${(f as any).lastModified||0}`;
+  const fileKey = (f: File) => `${f.name}__${f.size}__${(f as any).lastModified || 0}`;
 
   React.useEffect(() => {
     const map = fileUrlMapRef.current;
     const wantKeys = new Set(files.map(fileKey));
     // Revoke removed
     for (const [k, url] of Array.from(map.entries())) {
-      if (!wantKeys.has(k)) { try { URL.revokeObjectURL(url); } catch {} map.delete(k); }
+      if (!wantKeys.has(k)) { try { URL.revokeObjectURL(url); } catch { } map.delete(k); }
     }
     // Create missing and keep order
     for (const f of files) {
@@ -740,7 +769,7 @@ export default function AdminProductCreate(): JSX.Element {
     return () => {
       // Cleanup on unmount
       const map = fileUrlMapRef.current;
-      for (const url of map.values()) { try { URL.revokeObjectURL(url); } catch {} }
+      for (const url of Array.from(map.values())) { try { URL.revokeObjectURL(url); } catch { } }
       map.clear();
     };
   }, []);
@@ -757,11 +786,11 @@ export default function AdminProductCreate(): JSX.Element {
     // Backfill from clean text tokens (avoid filler like "أساسي")
     const tokens = Array.from(new Set(
       clean
-        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+        .replace(new RegExp('[^\\p{L}\\p{N}\\s]', 'gu'), ' ')
         .split(/\s+/)
         .filter(w => w.length > 2 && !stopwords.has(w as any) && !/^[0-9]+$/.test(w))
     ));
-    const primary = new Set(words.map(w=>w.toLowerCase()));
+    const primary = new Set(words.map(w => w.toLowerCase()));
     for (const t of tokens) {
       if (words.length >= 12) break;
       if (!primary.has(t.toLowerCase())) words.push(t);
@@ -780,54 +809,54 @@ export default function AdminProductCreate(): JSX.Element {
 
   function extractOldNorthPriceStrict(clean: string): number | undefined {
     // Prefer mentions tagged قديم/الشمال؛ ignore سعودي/جنوبي/قعيطي/جديد
-    const toAsciiDigits = (s:string)=> s.replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660));
-    const parseLocalizedNumber = (raw:string): number|undefined => {
-      const s0 = toAsciiDigits(String(raw||'')).trim();
+    const toAsciiDigits = (s: string) => s.replace(/[\u0660-\u0669]/g, (d) => String((d as any).charCodeAt(0) - 0x0660));
+    const parseLocalizedNumber = (raw: string): number | undefined => {
+      const s0 = toAsciiDigits(String(raw || '')).trim();
       // Remove spaces
-      const s = s0.replace(/\s+/g,'');
+      const s = s0.replace(/\s+/g, '');
       // If contains only digits and separators [, .] treat last separator as decimal when there are 3+ digits after
       // For our domain we assume comma/dot used as thousands most of the time; "3,900" => 3900
-      const digits = s.replace(/[,\.]/g,'');
+      const digits = s.replace(/[,\.]/g, '');
       const n = Number(digits);
-      return Number.isFinite(n)? n : undefined;
+      return Number.isFinite(n) ? n : undefined;
     };
     const ignoreCtx = /(سعودي|جنوبي|جديد|قعيطي)/i;
     const matches = Array.from(clean.matchAll(/(?:(?:قديم|للشمال|الشمال)[^\d]{0,12})(\d+[\.,]??\d*)/gi));
     for (const m of matches) {
-      const before = clean.slice(Math.max(0, (m.index||0)-20), (m.index||0)+m[0].length+10);
+      const before = clean.slice(Math.max(0, (m.index || 0) - 20), (m.index || 0) + m[0].length + 10);
       if (!ignoreCtx.test(before)) {
         const v = parseLocalizedNumber(String(m[1]));
-        if (v!=null) return v;
+        if (v != null) return v;
       }
     }
     return undefined;
   }
 
-  function buildStrictDetailsTable(clean: string, raw?: string): Array<{label:string; value:string}> {
-    const rows: Array<{label:string; value:string}> = [];
-    const rowMap = new Map<string,string>();
-    const append = (label:string, value?:string|number|null)=>{
-      const v = (value==null)? '' : String(value).trim();
+  function buildStrictDetailsTable(clean: string, raw?: string): Array<{ label: string; value: string }> {
+    const rows: Array<{ label: string; value: string }> = [];
+    const rowMap = new Map<string, string>();
+    const append = (label: string, value?: string | number | null) => {
+      const v = (value == null) ? '' : String(value).trim();
       if (!v) return;
       const cur = rowMap.get(label);
       if (!cur) { rowMap.set(label, v); return; }
       if (!cur.split(/\s*،\s*/).includes(v)) rowMap.set(label, `${cur}، ${v}`);
     };
-    const add = (label:string, value?:string|number|null)=> append(label, value);
+    const add = (label: string, value?: string | number | null) => append(label, value);
     const type = clean.match(/(فنيلة|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|سويتر|hoodie|sweater|jacket|coat|dress|shirt|pants|blouse)/i)?.[1];
     const gender = clean.match(/(نسائي|رجالي)/i)?.[1];
     const mat = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i)?.[1];
     const weight = clean.match(/وزن\s*(\d{2,3})(?:\s*[-–—\s]\s*(\d{2,3}))?\s*ك?جم?/i);
     const sizeFree = /فري\s*سايز/i.test(clean);
-    const toAsciiDigits = (s:string)=> s.replace(/[\u0660-\u0669]/g, (d)=> String((d as any).charCodeAt(0)-0x0660));
-    const normalizeXL = (tok:string): string => {
-      const t = String(tok||'').toUpperCase().trim();
+    const toAsciiDigits = (s: string) => s.replace(/[\u0660-\u0669]/g, (d) => String((d as any).charCodeAt(0) - 0x0660));
+    const normalizeXL = (tok: string): string => {
+      const t = String(tok || '').toUpperCase().trim();
       // Map repeated X patterns to 2XL/3XL/4XL...
       const m = t.match(/^(X{2,})L$/); // XX...XL
       if (m) { const count = m[1].length; return `${count}XL`; }
       return t;
     };
-    const sizesList = Array.from(new Set((clean.match(/\b(XXXXXL|XXXXL|XXXL|XXL|XL|L|M|S|XS|\d{2})\b/gi)||[]))).map(s=> normalizeXL(toAsciiDigits(s)));
+    const sizesList = Array.from(new Set((clean.match(/\b(XXXXXL|XXXXL|XXXL|XXL|XL|L|M|S|XS|\d{2})\b/gi) || []))).map(s => normalizeXL(toAsciiDigits(s)));
     add('النوع', type);
     add('الفئة', gender);
     add('الخامة', mat);
@@ -840,8 +869,8 @@ export default function AdminProductCreate(): JSX.Element {
       const w = weight[2] ? `${weight[1]}–${weight[2]} كجم` : `${weight[1]} كجم`;
       add('الوزن', w);
     }
-    const colorNames = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','بني','بيج','رمادي','رمادي فاتح','رمادي غامق','وردي','بنفسجي','برتقالي','تركواز','تركوازي','سماوي','زيتي','عنابي','خمري','نبيتي','عسلي','كريمي','موف','كحلي','دم\\s*غزال'];
-    const colors = Array.from(new Set((clean.match(new RegExp(`\\b(${colorNames.join('|')})\\b`,'gi'))||[])));
+    const colorNames = ['أحمر', 'أزرق', 'أخضر', 'أسود', 'أبيض', 'أصفر', 'بني', 'بيج', 'رمادي', 'رمادي فاتح', 'رمادي غامق', 'وردي', 'بنفسجي', 'برتقالي', 'تركواز', 'تركوازي', 'سماوي', 'زيتي', 'عنابي', 'خمري', 'نبيتي', 'عسلي', 'كريمي', 'موف', 'كحلي', 'دم\\s*غزال'];
+    const colors = Array.from(new Set((clean.match(new RegExp(`\\b(${colorNames.join('|')})\\b`, 'gi')) || [])));
     if (colors.length) add('الألوان', colors.join('، '));
     const stock = clean.match(/(?:المخزون|الكمية|متوفر\s*ب?كمية|stock|qty)[^\n]*?(\d{1,5})/i)?.[1];
     add('المخزون', stock);
@@ -849,107 +878,107 @@ export default function AdminProductCreate(): JSX.Element {
     // Dynamic attributes
     const fit = clean.match(/\b(واسع|فضفاض|ضيق|سكيني|عادي|منتظم)\b/i)?.[1];
     add('القَصّة', fit);
-    const season = Array.from(new Set((clean.match(/\b(صيفي|شتوي|ربيعي|خريفي)\b/gi)||[]))); if (season.length) add('الموسم', season.join('، '));
-    const style = Array.from(new Set((clean.match(/\b(كاجوال|رسمي|رياضي|سادة|مطبوعة|مخططة|مشجر|مزخرف|دانتيل|جبير)\b/gi)||[]))); if (style.length) add('النمط', style.join('، '));
+    const season = Array.from(new Set((clean.match(/\b(صيفي|شتوي|ربيعي|خريفي)\b/gi) || []))); if (season.length) add('الموسم', season.join('، '));
+    const style = Array.from(new Set((clean.match(/\b(كاجوال|رسمي|رياضي|سادة|مطبوعة|مخططة|مشجر|مزخرف|دانتيل|جبير)\b/gi) || []))); if (style.length) add('النمط', style.join('، '));
     const neckline = clean.match(/(?:ياق(?:ة|ه)|رقب(?:ة|ه))\s*(دائرية|مستديرة|مربعة|V|في|مرتفعة|عالية|قميص)/i)?.[1]; add('الياقة', neckline);
     const sleeves = clean.match(/(?:بدون\s*أكمام|كم\s*(?:طويل|قصير|نصف|كامل))/i)?.[0]; add('الأكمام', sleeves);
     const lengthType = clean.match(/(?:طول\s*)?(قصير|متوسط|طويل)\s*(?:الطول)?/i)?.[1]; add('الطول', lengthType);
     const thickness = clean.match(/\b(خفيف(?:ة)?|متوسط(?:ة)?|سميك(?:ة)?)\b/i)?.[1]; add('السماكة', thickness);
     const elasticity = clean.match(/\b(مرن|مطاطي|غير\s*مرن|بدون\s*مرونة)\b/i)?.[1]; add('المرونة', elasticity);
     const lining = clean.match(/\b(مبطن|بدون\s*بطانة)\b/i)?.[1]; add('البطانة', lining);
-    const madeIn = clean.match(/(?:صنع\s*في|made\s*in)\s*([\p{L}\s]+)/i)?.[1]; add('بلد الصنع', madeIn);
+    const madeIn = clean.match(new RegExp('(?:صنع\\s*في|made\\s*in)\\s*([\\p{L}\\s]+)', 'iu'))?.[1]; add('بلد الصنع', madeIn);
     // Care instructions snippets
-    const care = Array.from(new Set((clean.match(/(غسل\s*(?:يدوي|آلي)|درجة\s*حرارة\s*\d+\s*°?C|لا\s*تُ?بيض|تجفيف\s*ظل)/gi)||[]))); if (care.length) add('العناية', care.join('، '));
+    const care = Array.from(new Set((clean.match(/(غسل\s*(?:يدوي|آلي)|درجة\s*حرارة\s*\d+\s*°?C|لا\s*تُ?بيض|تجفيف\s*ظل)/gi) || []))); if (care.length) add('العناية', care.join('، '));
     const model = clean.match(/(?:موديل|كود|رمز)\s*[:\-]?\s*([A-Za-z0-9\- _]{2,})/i)?.[1]; add('الموديل', model);
     // Measurements (cm)
     const meas = Array.from(clean.matchAll(/(الصدر|الكتف|الخصر|الورك|الطول)\s*[:\-]?\s*(\d{2,3})\s*سم/gi));
     if (meas.length) {
-      const str = meas.map(m=> `${m[1]}: ${m[2]} سم`).join('، ');
+      const str = meas.map(m => `${m[1]}: ${m[2]} سم`).join('، ');
       add('المقاسات (سم)', str);
     }
-    const closure = Array.from(new Set((clean.match(/\b(سحاب|سوستة|زر(?:ار)?|أزرار|رباط)\b/gi)||[]))); if (closure.length) add('الإغلاق', closure.join('، '));
-    const occasion = Array.from(new Set((clean.match(/\b(يومي|حفلات|عمل|رسمي|كاجوال|رياضة|زفاف|سهرة)\b/gi)||[]))); if (occasion.length) add('المناسبة', occasion.join('، '));
-    const brand = clean.match(/(?:ماركة|علامة\s*تجارية)\s*[:\-]?\s*([\p{L}\s0-9]{2,})/i)?.[1]; add('العلامة التجارية', brand);
+    const closure = Array.from(new Set((clean.match(/\b(سحاب|سوستة|زر(?:ار)?|أزرار|رباط)\b/gi) || []))); if (closure.length) add('الإغلاق', closure.join('، '));
+    const occasion = Array.from(new Set((clean.match(/\b(يومي|حفلات|عمل|رسمي|كاجوال|رياضة|زفاف|سهرة)\b/gi) || []))); if (occasion.length) add('المناسبة', occasion.join('، '));
+    const brand = clean.match(new RegExp('(?:ماركة|علامة\\s*تجارية)\\s*[:\\-]?\\s*([\\p{L}\\s0-9]{2,})', 'iu'))?.[1]; add('العلامة التجارية', brand);
     // Package contents
     const contents = clean.match(/(?:يحتوي|المحتويات|العبوة)\s*[:\-]?\s*([^\n\.\!]+)/i)?.[1]; add('محتويات العبوة', contents);
     // Single weight if not range
     const weightSingle = clean.match(/الوزن\s*[:\-]?\s*(\d{2,3})\s*ك?جم?/i)?.[1]; if (!weight && weightSingle) add('الوزن', `${weightSingle} كجم`);
     // Generic label:value pairs from raw text
     try {
-      const text = String(raw||'');
-      const pairRe = /(?:^|[\n\.;،])\s*([\p{L}\p{N}\s]{2,20}?)\s*[:：]\s*([^\n\.;]+)/gmu;
+      const text = String(raw || '');
+      const pairRe = new RegExp('(?:^|[\\n\\.;،])\\s*([\\p{L}\\p{N}\\s]{2,20}?)\\s*[:：]\\s*([^\\n\\.;]+)', 'gmu');
       let m: RegExpExecArray | null;
       while ((m = pairRe.exec(text))) {
-        const label = m[1].replace(/\s{2,}/g,' ').trim();
-        const value = m[2].replace(/\s{2,}/g,' ').trim();
+        const label = m[1].replace(/\s{2,}/g, ' ').trim();
+        const value = m[2].replace(/\s{2,}/g, ' ').trim();
         if (!label || !value) continue;
         // Skip forbidden labels
         if (/\b(السعر|السعر\s*للشمال|سعر\s*البيع|الشحن|التوصيل|العرض|خصم)\b/i.test(label)) continue;
         if (/\b(السعر|الشحن|التوصيل|عرض\s*خاص|خصم)\b/i.test(value)) continue;
         append(label, value);
       }
-    } catch {}
+    } catch { }
 
     // Bullet points / descriptive fragments => "ميزات إضافية"
     try {
-      const text = String(raw||'');
-      const bullets = text.split(/\s*•\s*/).map(s=> s.trim()).filter(Boolean);
+      const text = String(raw || '');
+      const bullets = text.split(/\s*•\s*/).map(s => s.trim()).filter(Boolean);
       const extra: string[] = [];
       for (const b of bullets) {
         if (!b) continue;
         if (/^(السعر|الشحن|التوصيل|عرض|خصم)/i.test(b)) continue;
         if (/\b(ريال|SAR|السعر|جديد|جنوب|قعيطي)\b/i.test(b)) continue;
         if (b.length < 3) continue;
-        extra.push(b.replace(/\s{2,}/g,' '));
+        extra.push(b.replace(/\s{2,}/g, ' '));
       }
       if (extra.length) append('ميزات إضافية', Array.from(new Set(extra)).join(' — '));
-    } catch {}
+    } catch { }
 
     // Verb phrases like "مزود بـ"، "يحتوي على"، "مع"، "إضافة" => ميزات إضافية
     try {
-      const text = String(raw||'');
+      const text = String(raw || '');
       const featMatches = Array.from(text.matchAll(/(?:مزود\s*ب|مزودة\s*ب|مزودة\s*بـ|مزود\s*بـ|يحتوي\s*على|وبـ|وب|اضاف(?:ة|ه)|إضافة)\s*([^\.;\n،،]+)/gi));
-      const feats = featMatches.map(m=> m[1]?.trim()).filter(Boolean);
+      const feats = featMatches.map(m => m[1]?.trim()).filter(Boolean);
       if (feats.length) append('ميزات إضافية', Array.from(new Set(feats)).join(' — '));
-    } catch {}
+    } catch { }
 
     // Pieces parsing: "ثلاث قطع" + تفاصيل القطع
     try {
-      const text = String(raw||'');
+      const text = String(raw || '');
       if (/(\b3\b|٣|ثلاث(?:ه|ة)?)\s*قطع/i.test(text)) append('عدد القطع', '3');
       const parts: string[] = [];
       const inner = text.match(/القطع(?:ه|ة)\s*الداخل(?:ي|يه)\s*([^\n]+)/i)?.[1] || text.match(/الداخل(?:ي|يه)\s*([^\n]+)/i)?.[1];
-      if (inner) { parts.push(inner.trim().replace(/\s{2,}/g,' ')); }
+      if (inner) { parts.push(inner.trim().replace(/\s{2,}/g, ' ')); }
       const outer = text.match(/القطع(?:ه|ة)\s*الخارجي(?:ه)?\s*([^\n]+)/i)?.[1] || text.match(/الخارجي(?:ه)?\s*([^\n]+)/i)?.[1];
-      if (outer) { parts.push(outer.trim().replace(/\s{2,}/g,' ')); }
+      if (outer) { parts.push(outer.trim().replace(/\s{2,}/g, ' ')); }
       const third = text.match(/القطع(?:ه|ة)\s*الثالث(?:ه|ة)\s*([^\n]+)/i)?.[1];
-      if (third) { parts.push(third.trim().replace(/\s{2,}/g,' ')); }
+      if (third) { parts.push(third.trim().replace(/\s{2,}/g, ' ')); }
       if (parts.length) append('محتويات العبوة', Array.from(new Set(parts)).join('، '));
-    } catch {}
+    } catch { }
 
     // Weight range phrasing like: "تلبس من 45 الى وزن 90"
     try {
-      const text = String(raw||'');
+      const text = String(raw || '');
       const wr = text.match(/(?:تلبس|يلبس)\s*من\s*(\d{2,3})\s*(?:الى|إلى)\s*(?:وزن\s*)?(\d{2,3})/i);
       if (wr) append('الوزن', `${wr[1]}–${wr[2]} كجم`);
-    } catch {}
+    } catch { }
 
     // Finalize rows from map
-    for (const [label,value] of rowMap.entries()) rows.push({ label, value });
+    for (const [label, value] of Array.from(rowMap.entries())) rows.push({ label, value });
     return rows;
   }
 
   function sanitizeColorsStrict(clean: string, provided?: string[]): string[] {
     const colorTokens = [
       // Arabic
-      'أحمر','أزرق','أخضر','أسود','أبيض','أصفر','برتقالي','بني','بيج','رمادي','رمادي فاتح','رمادي غامق','وردي','بنفسجي','تركواز','تركوازي','سماوي','زيتي','عنابي','خمري','نبيتي','عسلي','كريمي','موف','كحلي','ذهبي','فضي','نحاسي','فيروزي','تركويز','تركواز','كستنائي','بيج فاتح','بيج غامق',
+      'أحمر', 'أزرق', 'أخضر', 'أسود', 'أبيض', 'أصفر', 'برتقالي', 'بني', 'بيج', 'رمادي', 'رمادي فاتح', 'رمادي غامق', 'وردي', 'بنفسجي', 'تركواز', 'تركوازي', 'سماوي', 'زيتي', 'عنابي', 'خمري', 'نبيتي', 'عسلي', 'كريمي', 'موف', 'كحلي', 'ذهبي', 'فضي', 'نحاسي', 'فيروزي', 'تركويز', 'تركواز', 'كستنائي', 'بيج فاتح', 'بيج غامق',
       // English
-      'red','blue','green','black','white','yellow','orange','brown','beige','gray','grey','pink','purple','turquoise','navy','cyan','maroon','olive','teal','indigo','gold','silver','copper'
+      'red', 'blue', 'green', 'black', 'white', 'yellow', 'orange', 'brown', 'beige', 'gray', 'grey', 'pink', 'purple', 'turquoise', 'navy', 'cyan', 'maroon', 'olive', 'teal', 'indigo', 'gold', 'silver', 'copper'
     ];
     const re = new RegExp(`(?:^|\\s)(${colorTokens.join('|')})(?=\\s|$)`, 'gi');
     const outSet = new Set<string>();
     const pushMatch = (text: string) => {
-      for (const m of text.matchAll(re)) {
+      for (const m of Array.from(text.matchAll(re))) {
         const raw = m[1] || '';
         const norm = raw.replace(/\s+/g, ' ').trim();
         if (norm) outSet.add(norm);
@@ -964,60 +993,60 @@ export default function AdminProductCreate(): JSX.Element {
 
   function sanitizeSizesStrict(clean: string, provided?: string[], raw?: string): string[] {
     // If Free Size is mentioned, return exactly ['فري سايز']
-    if (/فري\s*سايز/i.test(clean) || /مقاس\s*واحد/i.test(String(raw||''))) return ['فري سايز'];
+    if (/فري\s*سايز/i.test(clean) || /مقاس\s*واحد/i.test(String(raw || ''))) return ['فري سايز'];
     const outSet = new Set<string>();
     // Letters first
     const letterRe = /\b(XXL|XL|L|M|S|XS)\b/gi;
-    for (const m of clean.matchAll(letterRe)) outSet.add(String(m[1]).toUpperCase());
+    for (const m of Array.from(clean.matchAll(letterRe))) outSet.add(String(m[1]).toUpperCase());
     if (Array.isArray(provided)) {
-      for (const s of provided) for (const m of String(s).matchAll(letterRe)) outSet.add(String(m[1]).toUpperCase());
+      for (const s of provided) for (const m of Array.from(String(s).matchAll(letterRe))) outSet.add(String(m[1]).toUpperCase());
     }
     // Numeric sizes only when clearly sizes (preceded by مقاس/within range) and NOT weight context
-    const rawText = String(raw||'');
+    const rawText = String(raw || '');
     const weightNums = new Set<string>();
-    for (const m of rawText.matchAll(/(?:وزن|تلبس)\s*(?:من\s*)?(\d{2,3})(?:\s*(?:الى|إلى|-)|\s*(?:الى|إلى)?\s*وزن\s*)(\d{2,3})?/gi)) {
+    for (const m of Array.from(rawText.matchAll(/(?:وزن|تلبس)\s*(?:من\s*)?(\d{2,3})(?:\s*(?:الى|إلى|-)|\s*(?:الى|إلى)?\s*وزن\s*)(\d{2,3})?/gi))) {
       weightNums.add(String(m[1]));
       if (m[2]) weightNums.add(String(m[2]));
     }
     const numericCandidates: string[] = [];
-    for (const m of rawText.matchAll(/(?:مقاس(?:اته)?\s*[:：]?)?\s*(\d{2})\s*(?:الى|إلى|to|[-–—])\s*(\d{2})/gi)) {
+    for (const m of Array.from(rawText.matchAll(/(?:مقاس(?:اته)?\s*[:：]?)?\s*(\d{2})\s*(?:الى|إلى|to|[-–—])\s*(\d{2})/gi))) {
       const a = Number(m[1]), b = Number(m[2]);
-      if (a>=20 && a<=60 && b>=20 && b<=60) for (let v=Math.min(a,b); v<=Math.max(a,b); v++) numericCandidates.push(String(v));
+      if (a >= 20 && a <= 60 && b >= 20 && b <= 60) for (let v = Math.min(a, b); v <= Math.max(a, b); v++) numericCandidates.push(String(v));
     }
-    for (const m of rawText.matchAll(/مقاس(?:اته)?\s*[:：]?\s*((?:\d{2})(?:\s*[،,\-]\s*\d{2})+)/gi)) {
-      const parts = m[1].split(/[،,\-\s]+/).map(s=>s.trim()).filter(Boolean);
+    for (const m of Array.from(rawText.matchAll(/مقاس(?:اته)?\s*[:：]?\s*((?:\d{2})(?:\s*[،,\-]\s*\d{2})+)/gi))) {
+      const parts = m[1].split(/[،,\-\s]+/).map((s: string) => s.trim()).filter(Boolean);
       for (const p of parts) if (/^\d{2}$/.test(p)) numericCandidates.push(p);
     }
     for (const n of numericCandidates) if (!weightNums.has(n)) outSet.add(n);
     return Array.from(outSet);
   }
 
-  function extractMeasurementGroups(clean: string, raw?: string): Array<{ label: string; values: string[] }>{
+  function extractMeasurementGroups(clean: string, raw?: string): Array<{ label: string; values: string[] }> {
     const groups: Array<{ label: string; values: string[] }> = [];
-    const add = (label: string, values: string[])=>(()=>{
-      const vals = Array.from(new Set(values.map(v=> String(v).trim()).filter(Boolean)));
-      if (!vals.length) return; if (!groups.some(g=> g.label===label)) groups.push({ label, values: vals });
+    const add = (label: string, values: string[]) => (() => {
+      const vals = Array.from(new Set(values.map(v => String(v).trim()).filter(Boolean)));
+      if (!vals.length) return; if (!groups.some(g => g.label === label)) groups.push({ label, values: vals });
     })();
-    const text = String(raw||clean||'');
+    const text = String(raw || clean || '');
     const splitVals = (s: string): string[] => s
-      .replace(/\s*(?:الى|إلى|to)\s*/gi,'-')
+      .replace(/\s*(?:الى|إلى|to)\s*/gi, '-')
       .split(/[،,;\s]+|-/g)
-      .map(x=> x.trim())
+      .map(x => x.trim())
       .filter(Boolean);
     // Explicit phrases: مقاس طول / مقاس عرض
-    const mLen = Array.from(text.matchAll(/مقاس\s*(?:ال)?طول\s*[:：]?\s*([^\n\.،]+)/gi)).map(m=> splitVals(m[1]||'' )).flat();
+    const mLen = Array.from(text.matchAll(/مقاس\s*(?:ال)?طول\s*[:：]?\s*([^\n\.،]+)/gi)).map(m => splitVals(m[1] || '')).flat();
     if (mLen.length) groups.push({ label: 'مقاس الطول', values: mLen });
-    const mWid = Array.from(text.matchAll(/مقاس\s*(?:ال)?عرض\s*[:：]?\s*([^\n\.،]+)/gi)).map(m=> splitVals(m[1]||'' )).flat();
+    const mWid = Array.from(text.matchAll(/مقاس\s*(?:ال)?عرض\s*[:：]?\s*([^\n\.،]+)/gi)).map(m => splitVals(m[1] || '')).flat();
     if (mWid.length) groups.push({ label: 'مقاس العرض', values: mWid });
     // Standalone طول/عرض with cm
-    const lenCm = Array.from(text.matchAll(/طول\s*[:：]?\s*(\d{2,3})\s*(?:سم|cm)?/gi)).map(m=> `${m[1]} سم`);
+    const lenCm = Array.from(text.matchAll(/طول\s*[:：]?\s*(\d{2,3})\s*(?:سم|cm)?/gi)).map(m => `${m[1]} سم`);
     if (lenCm.length) groups.push({ label: 'الطول (سم)', values: lenCm });
-    const widCm = Array.from(text.matchAll(/عرض\s*[:：]?\s*(\d{2,3})\s*(?:سم|cm)?/gi)).map(m=> `${m[1]} سم`);
+    const widCm = Array.from(text.matchAll(/عرض\s*[:：]?\s*(\d{2,3})\s*(?:سم|cm)?/gi)).map(m => `${m[1]} سم`);
     if (widCm.length) groups.push({ label: 'العرض (سم)', values: widCm });
     // Meter based
-    const lenM = Array.from(text.matchAll(/طول\s*[:：]?\s*(\d+(?:[\.,]\d+)?)\s*م(?:تر)?/gi)).map(m=> `${m[1].replace(',','.') } م`);
+    const lenM = Array.from(text.matchAll(/طول\s*[:：]?\s*(\d+(?:[\.,]\d+)?)\s*م(?:تر)?/gi)).map(m => `${m[1].replace(',', '.')} م`);
     if (lenM.length) groups.push({ label: 'الطول (م)', values: lenM });
-    const widM = Array.from(text.matchAll(/عرض\s*[:：]?\s*(\d+(?:[\.,]\d+)?)\s*م(?:تر)?/gi)).map(m=> `${m[1].replace(',','.') } م`);
+    const widM = Array.from(text.matchAll(/عرض\s*[:：]?\s*(\d+(?:[\.,]\d+)?)\s*م(?:تر)?/gi)).map(m => `${m[1].replace(',', '.')} م`);
     if (widM.length) groups.push({ label: 'العرض (م)', values: widM });
     // Generic measurement table already handled elsewhere (الصدر/الكتف/...)
     return groups;
@@ -1026,17 +1055,17 @@ export default function AdminProductCreate(): JSX.Element {
   function generateSeoKeywordsStrict(clean: string): string[] {
     const words = clean
       .toLowerCase()
-      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .replace(new RegExp('[^\\p{L}\\p{N}\\s]', 'gu'), ' ')
       .split(/\s+/)
-      .filter(w=> w.length>2 && !stopwords.has(w as any));
+      .filter(w => w.length > 2 && !stopwords.has(w as any));
     const uniq = Array.from(new Set(words));
     return uniq.slice(0, 12);
   }
 
   function toLatinDigitsStr(input: string): string {
-    return String(input||'')
-      .replace(/[\u0660-\u0669]/g, (d)=> String((d.charCodeAt(0) - 0x0660)))
-      .replace(/[\u06F0-\u06F9]/g, (d)=> String((d.charCodeAt(0) - 0x06F0)));
+    return String(input || '')
+      .replace(/[\u0660-\u0669]/g, (d) => String((d.charCodeAt(0) - 0x0660)))
+      .replace(/[\u06F0-\u06F9]/g, (d) => String((d.charCodeAt(0) - 0x06F0)));
   }
 
   function detectCurrency(raw: string): string | undefined {
@@ -1047,60 +1076,60 @@ export default function AdminProductCreate(): JSX.Element {
   function makeSeoName(clean: string, fallback: string): string {
     const model = clean.match(/موديل\s*([A-Za-z0-9_-]{2,})/i)?.[1];
     const typeMatch = clean.match(/(جلابية|جلابيه|قفطان|فنيلة|فنائل|جاكيت|معطف|فستان|قميص|بنطال|بلوزة|حذاء|شنطة|بلوفر|سويتر|تي\s*شيرت|hoodie|jacket|coat|dress|shirt|pants|blouse|shoes|bag)/i);
-    const type = (typeMatch?.[1]||'').replace(/فنائل/i,'فنيلة');
+    const type = (typeMatch?.[1] || '').replace(/فنائل/i, 'فنيلة');
     const genderRaw = clean.match(/(نسائي|نسائية|رجالي|رجالية|اطفالي|بناتي|ولادي|women|men|kids)/i)?.[1] || '';
     const gender = /نسائي/i.test(genderRaw) ? 'نسائية' : (/رجالي/i.test(genderRaw) ? 'رجالي' : genderRaw);
     const material = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i)?.[1] || '';
     const feature = /كم\s*كامل/i.test(clean) ? 'كم كامل' : '';
-    const parts = [type && gender ? `${type} ${gender}` : (type||gender), material || feature, model? `موديل ${model}`: ''].filter(Boolean);
+    const parts = [type && gender ? `${type} ${gender}` : (type || gender), material || feature, model ? `موديل ${model}` : ''].filter(Boolean);
     const base = parts.join(' ').trim();
     const name = base || fallback || clean.slice(0, 60);
-    return name.length>90 ? name.slice(0,90) : name;
+    return name.length > 90 ? name.slice(0, 90) : name;
   }
 
-  const KNOWN_COLORS: Array<{name:string;hex:string}> = React.useMemo(()=>[
-    {name:'Black',hex:'#000000'},{name:'White',hex:'#FFFFFF'},{name:'Red',hex:'#FF0000'},{name:'Blue',hex:'#0000FF'},{name:'Green',hex:'#008000'},{name:'Yellow',hex:'#FFFF00'},{name:'Brown',hex:'#8B4513'},{name:'Beige',hex:'#F5F5DC'},{name:'Gray',hex:'#808080'},{name:'Pink',hex:'#FFC0CB'},{name:'Purple',hex:'#800080'},
-    {name:'أسود',hex:'#000000'},{name:'أبيض',hex:'#FFFFFF'},{name:'أحمر',hex:'#FF0000'},{name:'أزرق',hex:'#0000FF'},{name:'أخضر',hex:'#008000'},{name:'أصفر',hex:'#FFFF00'},{name:'بني',hex:'#8B4513'},{name:'بيج',hex:'#F5F5DC'},{name:'رمادي',hex:'#808080'},{name:'وردي',hex:'#FFC0CB'},{name:'بنفسجي',hex:'#800080'}
-  ],[]);
+  const KNOWN_COLORS: Array<{ name: string; hex: string }> = React.useMemo(() => [
+    { name: 'Black', hex: '#000000' }, { name: 'White', hex: '#FFFFFF' }, { name: 'Red', hex: '#FF0000' }, { name: 'Blue', hex: '#0000FF' }, { name: 'Green', hex: '#008000' }, { name: 'Yellow', hex: '#FFFF00' }, { name: 'Brown', hex: '#8B4513' }, { name: 'Beige', hex: '#F5F5DC' }, { name: 'Gray', hex: '#808080' }, { name: 'Pink', hex: '#FFC0CB' }, { name: 'Purple', hex: '#800080' },
+    { name: 'أسود', hex: '#000000' }, { name: 'أبيض', hex: '#FFFFFF' }, { name: 'أحمر', hex: '#FF0000' }, { name: 'أزرق', hex: '#0000FF' }, { name: 'أخضر', hex: '#008000' }, { name: 'أصفر', hex: '#FFFF00' }, { name: 'بني', hex: '#8B4513' }, { name: 'بيج', hex: '#F5F5DC' }, { name: 'رمادي', hex: '#808080' }, { name: 'وردي', hex: '#FFC0CB' }, { name: 'بنفسجي', hex: '#800080' }
+  ], []);
 
-  function hexToRgb(hex: string): {r:number;g:number;b:number} {
-    const h = hex.replace('#','');
-    const r = parseInt(h.substring(0,2),16);
-    const g = parseInt(h.substring(2,4),16);
-    const b = parseInt(h.substring(4,6),16);
-    return { r,g,b };
+  function hexToRgb(hex: string): { r: number; g: number; b: number } {
+    const h = hex.replace('#', '');
+    const r = parseInt(h.substring(0, 2), 16);
+    const g = parseInt(h.substring(2, 4), 16);
+    const b = parseInt(h.substring(4, 6), 16);
+    return { r, g, b };
   }
-  function rgbDistance(a:{r:number;g:number;b:number}, b:{r:number;g:number;b:number}): number {
-    const dr = a.r-b.r, dg = a.g-b.g, db = a.b-b.b; return Math.sqrt(dr*dr+dg*dg+db*db);
+  function rgbDistance(a: { r: number; g: number; b: number }, b: { r: number; g: number; b: number }): number {
+    const dr = a.r - b.r, dg = a.g - b.g, db = a.b - b.b; return Math.sqrt(dr * dr + dg * dg + db * db);
   }
 
-  async function getImageDominant(fileOrUrl: File | string): Promise<{url:string;hex:string}> {
+  async function getImageDominant(fileOrUrl: File | string): Promise<{ url: string; hex: string }> {
     const isUrl = typeof fileOrUrl === 'string';
     const url = isUrl ? String(fileOrUrl) : URL.createObjectURL(fileOrUrl as File);
-    const img = await new Promise<HTMLImageElement>((resolve, reject)=>{ const i = new Image(); i.crossOrigin='anonymous'; i.onload=()=>resolve(i); i.onerror=reject; i.src=url; });
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => resolve(i); i.onerror = reject; i.src = url; });
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return { url, hex: '#cccccc' };
     const w = 64, h = 64; canvas.width = w; canvas.height = h; ctx.drawImage(img, 0, 0, w, h);
-    const data = ctx.getImageData(0,0,w,h).data;
-    let r=0,g=0,b=0,count=0; for (let i=0;i<data.length;i+=4) { r+=data[i]; g+=data[i+1]; b+=data[i+2]; count++; }
-    r=Math.round(r/count); g=Math.round(g/count); b=Math.round(b/count);
-    const hex = '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+    const data = ctx.getImageData(0, 0, w, h).data;
+    let r = 0, g = 0, b = 0, count = 0; for (let i = 0; i < data.length; i += 4) { r += data[i]; g += data[i + 1]; b += data[i + 2]; count++; }
+    r = Math.round(r / count); g = Math.round(g / count); b = Math.round(b / count);
+    const hex = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
     return { url, hex };
   }
 
-  function nearestColorName(hex: string): {name:string;hex:string} {
+  function nearestColorName(hex: string): { name: string; hex: string } {
     const target = hexToRgb(hex);
     let best = KNOWN_COLORS[0]; let bestD = Number.POSITIVE_INFINITY;
-    for (const c of KNOWN_COLORS) { const d = rgbDistance(target, hexToRgb(c.hex)); if (d<bestD) { bestD=d; best=c; } }
+    for (const c of KNOWN_COLORS) { const d = rgbDistance(target, hexToRgb(c.hex)); if (d < bestD) { bestD = d; best = c; } }
     return best;
   }
 
-  function dedupePalettes(list: Array<{ url: string; hex: string; name: string }>): Array<{ url: string; hex: string; name: string }>{
+  function dedupePalettes(list: Array<{ url: string; hex: string; name: string }>): Array<{ url: string; hex: string; name: string }> {
     const seen = new Set<string>();
     const out: Array<{ url: string; hex: string; name: string }> = [];
     for (const p of list) {
-      const key = String(p.url||'').trim();
+      const key = String(p.url || '').trim();
       if (!key || seen.has(key)) continue;
       seen.add(key);
       out.push(p);
@@ -1109,77 +1138,77 @@ export default function AdminProductCreate(): JSX.Element {
   }
 
   function extractKeywords(t: string, productName: string): string[] {
-    const stopWords = new Set(['تول','شفاف','ربطة','أكمام','فقط','عمله','بلصدر']);
-    const words = String(t||'').split(/\s+/).filter(w => w.length>2 && !stopWords.has(w));
-    const filtered = words.filter(w => !String(productName||'').includes(w));
-    return Array.from(new Set(filtered)).slice(0,6);
+    const stopWords = new Set(['تول', 'شفاف', 'ربطة', 'أكمام', 'فقط', 'عمله', 'بلصدر']);
+    const words = String(t || '').split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
+    const filtered = words.filter(w => !String(productName || '').includes(w));
+    return Array.from(new Set(filtered)).slice(0, 6);
   }
 
   function extractFromText(raw: string): any {
     const clean = cleanText(raw);
     const nameMatch = clean.match(/(?:اسم\s*المنتج|product\s*name|name|اسم)[:\s]+(.{5,120})/i);
     const currencyToken = '(?:﷼|ريال|sar|aed|usd|rs|qr|egp|kwd|درهم|دولار)';
-    const priceMatch = clean.match(new RegExp(`(?:سعر\\s*البيع|price|سعر)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`,'i'));
-    const costOldMatch = clean.match(new RegExp(`(?:القديم|قديم)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`,'i'));
+    const priceMatch = clean.match(new RegExp(`(?:سعر\\s*البيع|price|سعر)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`, 'i'));
+    const costOldMatch = clean.match(new RegExp(`(?:القديم|قديم)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`, 'i'));
     // Region-based prices (الشمال/جنوبي)
-    const northMatch = clean.match(new RegExp(`(?:السعر\s*للشمال|للشمال|الشمال)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`,'i'));
-    const southMatch = clean.match(new RegExp(`(?:السعر\s*عملة\s*جنوبي|جنوبي|الجنوب)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`,'i'));
+    const northMatch = clean.match(new RegExp(`(?:السعر\s*للشمال|للشمال|الشمال)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`, 'i'));
+    const southMatch = clean.match(new RegExp(`(?:السعر\s*عملة\s*جنوبي|جنوبي|الجنوب)[^\n]*?([0-9]+(?:[\.,][0-9]{1,2})?)\\s*${currencyToken}?`, 'i'));
     const stockMatch = clean.match(/(?:المخزون|الكمية|متوفر\s*ب?كمية|stock|qty)[^\n]*?(\d{1,5})/i);
-    const sizesListEn = Array.from(new Set((clean.match(/\b(XXL|XL|L|M|S|XS|\d{2})\b/gi) || []).map(s=>s.toUpperCase())));
+    const sizesListEn = Array.from(new Set((clean.match(/\b(XXL|XL|L|M|S|XS|\d{2})\b/gi) || []).map(s => s.toUpperCase())));
     // Free size with weight range (e.g., من وزن40 حتى وزن 60)
     const freeRange = clean.match(/من\s*وزن\s*(\d{2,3})\s*(?:حتى|الى|إلى)\s*وزن\s*(\d{2,3})/i);
     const freeSize = clean.match(/فري\s*سايز/i);
-    const sizesList = freeRange ? [ `فري سايز (${freeRange[1]}–${freeRange[2]} كجم)` ] : (freeSize ? ['فري سايز'] : sizesListEn);
-    const colorNames = ['أحمر','أزرق','أخضر','أسود','أبيض','أصفر','بني','بيج','رمادي','وردي','بنفسجي','كحلي','رمادي فاتح','رمادي غامق','أزرق كحلي','كحلي غامق','أزرق فاتح','Red','Blue','Green','Black','White','Yellow','Brown','Beige','Gray','Pink','Purple','Navy','Light Gray','Dark Gray'];
-    const colorsList = Array.from(new Set((clean.match(new RegExp(`\\b(${colorNames.join('|')})\\b`,'gi'))||[])));
+    const sizesList = freeRange ? [`فري سايز (${freeRange[1]}–${freeRange[2]} كجم)`] : (freeSize ? ['فري سايز'] : sizesListEn);
+    const colorNames = ['أحمر', 'أزرق', 'أخضر', 'أسود', 'أبيض', 'أصفر', 'بني', 'بيج', 'رمادي', 'وردي', 'بنفسجي', 'كحلي', 'رمادي فاتح', 'رمادي غامق', 'أزرق كحلي', 'كحلي غامق', 'أزرق فاتح', 'Red', 'Blue', 'Green', 'Black', 'White', 'Yellow', 'Brown', 'Beige', 'Gray', 'Pink', 'Purple', 'Navy', 'Light Gray', 'Dark Gray'];
+    const colorsList = Array.from(new Set((clean.match(new RegExp(`\\b(${colorNames.join('|')})\\b`, 'gi')) || [])));
     const shortDesc = clean.slice(0, 160);
-    const longDesc = clean.length<80 ? clean : clean.slice(0, 300);
-    const keywords = extractKeywords(clean);
-    const sale = priceMatch ? Number(String(priceMatch[1]).replace(',','.')) : undefined;
+    const longDesc = clean.length < 80 ? clean : clean.slice(0, 300);
+    const keywords = extractKeywords(clean, nameMatch?.[1] || '');
+    const sale = priceMatch ? Number(String(priceMatch[1]).replace(',', '.')) : undefined;
     // Choose cost preference: قديم > الشمال > الجنوب > الشراء/التكلفة > السعر العام
-    const candidates: Array<{v:number; tag:number}> = [];
+    const candidates: Array<{ v: number; tag: number }> = [];
     // priority weight: old=1, north=2, south=3, sale=4
-    if (costOldMatch) candidates.push({ v: Number(String(costOldMatch[1]).replace(',','.')), tag: 1 });
-    if (northMatch) candidates.push({ v: Number(String(northMatch[1]).replace(',','.')), tag: 2 });
-    if (southMatch) candidates.push({ v: Number(String(southMatch[1]).replace(',','.')), tag: 3 });
-    if (sale!==undefined) candidates.push({ v: sale, tag: 4 });
-    candidates.sort((a,b)=> a.tag-b.tag);
+    if (costOldMatch) candidates.push({ v: Number(String(costOldMatch[1]).replace(',', '.')), tag: 1 });
+    if (northMatch) candidates.push({ v: Number(String(northMatch[1]).replace(',', '.')), tag: 2 });
+    if (southMatch) candidates.push({ v: Number(String(southMatch[1]).replace(',', '.')), tag: 3 });
+    if (sale !== undefined) candidates.push({ v: sale, tag: 4 });
+    candidates.sort((a, b) => a.tag - b.tag);
     const cost = candidates.length ? candidates[0].v : undefined;
     const stock = stockMatch ? Number(stockMatch[1]) : undefined;
-    const currencyFound = detectCurrency(raw||'') || (/ريال|﷼/i.test(raw||'')? 'ريال' : undefined);
+    const currencyFound = detectCurrency(raw || '') || (/ريال|﷼/i.test(raw || '') ? 'ريال' : undefined);
     const confidence = {
-      name: nameMatch? 0.9 : (clean.length>20? 0.5 : 0.2),
-      shortDesc: shortDesc? 0.8 : 0.2,
-      longDesc: longDesc? 0.8 : 0.2,
-      salePrice: sale!==undefined ? 0.8 : 0.2,
-      purchasePrice: cost!==undefined ? 0.7 : 0.2,
-      sizes: sizesList.length? 0.7 : 0.2,
-      colors: colorsList.length? 0.7 : 0.2,
-      stock: stock!==undefined ? 0.6 : 0.2,
-      keywords: keywords.length? 0.6 : 0.2,
+      name: nameMatch ? 0.9 : (clean.length > 20 ? 0.5 : 0.2),
+      shortDesc: shortDesc ? 0.8 : 0.2,
+      longDesc: longDesc ? 0.8 : 0.2,
+      salePrice: sale !== undefined ? 0.8 : 0.2,
+      purchasePrice: cost !== undefined ? 0.7 : 0.2,
+      sizes: sizesList.length ? 0.7 : 0.2,
+      colors: colorsList.length ? 0.7 : 0.2,
+      stock: stock !== undefined ? 0.6 : 0.2,
+      keywords: keywords.length ? 0.6 : 0.2,
     };
     // Build professional description (without prices)
     const typeMatch = clean.match(/(فنيلة|فنائل|جاكيت|معطف|فستان|قميص|بلوزة|سويتر|بلوفر|hoodie|sweater|jacket|coat|dress|shirt|blouse)/i);
     const matMatch = clean.match(/(صوف|قطن|جلد|لينن|قماش|denim|leather|cotton|wool)/i);
-    const feat = [/كم\s*كامل/i.test(clean)? 'كم كامل' : '', /زرارات\s*أنيقة|زرارات\s*انيقه/i.test(clean)? 'زرارات أنيقة' : ''].filter(Boolean).join('، ');
+    const feat = [/كم\s*كامل/i.test(clean) ? 'كم كامل' : '', /زرارات\s*أنيقة|زرارات\s*انيقه/i.test(clean) ? 'زرارات أنيقة' : ''].filter(Boolean).join('، ');
     const gender = clean.match(/(نسائي|رجالي)/i)?.[1] || '';
     const normalizedType = typeMatch ? (/فنائل/i.test(typeMatch[1]) ? 'فنيلة' : typeMatch[1]) : '';
     const descParts = [
       normalizedType ? `${normalizedType} ${gender}`.trim() : '',
       matMatch ? `من ${matMatch[1]}` : '',
       feat,
-      /خارجي/i.test(clean)? 'تصميم خارجي' : ''
+      /خارجي/i.test(clean) ? 'تصميم خارجي' : ''
     ].filter(Boolean);
-    let composedDesc = (descParts.join('، ') + '، مناسبة للاستخدام اليومي وتمنح مظهراً متناسقاً.').replace(/^،\s*/,'').trim();
-    composedDesc = composedDesc.replace(/\b(850|3000)\b/g,'').trim();
+    let composedDesc = (descParts.join('، ') + '، مناسبة للاستخدام اليومي وتمنح مظهراً متناسقاً.').replace(/^،\s*/, '').trim();
+    composedDesc = composedDesc.replace(/\b(850|3000)\b/g, '').trim();
     return {
-      name: (nameMatch?.[1]||'').trim(),
+      name: (nameMatch?.[1] || '').trim(),
       shortDesc,
       longDesc: composedDesc || longDesc,
       salePrice: undefined,
       purchasePrice: cost,
       sizes: sizesList,
-      colors: colorsList.length? colorsList : (/\b(?:لونين|2\s*الوان|لونان)\b/i.test(raw)? [ 'غير محدد (ذُكر "لونين")' ] : []),
+      colors: colorsList.length ? colorsList : (/\b(?:لونين|2\s*الوان|لونان)\b/i.test(raw) ? ['غير محدد (ذُكر "لونين")'] : []),
       stock,
       keywords,
       currency: currencyFound,
@@ -1189,39 +1218,39 @@ export default function AdminProductCreate(): JSX.Element {
     };
   }
 
-  function buildSchemaOutput(extracted: any, palettes: Array<{url:string;hex:string;name:string}>, mapping: Record<string,string|undefined>): any {
+  function buildSchemaOutput(extracted: any, palettes: Array<{ url: string; hex: string; name: string }>, mapping: Record<string, string | undefined>): any {
     const clean_text = extracted.cleanText || '';
-    const product_name_seo = makeSeoName(clean_text, extracted.name||'');
+    const product_name_seo = makeSeoName(clean_text, extracted.name || '');
     const description = (extracted.longDesc || extracted.shortDesc || clean_text).trim();
-    const colors: Array<{color_name:string; source:'text'|'image'|'inferred'; confidence_pct:number}> = [];
-    for (const c of (extracted.colors||[])) {
+    const colors: Array<{ color_name: string; source: 'text' | 'image' | 'inferred'; confidence_pct: number }> = [];
+    for (const c of (extracted.colors || [])) {
       colors.push({ color_name: c, source: 'text', confidence_pct: 70 });
     }
     // Additional inferred from palette labels if not already present
-    for (const p of palettes||[]) {
+    for (const p of palettes || []) {
       const name = p.name;
-      if (!colors.some(x=> (x.color_name||'').toLowerCase()===name.toLowerCase())) {
+      if (!colors.some(x => (x.color_name || '').toLowerCase() === name.toLowerCase())) {
         colors.push({ color_name: name, source: 'image', confidence_pct: 60 });
       }
     }
-    const sizes: string[] = Array.isArray(extracted.sizes)? extracted.sizes : [];
-    const cost_price = extracted.purchasePrice!==undefined
-      ? { amount: Number(extracted.purchasePrice||0), currency: extracted.currency||'SAR', source: extracted.hasOldPrice? "text (كلمة 'قديم')" : 'text' }
+    const sizes: string[] = Array.isArray(extracted.sizes) ? extracted.sizes : [];
+    const cost_price = extracted.purchasePrice !== undefined
+      ? { amount: Number(extracted.purchasePrice || 0), currency: extracted.currency || 'SAR', source: extracted.hasOldPrice ? "text (كلمة 'قديم')" : 'text' }
       : null;
-    const stock_quantity = extracted.stock!==undefined ? Number(extracted.stock) : null;
+    const stock_quantity = extracted.stock !== undefined ? Number(extracted.stock) : null;
     // images
-    const images = (palettes||[]).map((p, idx) => {
-      const image_id = (()=>{ try{ const u = new URL(p.url); const seg = u.pathname.split('/').filter(Boolean).pop()||`img${idx+1}.jpg`; return seg; } catch { return `img${idx+1}.jpg`; }})();
-      let linked: string|null = null; let conf = 50;
-      for (const [col, url] of Object.entries(mapping||{})) {
+    const images = (palettes || []).map((p, idx) => {
+      const image_id = (() => { try { const u = new URL(p.url); const seg = u.pathname.split('/').filter(Boolean).pop() || `img${idx + 1}.jpg`; return seg; } catch { return `img${idx + 1}.jpg`; } })();
+      let linked: string | null = null; let conf = 50;
+      for (const [col, url] of Object.entries(mapping || {})) {
         if (url === p.url) { linked = col; conf = 80; break; }
       }
       return { image_id, linked_color: linked, confidence_pct: conf };
     });
     // variants (color x size) with sku=null and stock=null per requirement
-    const colorList: string[] = Array.from(new Set(colors.map(c=>c.color_name))).filter(Boolean);
-    const sizeList: string[] = Array.isArray(sizes)? sizes : [];
-    const variants: Array<{color:string|null; size:string|null; sku:null; stock:null}> = [];
+    const colorList: string[] = Array.from(new Set(colors.map(c => c.color_name))).filter(Boolean);
+    const sizeList: string[] = Array.isArray(sizes) ? sizes : [];
+    const variants: Array<{ color: string | null; size: string | null; sku: null; stock: null }> = [];
     if (colorList.length && sizeList.length) {
       for (const c of colorList) for (const s of sizeList) variants.push({ color: c, size: s, sku: null, stock: null });
     } else if (sizeList.length) {
@@ -1236,12 +1265,12 @@ export default function AdminProductCreate(): JSX.Element {
       clean_text,
       product_name_seo,
       description,
-      colors: colors.length? colors : null,
-      sizes: sizes.length? sizes : null,
+      colors: colors.length ? colors : null,
+      sizes: sizes.length ? sizes : null,
       cost_price,
       stock_quantity,
-      images: images.length? images : null,
-      variants: variants.length? variants : null,
+      images: images.length ? images : null,
+      variants: variants.length ? variants : null,
       notes
     };
   }
@@ -1252,21 +1281,21 @@ export default function AdminProductCreate(): JSX.Element {
       setBusy(true);
       // Server-side analyze (Node-only pipeline: text+image)
       const b64Images: string[] = [];
-      for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
+      for (const f of filesForPalette.slice(0, 6)) { b64Images.push(await fileToBase64(f)); }
       let analyzed: any = {};
-      try{
+      try {
         const strictMode = !!(deepseekOn || forceDeepseek);
         const strictText = strictMode ? cleanTextStrict(paste) : paste;
         const disableDeepseek = (!deepseekOn && !forceDeepseek) ? '&disableDeepseek=1' : '';
-        const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=${forceDeepseek? '1':'0'}${strictMode?'&strict=1':''}${disableDeepseek}`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: strictText, images: b64Images.map(d=> ({ dataUrl: d })) }) });
+        const resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=${forceDeepseek ? '1' : '0'}${strictMode ? '&strict=1' : ''}${disableDeepseek}`, { method: 'POST', headers: { 'content-type': 'application/json', ...authHeaders() }, credentials: 'include', body: JSON.stringify({ text: strictText, images: b64Images.map(d => ({ dataUrl: d })) }) });
         if (resp.ok) {
           const aj = await resp.json();
           analyzed = aj?.analyzed || {};
-          setLastMeta(aj?.meta||null);
+          setLastMeta(aj?.meta || null);
           if (aj?.meta?.deepseekUsed) { showToast('تم استخدام DeepSeek لتحسين النتائج', 'ok'); }
-          else if (aj?.meta?.deepseekAttempted) { showToast(`تمت محاولة DeepSeek${aj?.meta?.reason? ' ('+aj.meta.reason+')':''}`, 'ok'); }
+          else if (aj?.meta?.deepseekAttempted) { showToast(`تمت محاولة DeepSeek${aj?.meta?.reason ? ' (' + aj.meta.reason + ')' : ''}`, 'ok'); }
           if (Array.isArray(aj?.warnings) && aj.warnings.length) {
-            showToast(`تحليل جزئي: ${aj.warnings.join(', ')}`, 'warn');
+            showToast(`تحليل جزئي: ${aj.warnings.join(', ')}`, 'err');
           }
           if (aj?.ok === false && Array.isArray(aj?.errors) && aj.errors.length) {
             showToast(`فشل التحليل: ${aj.errors.join(', ')}`, 'err');
@@ -1275,7 +1304,7 @@ export default function AdminProductCreate(): JSX.Element {
           if (!(Number.isFinite(low) && low >= 50)) {
             const m = toLatinDigitsStr(paste).match(/(?:السعر\s*للشمال|السعرللشمال|للشمال|الشمال)[^\n\r]*?(\d+[\.,٬٫]?\d*)/i);
             if (m) {
-              const v = Number(String(m[1]).replace(/[٬٫,]/g,'.'));
+              const v = Number(String(m[1]).replace(/[٬٫,]/g, '.'));
               if (Number.isFinite(v) && v >= 50) low = v;
             }
           }
@@ -1286,17 +1315,17 @@ export default function AdminProductCreate(): JSX.Element {
         } else { throw new Error('analyze_failed'); }
       } catch {
         // Fallback to legacy parse endpoint
-        try{
-          const r = await fetch(`${apiBase}/api/admin/products/parse`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: paste }) });
+        try {
+          const r = await fetch(`${apiBase}/api/admin/products/parse`, { method: 'POST', headers: { 'content-type': 'application/json', ...authHeaders() }, credentials: 'include', body: JSON.stringify({ text: paste }) });
           const j = await r.json();
           if (r.ok && j?.extracted) {
             analyzed = {
               name: { value: j.extracted.name },
               description: { value: j.extracted.shortDesc || j.extracted.longDesc },
-              sizes: { value: j.extracted.sizes||[] },
-              colors: { value: j.extracted.colors||[] },
+              sizes: { value: j.extracted.sizes || [] },
+              colors: { value: j.extracted.colors || [] },
               price_range: { value: { low: j.extracted.purchasePrice ?? j.extracted.salePrice ?? 0, high: j.extracted.salePrice ?? j.extracted.purchasePrice ?? 0 } },
-              tags: { value: j.extracted.keywords||[] }
+              tags: { value: j.extracted.keywords || [] }
             } as any;
             const low = Number(j.extracted.purchasePrice ?? j.extracted.salePrice);
             if (Number.isFinite(low) && low >= 50) setPurchasePrice(low);
@@ -1304,7 +1333,7 @@ export default function AdminProductCreate(): JSX.Element {
         } catch { analyzed = {}; }
       }
       const strictClean0 = (deepseekOn || forceDeepseek) ? cleanTextStrict(paste) : cleanText(paste);
-      const extracted:any = {
+      const extracted: any = {
         name: analyzed?.name?.value || '',
         shortDesc: analyzed?.description?.value || '',
         longDesc: analyzed?.description?.value || '',
@@ -1329,7 +1358,7 @@ export default function AdminProductCreate(): JSX.Element {
           tags: analyzed?.tags?.reason,
         }
       };
-      const confidence:any = {
+      const confidence: any = {
         name: Number(analyzed?.name?.confidence ?? 0.8),
         shortDesc: Number(analyzed?.description?.confidence ?? 0.85),
         longDesc: Number(analyzed?.description?.confidence ?? 0.85),
@@ -1339,11 +1368,11 @@ export default function AdminProductCreate(): JSX.Element {
         stock: 0,
         keywords: 0.5,
       };
-      let palettes: Array<{url:string;hex:string;name:string}> = [];
+      let palettes: Array<{ url: string; hex: string; name: string }> = [];
       const allUrls = allProductImageUrls();
       // Recompute quick palette client-side for mapping visual review
       // Include newly uploaded files too
-      const localFiles = Array.isArray(files)? files.slice(0,6 - Math.min(allUrls.length,6)) : [];
+      const localFiles = Array.isArray(files) ? files.slice(0, 6 - Math.min(allUrls.length, 6)) : [];
       for (const f of localFiles) {
         const p = await getImageDominant(f);
         const near = nearestColorName(p.hex);
@@ -1354,30 +1383,29 @@ export default function AdminProductCreate(): JSX.Element {
         const near = nearestColorName(p.hex);
         palettes.push({ url: p.url, hex: p.hex, name: near.name });
         palettes = dedupePalettes(palettes);
-        setReview((prev:any)=> ({ ...(prev||extracted), palettes: [...palettes] }));
+        setReview((prev: any) => ({ ...(prev || extracted), palettes: [...palettes] }));
       }
-      const mapping: Record<string, string|undefined> = {};
+      const mapping: Record<string, string | undefined> = {};
       for (const c of extracted.colors as string[]) {
-        const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 }));
-        candidates.sort((a,b)=> a.score-b.score);
-        mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
+        const candidates = palettes.map(pl => ({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 }));
+        candidates.sort((a, b) => a.score - b.score);
+        mapping[String(c)] = candidates.length && candidates[0].score === 0 ? candidates[0].url : undefined;
       }
       const schema = buildSchemaOutput(extracted, palettes, mapping);
-      let reviewObj:any = {
-        name: String(schema.product_name_seo||extracted.name||'').trim(),
-        shortDesc: String(schema.description||extracted.shortDesc||'').slice(0,160),
-        longDesc: String(schema.description||extracted.longDesc||''),
-                purchasePrice: (()=>{ const v = schema.cost_price?.amount!==undefined ? Number(schema.cost_price.amount) : (extracted.purchasePrice!==undefined? Number(extracted.purchasePrice): undefined); return (v!==undefined && v<50) ? undefined : v; })(),
-        stock: schema.stock_quantity!==undefined && schema.stock_quantity!==null ? Number(schema.stock_quantity) : (extracted.stock!==undefined? Number(extracted.stock): undefined),
-        sizes: sanitizeSizesStrict(strictClean0, Array.isArray(schema.sizes)? schema.sizes : (Array.isArray(extracted.sizes)? extracted.sizes: []), paste),
-        colors: sanitizeColorsStrict(strictClean0, Array.isArray(schema.colors)? schema.colors.map((c:any)=> c?.color_name).filter(Boolean) : (Array.isArray(extracted.colors)? extracted.colors: [])),
-        keywords: extracted.keywords||[],
+      let reviewObj: any = {
+        name: String(schema.product_name_seo || extracted.name || '').trim(),
+        shortDesc: String(schema.description || extracted.shortDesc || '').slice(0, 160),
+        longDesc: String(schema.description || extracted.longDesc || ''),
+        purchasePrice: (() => { const v = schema.cost_price?.amount !== undefined ? Number(schema.cost_price.amount) : (extracted.purchasePrice !== undefined ? Number(extracted.purchasePrice) : undefined); return (v !== undefined && v < 50) ? undefined : v; })(),
+        stock: schema.stock_quantity !== undefined && schema.stock_quantity !== null ? Number(schema.stock_quantity) : (extracted.stock !== undefined ? Number(extracted.stock) : undefined),
+        sizes: sanitizeSizesStrict(strictClean0, Array.isArray(schema.sizes) ? schema.sizes : (Array.isArray(extracted.sizes) ? extracted.sizes : []), paste),
+        colors: sanitizeColorsStrict(strictClean0, Array.isArray(schema.colors) ? schema.colors.map((c: any) => c?.color_name).filter(Boolean) : (Array.isArray(extracted.colors) ? extracted.colors : [])),
+        keywords: extracted.keywords || [],
         palettes,
         mapping,
         confidence,
         sources: extracted.sources,
-        reasons: extracted.reasons || {},
-        sources: extracted.sources
+        reasons: extracted.reasons || {}
       } as any;
 
       // Apply strict mode post-processing when DeepSeek enabled
@@ -1390,34 +1418,34 @@ export default function AdminProductCreate(): JSX.Element {
         reviewObj.name = sName;
         if (typeof sPrice === 'number') reviewObj.purchasePrice = sPrice;
         // Merge strict details into longDesc and text-area auto expands
-        const tableInline = sDetails.filter(r=> r.value && String(r.value).trim().length>0)
-          .map(r=> `${r.label}: ${r.value}`).join('\n');
-        reviewObj.strictDetails = sDetails.filter(r=> r.value && String(r.value).trim().length>0);
-        const baseLong = String(reviewObj.longDesc||'').trim();
+        const tableInline = sDetails.filter(r => r.value && String(r.value).trim().length > 0)
+          .map(r => `${r.label}: ${r.value}`).join('\n');
+        reviewObj.strictDetails = sDetails.filter(r => r.value && String(r.value).trim().length > 0);
+        const baseLong = String(reviewObj.longDesc || '').trim();
         reviewObj.longDesc = baseLong ? (baseLong + '\n' + tableInline) : tableInline;
-        if (Array.isArray(sKeywords) && sKeywords.length>=8) reviewObj.keywords = sKeywords;
+        if (Array.isArray(sKeywords) && sKeywords.length >= 8) reviewObj.keywords = sKeywords;
       }
 
       // Detect measurement groups (e.g., length/width) for preview fields (not part of table)
-      try{
+      try {
         const mg = extractMeasurementGroups(cleanTextStrict(paste), paste);
         if (mg.length) (reviewObj as any).sizeGroups = mg;
-      } catch {}
+      } catch { }
 
       // Learn from last DeepSeek-only preview ONLY when DeepSeek checkbox is enabled
       if (deepseekOn || forceDeepseek) {
-        try{
+        try {
           const k = keyForText(paste);
           if (dsHint && dsHintKey === k) {
-            const wc = (s:string)=> String(s||'').trim().split(/\s+/).filter(Boolean).length;
+            const wc = (s: string) => String(s || '').trim().split(/\s+/).filter(Boolean).length;
             if ((!reviewObj.name || wc(reviewObj.name) < 6) && dsHint.name) reviewObj.name = String(dsHint.name);
             if (reviewObj.purchasePrice === undefined && typeof dsHint.purchasePrice === 'number') reviewObj.purchasePrice = Number(dsHint.purchasePrice);
-            if ((!Array.isArray(reviewObj.sizes) || reviewObj.sizes.length===0) && Array.isArray(dsHint.sizes) && dsHint.sizes.length) reviewObj.sizes = dsHint.sizes;
-            if ((!Array.isArray(reviewObj.colors) || reviewObj.colors.length===0) && Array.isArray(dsHint.colors) && dsHint.colors.length) reviewObj.colors = dsHint.colors;
-            if ((!Array.isArray(reviewObj.keywords) || reviewObj.keywords.length<8) && Array.isArray(dsHint.keywords) && dsHint.keywords.length) reviewObj.keywords = dsHint.keywords;
+            if ((!Array.isArray(reviewObj.sizes) || reviewObj.sizes.length === 0) && Array.isArray(dsHint.sizes) && dsHint.sizes.length) reviewObj.sizes = dsHint.sizes;
+            if ((!Array.isArray(reviewObj.colors) || reviewObj.colors.length === 0) && Array.isArray(dsHint.colors) && dsHint.colors.length) reviewObj.colors = dsHint.colors;
+            if ((!Array.isArray(reviewObj.keywords) || reviewObj.keywords.length < 8) && Array.isArray(dsHint.keywords) && dsHint.keywords.length) reviewObj.keywords = dsHint.keywords;
             if (!Array.isArray(reviewObj.strictDetails) && Array.isArray(dsHint.strictDetails) && dsHint.strictDetails.length) reviewObj.strictDetails = dsHint.strictDetails;
           }
-        } catch {}
+        } catch { }
       }
       setReview(reviewObj);
       setAnalysisDone(true);
@@ -1426,31 +1454,31 @@ export default function AdminProductCreate(): JSX.Element {
       }
       // Direct-fill: write results into original fields instead of preview
       try {
-        const fullNameAnalyze = String(reviewObj.name||'').trim();
+        const fullNameAnalyze = String(reviewObj.name || '').trim();
         if (fullNameAnalyze) setName(fullNameAnalyze);
-        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc || ''));
         if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
         if (typeof reviewObj.stock === 'number') setStockQuantity(reviewObj.stock);
         if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
-        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
-        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        const sList: string[] = Array.isArray(reviewObj.sizes) ? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors) ? reviewObj.colors : [];
         if ((cList.length || sList.length)) setType('variable');
         // Apply into pickers (size type + colors), but DO NOT auto-generate variant rows
         await applyAnalyzedSizesColors(sList, cList);
         // Merge palette images into images field
-        try{
+        try {
           const palettes = (reviewObj as any).palettes || [];
-          const urls = (palettes||[]).map((p:any)=> p?.url).filter((u:string)=> !!u);
-          const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+          const urls = (palettes || []).map((p: any) => p?.url).filter((u: string) => !!u);
+          const cur = (images || '').split(',').map(s => s.trim()).filter(Boolean);
           const merged = Array.from(new Set([...cur, ...urls]));
           if (merged.length) setImages(merged.join(', '));
-        }catch{}
+        } catch { }
         // Do not generate variant rows automatically; user will click "توليد التباينات المتعددة" بعد اختيار المقاسات والألوان
-      } catch {}
+      } catch { }
       setActiveMobileTab('compose');
       setAnalysisDone(true);
       showToast('تم التحليل بنجاح', 'ok');
-    } catch (e:any) {
+    } catch (e: any) {
       setError('فشل التحليل. حاول مجدداً.');
       showToast('فشل التحليل', 'err');
     } finally { setBusy(false); }
@@ -1461,24 +1489,24 @@ export default function AdminProductCreate(): JSX.Element {
     try {
       setBusy(true);
       const b64Images: string[] = [];
-      for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
+      for (const f of filesForPalette.slice(0, 6)) { b64Images.push(await fileToBase64(f)); }
       // Strict DeepSeek-only: rely strictly on AI output (no local general color phrases)
       const controller = new AbortController();
       const timeoutMs = 25000;
-      const to = setTimeout(()=> controller.abort(), timeoutMs);
+      const to = setTimeout(() => controller.abort(), timeoutMs);
       let resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1`, {
-        method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
-        body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) }),
+        method: 'POST', headers: { 'content-type': 'application/json', ...authHeaders() }, credentials: 'include',
+        body: JSON.stringify({ text: paste, images: b64Images.map(d => ({ dataUrl: d })) }),
         signal: controller.signal
-      }).catch(()=> null as any);
+      }).catch(() => null as any);
       clearTimeout(to);
       if (!resp || !resp.ok) {
         resp = await fetch(`${apiBase}/api/admin/products/analyze?forceDeepseek=1&deepseekOnly=1`, {
-          method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
-          body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) })
+          method: 'POST', headers: { 'content-type': 'application/json', ...authHeaders() }, credentials: 'include',
+          body: JSON.stringify({ text: paste, images: b64Images.map(d => ({ dataUrl: d })) })
         });
       }
-      const aj = await resp.json().catch(()=>({}));
+      const aj = await resp.json().catch(() => ({}));
       if (!resp.ok) { setError('فشل تحليل DeepSeek'); showToast('فشل تحليل DeepSeek', 'err'); return; }
       // Guard: if DeepSeek غير متاح أو لم يرجع أي حقول مفيدة، لا نعدّل المعاينة الحالية
       if (Array.isArray(aj?.warnings) && aj.warnings.includes('deepseek_unavailable')) {
@@ -1487,22 +1515,22 @@ export default function AdminProductCreate(): JSX.Element {
         return;
       }
       const analyzed = aj?.analyzed || {};
-      const hasUseful = !!(analyzed?.name?.value || analyzed?.description?.value || (analyzed?.colors?.value||[]).length || (analyzed?.sizes?.value||[]).length || (analyzed?.tags?.value||[]).length || typeof analyzed?.price?.value === 'number' || analyzed?.price_range?.value);
+      const hasUseful = !!(analyzed?.name?.value || analyzed?.description?.value || (analyzed?.colors?.value || []).length || (analyzed?.sizes?.value || []).length || (analyzed?.tags?.value || []).length || typeof analyzed?.price?.value === 'number' || analyzed?.price_range?.value);
       if (!hasUseful) {
         setError('لم يتم استخراج أي حقول من DeepSeek');
         showToast('تعذر استخراج الحقول من DeepSeek', 'err');
         return;
       }
-      let reviewObj:any = {
-        name: String(analyzed?.name?.value||''),
-        longDesc: String(analyzed?.description?.value||''),
+      let reviewObj: any = {
+        name: String(analyzed?.name?.value || ''),
+        longDesc: String(analyzed?.description?.value || ''),
         purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
         sizes: analyzed?.sizes?.value || [],
         colors: analyzed?.colors?.value || [],
         keywords: analyzed?.tags?.value || [],
         stock: (analyzed?.stock?.value ?? undefined),
         strictDetails: Array.isArray((analyzed as any)?.description_table?.value)
-          ? (analyzed as any).description_table.value.map((r:any)=> ({ label: r.label || r.key, value: r.value }))
+          ? (analyzed as any).description_table.value.map((r: any) => ({ label: r.label || r.key, value: r.value }))
           : undefined,
         confidence: {
           name: Number(analyzed?.name?.confidence ?? 0.85),
@@ -1512,62 +1540,62 @@ export default function AdminProductCreate(): JSX.Element {
           purchasePrice: Number(analyzed?.price_range?.confidence ?? 0.6),
           stock: Number(analyzed?.stock?.confidence ?? 0.5)
         },
-        sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai', stock:'ai' }
+        sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags: 'ai', stock: 'ai' }
       };
 
       // DeepSeek-only: no local rule fallbacks; rely solely on DeepSeek output
       // Local image analysis: palettes + color-name mapping
       try {
         const urls = allProductImageUrls();
-        let palettes: Array<{url:string;hex:string;name:string}> = [];
-        for (const u of urls.slice(0,6)) {
+        let palettes: Array<{ url: string; hex: string; name: string }> = [];
+        for (const u of urls.slice(0, 6)) {
           const p = await getImageDominant(u);
           const near = nearestColorName(p.hex);
           palettes.push({ url: p.url, hex: p.hex, name: near.name });
         }
         palettes = dedupePalettes(palettes);
         (reviewObj as any).palettes = palettes;
-        const mapping: Record<string,string|undefined> = {};
-        for (const c of (reviewObj.colors as string[]||[])) {
-          const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 }));
-          candidates.sort((a,b)=> a.score-b.score);
-          mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined;
+        const mapping: Record<string, string | undefined> = {};
+        for (const c of (reviewObj.colors as string[] || [])) {
+          const candidates = palettes.map(pl => ({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 }));
+          candidates.sort((a, b) => a.score - b.score);
+          mapping[String(c)] = candidates.length && candidates[0].score === 0 ? candidates[0].url : undefined;
         }
         (reviewObj as any).mapping = mapping;
         // DeepSeek-only: لا نستبدل قيم الألوان بناتج محلي؛ نستخدم قيم DeepSeek كما هي
-      } catch {}
+      } catch { }
       // Direct fill
       setReview(reviewObj);
       setAnalysisDone(true);
-      try{ const k = keyForText(paste); localStorage.setItem(k, JSON.stringify(reviewObj)); setDsHint(reviewObj); setDsHintKey(k); } catch {}
-      try{
-      // Name: DeepSeek-only؛ استخدم الاسم كما هو دون استكمال محلي
-      const dsName = String(reviewObj.name||'').trim();
-      if (dsName) setName(dsName);
-      // Description: DeepSeek-only — table only if AI returned description_table; otherwise use AI longDesc as-is
+      try { const k = keyForText(paste); localStorage.setItem(k, JSON.stringify(reviewObj)); setDsHint(reviewObj); setDsHintKey(k); } catch { }
       try {
-        const html = detailsToHtmlTable((reviewObj as any).strictDetails as any);
-        if (html && html.length) setDescription(html); else if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
-      } catch { if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||'')); }
+        // Name: DeepSeek-only؛ استخدم الاسم كما هو دون استكمال محلي
+        const dsName = String(reviewObj.name || '').trim();
+        if (dsName) setName(dsName);
+        // Description: DeepSeek-only — table only if AI returned description_table; otherwise use AI longDesc as-is
+        try {
+          const html = detailsToHtmlTable((reviewObj as any).strictDetails as any);
+          if (html && html.length) setDescription(html); else if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc || ''));
+        } catch { if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc || '')); }
         if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
         if (typeof reviewObj.stock === 'number') setStockQuantity(reviewObj.stock);
         // Colors: ignore generic phrases and normalize definite article to match list
         const generics = /\b(?:لون\s*واحد|ألوان?\s*(?:متعددة|متنوع(?:ة|ه)|عديدة))\b/i;
-        const colorList = (Array.isArray(reviewObj.colors)? reviewObj.colors: [])
-          .filter((c:string)=> !generics.test(String(c||'')))
-          .map((c:string)=> String(c||'').replace(/^ال/,'').trim());
+        const colorList = (Array.isArray(reviewObj.colors) ? reviewObj.colors : [])
+          .filter((c: string) => !generics.test(String(c || '')))
+          .map((c: string) => String(c || '').replace(/^ال/, '').trim());
         if (colorList.length) setSelectedColors(colorList);
-        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
-        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        const sList: string[] = Array.isArray(reviewObj.sizes) ? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors) ? reviewObj.colors : [];
         if ((cList.length || sList.length)) setType('variable');
         await applyAnalyzedSizesColors(sList, colorList);
         const palettes = dedupePalettes(((reviewObj as any).palettes || []));
-        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
-        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const urls = palettes.map((p: any) => p?.url).filter((u: string) => !!u);
+        const cur = (images || '').split(',').map(s => s.trim()).filter(Boolean);
         const merged = Array.from(new Set([...cur, ...urls]));
         if (merged.length) setImages(merged.join(', '));
         // Do not auto-generate variant rows
-      } catch {}
+      } catch { }
       setAnalysisDone(true);
       showToast('تم تحليل DeepSeek وتعبئة الحقول', 'ok');
       setActiveMobileTab('compose');
@@ -1582,28 +1610,28 @@ export default function AdminProductCreate(): JSX.Element {
     try {
       setBusy(true);
       const b64Images: string[] = [];
-      for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
+      for (const f of filesForPalette.slice(0, 6)) { b64Images.push(await fileToBase64(f)); }
       const resp = await fetch(`${apiBase}/api/admin/products/analyze?rulesStrict=1`, {
-        method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
-        body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) })
+        method: 'POST', headers: { 'content-type': 'application/json', ...authHeaders() }, credentials: 'include',
+        body: JSON.stringify({ text: paste, images: b64Images.map(d => ({ dataUrl: d })) })
       });
-      const aj = await resp.json().catch(()=>({}));
+      const aj = await resp.json().catch(() => ({}));
       if (!resp.ok) { setError('فشل التحليل الصارم'); showToast('فشل التحليل الصارم', 'err'); return; }
       const analyzed = aj?.analyzed || {};
-      const sanitize = (s:string)=> String(s||'')
-        .replace(/[\u{1F300}-\u{1FAFF}\u{1F900}-\u{1F9FF}\u200D\uFE0F]/gu,' ')
-        .replace(/[\uFFFD]/g,' ')
-        .replace(/\s{2,}/g,' ').trim();
-      const reviewObj:any = {
-        name: sanitize(String(analyzed?.name?.value||'')),
-        longDesc: sanitize(String((analyzed?.description_table?.value||[]).map((r:any)=> `${r.label}: ${r.value}`).join('\n')||'')),
+      const sanitize = (s: string) => String(s || '')
+        .replace(new RegExp('[\\u{1F300}-\\u{1FAFF}\\u{1F900}-\\u{1F9FF}\\u200D\\uFE0F]', 'gu'), ' ')
+        .replace(/[\uFFFD]/g, ' ')
+        .replace(/\s{2,}/g, ' ').trim();
+      const reviewObj: any = {
+        name: sanitize(String(analyzed?.name?.value || '')),
+        longDesc: sanitize(String((analyzed?.description_table?.value || []).map((r: any) => `${r.label}: ${r.value}`).join('\n') || '')),
         purchasePrice: (analyzed?.price_range?.value?.low ?? undefined),
         sizes: analyzed?.sizes?.value || [],
         sizes2: (analyzed as any)?.sizes2?.value || [],
         colors: analyzed?.colors?.value || [],
         keywords: analyzed?.tags?.value || [],
         sources: {
-          name: 'rules', description: 'rules', sizes: 'rules', sizes2: 'rules', colors: 'rules', price_range: 'rules', tags:'rules'
+          name: 'rules', description: 'rules', sizes: 'rules', sizes2: 'rules', colors: 'rules', price_range: 'rules', tags: 'rules'
         },
         confidence: {
           name: Number(analyzed?.name?.confidence ?? 0.9),
@@ -1616,32 +1644,32 @@ export default function AdminProductCreate(): JSX.Element {
       };
       try {
         const urls = allProductImageUrls();
-        let palettes: Array<{url:string;hex:string;name:string}> = [];
-        for (const u of urls.slice(0,6)) { const p = await getImageDominant(u); const near = nearestColorName(p.hex); palettes.push({ url: p.url, hex: p.hex, name: near.name }); }
+        let palettes: Array<{ url: string; hex: string; name: string }> = [];
+        for (const u of urls.slice(0, 6)) { const p = await getImageDominant(u); const near = nearestColorName(p.hex); palettes.push({ url: p.url, hex: p.hex, name: near.name }); }
         palettes = dedupePalettes(palettes);
         (reviewObj as any).palettes = palettes;
-        const mapping: Record<string,string|undefined> = {};
-        for (const c of (reviewObj.colors as string[]||[])) { const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 })); candidates.sort((a,b)=> a.score-b.score); mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined; }
+        const mapping: Record<string, string | undefined> = {};
+        for (const c of (reviewObj.colors as string[] || [])) { const candidates = palettes.map(pl => ({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 })); candidates.sort((a, b) => a.score - b.score); mapping[String(c)] = candidates.length && candidates[0].score === 0 ? candidates[0].url : undefined; }
         (reviewObj as any).mapping = mapping;
-      } catch {}
+      } catch { }
       setReview(reviewObj);
       setAnalysisDone(true);
-      try{
-        const fullNameRules = String(reviewObj.name||'').trim();
+      try {
+        const fullNameRules = String(reviewObj.name || '').trim();
         if (fullNameRules) setName(fullNameRules);
-        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc || ''));
         if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
         if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
-        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
-        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        const sList: string[] = Array.isArray(reviewObj.sizes) ? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors) ? reviewObj.colors : [];
         if ((cList.length || sList.length)) setType('variable');
         await applyAnalyzedSizesColors(sList, cList);
         const palettes = dedupePalettes(((reviewObj as any).palettes || []));
-        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
-        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const urls = palettes.map((p: any) => p?.url).filter((u: string) => !!u);
+        const cur = (images || '').split(',').map(s => s.trim()).filter(Boolean);
         const merged = Array.from(new Set([...cur, ...urls]));
         if (merged.length) setImages(merged.join(', '));
-      } catch {}
+      } catch { }
       setAnalysisDone(true);
       showToast('تم التحليل الصارم وتعبئة الحقول', 'ok');
       setActiveMobileTab('compose');
@@ -1656,12 +1684,12 @@ export default function AdminProductCreate(): JSX.Element {
     try {
       setBusy(true);
       const b64Images: string[] = [];
-      for (const f of filesForPalette.slice(0,6)) { b64Images.push(await fileToBase64(f)); }
+      for (const f of filesForPalette.slice(0, 6)) { b64Images.push(await fileToBase64(f)); }
       const resp = await fetch(`${apiBase}/api/admin/products/analyze?openrouterOnly=1`, {
-        method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
-        body: JSON.stringify({ text: paste, images: b64Images.map(d=> ({ dataUrl: d })) })
+        method: 'POST', headers: { 'content-type': 'application/json', ...authHeaders() }, credentials: 'include',
+        body: JSON.stringify({ text: paste, images: b64Images.map(d => ({ dataUrl: d })) })
       });
-      const aj = await resp.json().catch(()=>({}));
+      const aj = await resp.json().catch(() => ({}));
       if (!resp.ok) { setError('فشل تحليل OpenRouter'); showToast('فشل تحليل OpenRouter', 'err'); return; }
       if (Array.isArray(aj?.warnings) && aj.warnings.includes('openrouter_unavailable')) {
         setError('OpenRouter غير متاح حالياً، حاول لاحقاً');
@@ -1669,15 +1697,15 @@ export default function AdminProductCreate(): JSX.Element {
         return;
       }
       const analyzed = aj?.analyzed || {};
-      const hasUseful = !!(analyzed?.name?.value || analyzed?.description?.value || (analyzed?.colors?.value||[]).length || (analyzed?.sizes?.value||[]).length || (analyzed?.tags?.value||[]).length || typeof analyzed?.price?.value === 'number' || analyzed?.price_range?.value);
+      const hasUseful = !!(analyzed?.name?.value || analyzed?.description?.value || (analyzed?.colors?.value || []).length || (analyzed?.sizes?.value || []).length || (analyzed?.tags?.value || []).length || typeof analyzed?.price?.value === 'number' || analyzed?.price_range?.value);
       if (!hasUseful) {
         setError('لم يتم استخراج أي حقول من OpenRouter');
         showToast('تعذر استخراج الحقول من OpenRouter', 'err');
         return;
       }
-      const reviewObj:any = {
-        name: String(analyzed?.name?.value||'').trim(),
-        longDesc: String(analyzed?.description?.value||''),
+      const reviewObj: any = {
+        name: String(analyzed?.name?.value || '').trim(),
+        longDesc: String(analyzed?.description?.value || ''),
         purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
         sizes: analyzed?.sizes?.value || [],
         colors: analyzed?.colors?.value || [],
@@ -1691,37 +1719,37 @@ export default function AdminProductCreate(): JSX.Element {
           purchasePrice: Number(analyzed?.price_range?.confidence ?? 0.6),
           stock: Number(analyzed?.stock?.confidence ?? 0.5)
         },
-        sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai', stock:'ai' }
+        sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags: 'ai', stock: 'ai' }
       };
       try {
         const urls = allProductImageUrls();
-        let palettes: Array<{url:string;hex:string;name:string}> = [];
-        for (const u of urls.slice(0,6)) { const p = await getImageDominant(u); const near = nearestColorName(p.hex); palettes.push({ url: p.url, hex: p.hex, name: near.name }); }
+        let palettes: Array<{ url: string; hex: string; name: string }> = [];
+        for (const u of urls.slice(0, 6)) { const p = await getImageDominant(u); const near = nearestColorName(p.hex); palettes.push({ url: p.url, hex: p.hex, name: near.name }); }
         palettes = dedupePalettes(palettes);
         (reviewObj as any).palettes = palettes;
-        const mapping: Record<string,string|undefined> = {};
-        for (const c of (reviewObj.colors as string[]||[])) { const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 })); candidates.sort((a,b)=> a.score-b.score); mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined; }
+        const mapping: Record<string, string | undefined> = {};
+        for (const c of (reviewObj.colors as string[] || [])) { const candidates = palettes.map(pl => ({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 })); candidates.sort((a, b) => a.score - b.score); mapping[String(c)] = candidates.length && candidates[0].score === 0 ? candidates[0].url : undefined; }
         (reviewObj as any).mapping = mapping;
-      } catch {}
+      } catch { }
       setReview(reviewObj);
       setAnalysisDone(true);
-      try{
-        const fullNameOR = String(reviewObj.name||'').trim();
+      try {
+        const fullNameOR = String(reviewObj.name || '').trim();
         if (fullNameOR) setName(fullNameOR);
-        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc || ''));
         if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
         if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
-        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
-        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        const sList: string[] = Array.isArray(reviewObj.sizes) ? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors) ? reviewObj.colors : [];
         if ((cList.length || sList.length)) setType('variable');
         await applyAnalyzedSizesColors(sList, cList);
         const palettes = dedupePalettes(((reviewObj as any).palettes || []));
-        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
-        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const urls = palettes.map((p: any) => p?.url).filter((u: string) => !!u);
+        const cur = (images || '').split(',').map(s => s.trim()).filter(Boolean);
         const merged = Array.from(new Set([...cur, ...urls]));
         if (merged.length) setImages(merged.join(', '));
         // do not generate variant rows automatically here
-      } catch {}
+      } catch { }
       setAnalysisDone(true);
       showToast('تم تحليل OpenRouter وتعبئة الحقول', 'ok');
       setActiveMobileTab('compose');
@@ -1732,12 +1760,12 @@ export default function AdminProductCreate(): JSX.Element {
   }
 
   async function handleGptOnlyPreview(_filesForPalette: File[]): Promise<void> {
-    try{
+    try {
       setBusy(true); setError('');
       const resp = await fetch(`${apiBase}/api/admin/products/analyze?gptOnly=1`, {
-        method: 'POST', headers: { 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify({ text: paste })
+        method: 'POST', headers: { 'content-type': 'application/json', ...authHeaders() }, credentials: 'include', body: JSON.stringify({ text: paste })
       });
-      const aj = await resp.json().catch(()=>({}));
+      const aj = await resp.json().catch(() => ({}));
       if (!resp.ok) { setError('فشل تحليل GPT'); showToast('فشل تحليل GPT', 'err'); return; }
       if (Array.isArray(aj?.warnings) && aj.warnings.includes('gpt_unavailable')) {
         setError('GPT غير متاح حالياً، حاول لاحقاً');
@@ -1745,11 +1773,11 @@ export default function AdminProductCreate(): JSX.Element {
         return;
       }
       const analyzed = aj?.analyzed || {};
-      const hasUseful = !!(analyzed?.name?.value || analyzed?.description?.value || (analyzed?.colors?.value||[]).length || (analyzed?.sizes?.value||[]).length || (analyzed?.tags?.value||[]).length || typeof analyzed?.price?.value === 'number' || analyzed?.price_range?.value);
+      const hasUseful = !!(analyzed?.name?.value || analyzed?.description?.value || (analyzed?.colors?.value || []).length || (analyzed?.sizes?.value || []).length || (analyzed?.tags?.value || []).length || typeof analyzed?.price?.value === 'number' || analyzed?.price_range?.value);
       if (!hasUseful) { setError('لم يتم استخراج أي حقول من GPT'); showToast('تعذر استخراج الحقول من GPT', 'err'); return; }
-      const reviewObj:any = {
-        name: String(analyzed?.name?.value||'').trim(),
-        longDesc: String(analyzed?.description?.value||''),
+      const reviewObj: any = {
+        name: String(analyzed?.name?.value || '').trim(),
+        longDesc: String(analyzed?.description?.value || ''),
         purchasePrice: (analyzed?.price_range?.value?.low ?? analyzed?.price?.value ?? undefined),
         sizes: analyzed?.sizes?.value || [],
         colors: analyzed?.colors?.value || [],
@@ -1763,40 +1791,40 @@ export default function AdminProductCreate(): JSX.Element {
           purchasePrice: Number(analyzed?.price_range?.confidence ?? 0.6),
           stock: Number(analyzed?.stock?.confidence ?? 0.5)
         },
-        sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags:'ai', stock:'ai' }
+        sources: { name: 'ai', description: 'ai', sizes: 'ai', colors: 'ai', price_range: 'ai', tags: 'ai', stock: 'ai' }
       };
       try {
         const urls = allProductImageUrls();
-        const palettes: Array<{url:string;hex:string;name:string}> = [];
-        for (const u of urls.slice(0,6)) { const p = await getImageDominant(u); const near = nearestColorName(p.hex); palettes.push({ url: p.url, hex: p.hex, name: near.name }); }
+        const palettes: Array<{ url: string; hex: string; name: string }> = [];
+        for (const u of urls.slice(0, 6)) { const p = await getImageDominant(u); const near = nearestColorName(p.hex); palettes.push({ url: p.url, hex: p.hex, name: near.name }); }
         (reviewObj as any).palettes = palettes;
-        const mapping: Record<string,string|undefined> = {};
-        for (const c of (reviewObj.colors as string[]||[])) { const candidates = palettes.map(pl=>({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 })); candidates.sort((a,b)=> a.score-b.score); mapping[String(c)] = candidates.length && candidates[0].score===0 ? candidates[0].url : undefined; }
+        const mapping: Record<string, string | undefined> = {};
+        for (const c of (reviewObj.colors as string[] || [])) { const candidates = palettes.map(pl => ({ url: pl.url, score: pl.name.toLowerCase().includes(String(c).toLowerCase()) ? 0 : 1 })); candidates.sort((a, b) => a.score - b.score); mapping[String(c)] = candidates.length && candidates[0].score === 0 ? candidates[0].url : undefined; }
         (reviewObj as any).mapping = mapping;
-      } catch {}
+      } catch { }
       setReview(reviewObj);
       setAnalysisDone(true);
-      try{
-        const fullNameGPT = String(reviewObj.name||'').trim();
+      try {
+        const fullNameGPT = String(reviewObj.name || '').trim();
         if (fullNameGPT) setName(fullNameGPT);
-        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc||''));
+        if (reviewObj.longDesc) setDescription(String(reviewObj.longDesc || ''));
         if (typeof reviewObj.purchasePrice === 'number') setPurchasePrice(reviewObj.purchasePrice);
         if (Array.isArray(reviewObj.colors) && reviewObj.colors.length) setSelectedColors(reviewObj.colors);
-        const sList: string[] = Array.isArray(reviewObj.sizes)? reviewObj.sizes : [];
-        const cList: string[] = Array.isArray(reviewObj.colors)? reviewObj.colors : [];
+        const sList: string[] = Array.isArray(reviewObj.sizes) ? reviewObj.sizes : [];
+        const cList: string[] = Array.isArray(reviewObj.colors) ? reviewObj.colors : [];
         if ((cList.length || sList.length)) setType('variable');
         const palettes = dedupePalettes(((reviewObj as any).palettes || []));
-        const urls = palettes.map((p:any)=> p?.url).filter((u:string)=> !!u);
-        const cur = (images||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const urls = palettes.map((p: any) => p?.url).filter((u: string) => !!u);
+        const cur = (images || '').split(',').map(s => s.trim()).filter(Boolean);
         const merged = Array.from(new Set([...cur, ...urls]));
         if (merged.length) setImages(merged.join(', '));
         const rows: typeof variantRows = [] as any;
-        const baseCost = reviewObj.purchasePrice!==undefined ? Number(reviewObj.purchasePrice) : (purchasePrice===''? undefined : Number(purchasePrice||0));
-        if (sList.length && cList.length) { for (const sz of sList) for (const col of cList) rows.push({ name:'متغير', value:`${sz} / ${col}`, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, color: col, option_values:[{name:'size',value:sz},{name:'color',value:col}] }); }
-        else if (sList.length) { for (const sz of sList) rows.push({ name:'مقاس', value:sz, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), size: sz, option_values:[{name:'size',value:sz}] }); }
-        else if (cList.length) { for (const col of cList) rows.push({ name:'لون', value:col, purchasePrice: baseCost, stockQuantity: Number(stockQuantity||0), color: col, option_values:[{name:'color',value:col}] }); }
+        const baseCost = reviewObj.purchasePrice !== undefined ? Number(reviewObj.purchasePrice) : (purchasePrice === '' ? undefined : Number(purchasePrice || 0));
+        if (sList.length && cList.length) { for (const sz of sList) for (const col of cList) rows.push({ name: 'متغير', value: `${sz} / ${col}`, purchasePrice: baseCost, stockQuantity: Number(stockQuantity || 0), size: sz, color: col, option_values: [{ name: 'size', value: sz }, { name: 'color', value: col }] }); }
+        else if (sList.length) { for (const sz of sList) rows.push({ name: 'مقاس', value: sz, purchasePrice: baseCost, stockQuantity: Number(stockQuantity || 0), size: sz, option_values: [{ name: 'size', value: sz }] }); }
+        else if (cList.length) { for (const col of cList) rows.push({ name: 'لون', value: col, purchasePrice: baseCost, stockQuantity: Number(stockQuantity || 0), color: col, option_values: [{ name: 'color', value: col }] }); }
         if (rows.length) setVariantRows(rows as any);
-      } catch {}
+      } catch { }
       setAnalysisDone(true);
       showToast('تم تحليل GPT وتعبئة الحقول', 'ok');
       setActiveMobileTab('compose');
@@ -1804,7 +1832,7 @@ export default function AdminProductCreate(): JSX.Element {
     finally { setBusy(false); }
   }
 
-  const [type, setType] = React.useState<'simple'|'variable'>('simple');
+  const [type, setType] = React.useState<'simple' | 'variable'>('simple');
   const [name, setName] = React.useState('');
   const [description, setDescription] = React.useState('');
   const [sku, setSku] = React.useState('');
@@ -1818,17 +1846,17 @@ export default function AdminProductCreate(): JSX.Element {
   const [categoryId, setCategoryId] = React.useState('');
   const [selectedCategoryIds, setSelectedCategoryIds] = React.useState<string[]>([]);
   const [vendorId, setVendorId] = React.useState('');
-  const [categoryOptions, setCategoryOptions] = React.useState<Array<{id:string;name:string}>>([]);
-  const [vendorOptions, setVendorOptions] = React.useState<Array<{id:string;name:string;vendorCode?:string}>>([]);
-  const [brandOptions, setBrandOptions] = React.useState<Array<{id:string;name:string}>>([]);
-  const [colorOptions, setColorOptions] = React.useState<Array<{id:string;name:string;hex:string}>>([]);
-  const [sizeTypeOptions, setSizeTypeOptions] = React.useState<Array<{id:string;name:string}>>([]);
+  const [categoryOptions, setCategoryOptions] = React.useState<Array<{ id: string; name: string }>>([]);
+  const [vendorOptions, setVendorOptions] = React.useState<Array<{ id: string; name: string; vendorCode?: string }>>([]);
+  const [brandOptions, setBrandOptions] = React.useState<Array<{ id: string; name: string }>>([]);
+  const [colorOptions, setColorOptions] = React.useState<Array<{ id: string; name: string; hex: string }>>([]);
+  const [sizeTypeOptions, setSizeTypeOptions] = React.useState<Array<{ id: string; name: string }>>([]);
   const [selectedColors, setSelectedColors] = React.useState<string[]>([]);
-  const [colorCards, setColorCards] = React.useState<Array<{ key:string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }>>([]);
+  const [colorCards, setColorCards] = React.useState<Array<{ key: string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }>>([]);
   const [primaryColorCardKey, setPrimaryColorCardKey] = React.useState<string | undefined>(undefined);
   const [primaryColorName, setPrimaryColorName] = React.useState<string | undefined>(undefined);
   const [primaryImageUrl, setPrimaryImageUrl] = React.useState<string | undefined>(undefined);
-  const [selectedSizeTypes, setSelectedSizeTypes] = React.useState<Array<{ id:string; name:string; sizes:Array<{id:string;name:string}>; selectedSizes:string[] }>>([]);
+  const [selectedSizeTypes, setSelectedSizeTypes] = React.useState<Array<{ id: string; name: string; sizes: Array<{ id: string; name: string }>; selectedSizes: string[] }>>([]);
   const [colors, setColors] = React.useState('');
   const [purchasePrice, setPurchasePrice] = React.useState<number | ''>('');
   const [salePrice, setSalePrice] = React.useState<number | ''>('');
@@ -1840,7 +1868,7 @@ export default function AdminProductCreate(): JSX.Element {
   // Model section (runway measurements)
   const [modelEnabled, setModelEnabled] = React.useState<boolean>(false);
   const [modelImageUrl, setModelImageUrl] = React.useState<string>("");
-  const [modelFields, setModelFields] = React.useState<Array<{ label:string; value:string }>>([]);
+  const [modelFields, setModelFields] = React.useState<Array<{ label: string; value: string }>>([]);
   const [variantRows, setVariantRows] = React.useState<Array<{
     name: string;
     value: string;
@@ -1856,12 +1884,12 @@ export default function AdminProductCreate(): JSX.Element {
   const sizeTypeLabels = React.useMemo((): string[] => {
     const labels: string[] = [];
     for (const r of variantRows) {
-      const comp = String(r.size||'');
+      const comp = String(r.size || '');
       if (!comp) continue;
-      const parts = comp.split('|').map(t=> t.trim()).filter(Boolean);
+      const parts = comp.split('|').map(t => t.trim()).filter(Boolean);
       for (const p of parts) {
         const idx = p.indexOf(':');
-        if (idx>0) {
+        if (idx > 0) {
           const label = p.slice(0, idx).trim();
           if (label && !labels.includes(label)) labels.push(label);
         }
@@ -1869,17 +1897,17 @@ export default function AdminProductCreate(): JSX.Element {
     }
     return labels;
   }, [variantRows]);
-  const parseCompositeSizes = React.useCallback((s?: string): Record<string,string> => {
-    const out: Record<string,string> = {};
-    const raw = String(s||'');
+  const parseCompositeSizes = React.useCallback((s?: string): Record<string, string> => {
+    const out: Record<string, string> = {};
+    const raw = String(s || '');
     if (!raw) return out;
     for (const part of raw.split('|')) {
-      const t = String(part||'').trim();
+      const t = String(part || '').trim();
       if (!t) continue;
       const idx = t.indexOf(':');
-      if (idx>0) {
+      if (idx > 0) {
         const label = t.slice(0, idx).trim();
-        const val = t.slice(idx+1).trim();
+        const val = t.slice(idx + 1).trim();
         if (label) out[label] = val;
       }
     }
@@ -1888,39 +1916,39 @@ export default function AdminProductCreate(): JSX.Element {
   const formRef = React.useRef<HTMLFormElement>(null);
   const [autoFilled, setAutoFilled] = React.useState(false);
 
-  React.useEffect(()=>{
-    (async ()=>{
+  React.useEffect(() => {
+    (async () => {
       try {
         const [cats, vends, brands, colors, types] = await Promise.all([
-          fetch(`${apiBase}/api/admin/categories`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({categories:[]})),
-          fetch(`${apiBase}/api/admin/vendors/list`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({vendors:[]})),
-          fetch(`${apiBase}/api/admin/attributes/brands`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({brands:[]})),
-          fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({colors:[]})),
-          fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials:'include', headers: { ...authHeaders() } }).then(r=>r.json()).catch(()=>({types:[]})),
+          fetch(`${apiBase}/api/admin/categories`, { credentials: 'include', headers: { ...authHeaders() } }).then(r => r.json()).catch(() => ({ categories: [] })),
+          fetch(`${apiBase}/api/admin/vendors/list`, { credentials: 'include', headers: { ...authHeaders() } }).then(r => r.json()).catch(() => ({ vendors: [] })),
+          fetch(`${apiBase}/api/admin/attributes/brands`, { credentials: 'include', headers: { ...authHeaders() } }).then(r => r.json()).catch(() => ({ brands: [] })),
+          fetch(`${apiBase}/api/admin/attributes/colors`, { credentials: 'include', headers: { ...authHeaders() } }).then(r => r.json()).catch(() => ({ colors: [] })),
+          fetch(`${apiBase}/api/admin/attributes/size-types`, { credentials: 'include', headers: { ...authHeaders() } }).then(r => r.json()).catch(() => ({ types: [] })),
         ]);
-        setCategoryOptions(cats.categories||[]);
-        setVendorOptions(vends.vendors||[]);
-        setBrandOptions(brands.brands||[]);
-        setColorOptions(colors.colors||[]);
-        setSizeTypeOptions(types.types||[]);
-      } catch {}
+        setCategoryOptions(cats.categories || []);
+        setVendorOptions(vends.vendors || []);
+        setBrandOptions(brands.brands || []);
+        setColorOptions(colors.colors || []);
+        setSizeTypeOptions(types.types || []);
+      } catch { }
     })();
   }, [apiBase]);
 
   // removed multi-select categories logic (reverted)
-  async function loadSizesForType(typeId: string): Promise<Array<{id:string;name:string}>> {
-    try{
-      const r = await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { credentials:'include', headers: { ...authHeaders() }, cache:'no-store' });
+  async function loadSizesForType(typeId: string): Promise<Array<{ id: string; name: string }>> {
+    try {
+      const r = await fetch(`${apiBase}/api/admin/attributes/size-types/${typeId}/sizes`, { credentials: 'include', headers: { ...authHeaders() }, cache: 'no-store' });
       const j = await r.json();
       return j.sizes || [];
     } catch { return []; }
   }
   function getTypeNameById(id: string): string {
-    return sizeTypeOptions.find(t=>t.id===id)?.name || id;
+    return sizeTypeOptions.find(t => t.id === id)?.name || id;
   }
   async function addSizeType(typeId: string) {
     if (!typeId) return;
-    const exists = selectedSizeTypes.some(t=>t.id===typeId);
+    const exists = selectedSizeTypes.some(t => t.id === typeId);
     if (exists) return;
     const sizes = await loadSizesForType(typeId);
     setSelectedSizeTypes(prev => [...prev, { id: typeId, name: getTypeNameById(typeId), sizes, selectedSizes: [] }]);
@@ -1936,9 +1964,9 @@ export default function AdminProductCreate(): JSX.Element {
       if (Object.prototype.hasOwnProperty.call(parts, label)) {
         delete parts[label];
       }
-      const comp = Object.entries(parts).filter(([k,v])=> (k && v)).map(([k,v])=> `${k}:${v}`).join('|');
+      const comp = Object.entries(parts).filter(([k, v]) => (k && v)).map(([k, v]) => `${k}:${v}`).join('|');
       const nextOv = Array.isArray(r.option_values) ? r.option_values.filter(o => o.name !== 'size') : [];
-      const withSize = comp ? nextOv.concat([{ name:'size', value: comp }]) : nextOv;
+      const withSize = comp ? nextOv.concat([{ name: 'size', value: comp }]) : nextOv;
       return { ...r, size: comp, option_values: withSize };
     }).filter(r => true));
   }
@@ -1946,34 +1974,34 @@ export default function AdminProductCreate(): JSX.Element {
     setSelectedSizeTypes(prev => prev.map(t => {
       if (t.id !== typeId) return t;
       const have = t.selectedSizes.includes(sizeName);
-      return { ...t, selectedSizes: have ? t.selectedSizes.filter(s=>s!==sizeName) : [...t.selectedSizes, sizeName] };
+      return { ...t, selectedSizes: have ? t.selectedSizes.filter(s => s !== sizeName) : [...t.selectedSizes, sizeName] };
     }));
   }
   function aggregatedSizeList(): string[] {
-    return Array.from(new Set(selectedSizeTypes.flatMap(t=>t.selectedSizes)));
+    return Array.from(new Set(selectedSizeTypes.flatMap(t => t.selectedSizes)));
   }
 
   // Auto-apply analyzed sizes/colors to pickers without generating variants
   async function applyAnalyzedSizesColors(sizesIn: string[], colorsIn: string[]): Promise<void> {
     try {
-      const targetSizes = Array.from(new Set((sizesIn||[]).map(s=>String(s||'').trim()).filter(Boolean)));
-      const targetColors = Array.from(new Set((colorsIn||[]).map(c=>String(c||'').trim()).filter(Boolean)));
+      const targetSizes = Array.from(new Set((sizesIn || []).map(s => String(s || '').trim()).filter(Boolean)));
+      const targetColors = Array.from(new Set((colorsIn || []).map(c => String(c || '').trim()).filter(Boolean)));
       // Ensure we have latest palettes/colors list before matching
       try {
         if (!Array.isArray(colorOptions) || colorOptions.length === 0) {
-          const r = await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', headers:{ ...authHeaders() } });
-          const j = await r.json().catch(()=>({}));
-          setColorOptions(j.colors||[]);
+          const r = await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials: 'include', headers: { ...authHeaders() } });
+          const j = await r.json().catch(() => ({}));
+          setColorOptions(j.colors || []);
         }
-      } catch {}
+      } catch { }
 
       // Choose ALL matching size types when two groups are present (letters & numbers)
       if (targetSizes.length && Array.isArray(sizeTypeOptions) && sizeTypeOptions.length) {
-        const picks: Array<{ id:string; name:string; sizes:Array<{id:string;name:string}>; selectedSizes:string[] }> = [];
-        const lower = targetSizes.map(s=> String(s).toLowerCase());
+        const picks: Array<{ id: string; name: string; sizes: Array<{ id: string; name: string }>; selectedSizes: string[] }> = [];
+        const lower = targetSizes.map(s => String(s).toLowerCase());
         for (const t of sizeTypeOptions) {
           const sizes = await loadSizesForType(t.id);
-          const matched = sizes.filter(s=> lower.includes(String(s.name||'').toLowerCase())).map(s=> s.name);
+          const matched = sizes.filter(s => lower.includes(String(s.name || '').toLowerCase())).map(s => s.name);
           if (matched.length) picks.push({ id: t.id, name: t.name, sizes, selectedSizes: matched });
         }
         if (picks.length) setSelectedSizeTypes(picks);
@@ -1981,79 +2009,79 @@ export default function AdminProductCreate(): JSX.Element {
 
       // Helper: guess hex for common Arabic/English color names
       const guessHex = (name: string): string => {
-        const t = String(name||'').toLowerCase();
-        const map: Record<string,string> = {
-          'أسود':'#000000','اسود':'#000000','black':'#000000',
-          'أبيض':'#ffffff','ابيض':'#ffffff','white':'#ffffff',
-          'أحمر':'#ff0000','احمر':'#ff0000','red':'#ff0000',
-          'أزرق':'#0000ff','ازرق':'#0000ff','blue':'#0000ff',
-          'أخضر':'#008000','اخضر':'#008000','green':'#008000',
-          'أصفر':'#ffff00','اصفر':'#ffff00','yellow':'#ffff00',
-          'وردي':'#ffc0cb','زهري':'#ffc0cb','pink':'#ffc0cb',
-          'بنفسجي':'#8a2be2','purple':'#800080','violet':'#8a2be2',
-          'برتقالي':'#ffa500','orange':'#ffa500',
-          'بني':'#8b4513','brown':'#8b4513',
-          'رمادي':'#808080','gray':'#808080','grey':'#808080',
-          'كحلي':'#000080','navy':'#000080',
-          'بيج':'#f5f5dc','beige':'#f5f5dc',
-          'ذهبي':'#ffd700','gold':'#ffd700',
-          'فضي':'#c0c0c0','silver':'#c0c0c0'
+        const t = String(name || '').toLowerCase();
+        const map: Record<string, string> = {
+          'أسود': '#000000', 'اسود': '#000000', 'black': '#000000',
+          'أبيض': '#ffffff', 'ابيض': '#ffffff', 'white': '#ffffff',
+          'أحمر': '#ff0000', 'احمر': '#ff0000', 'red': '#ff0000',
+          'أزرق': '#0000ff', 'ازرق': '#0000ff', 'blue': '#0000ff',
+          'أخضر': '#008000', 'اخضر': '#008000', 'green': '#008000',
+          'أصفر': '#ffff00', 'اصفر': '#ffff00', 'yellow': '#ffff00',
+          'وردي': '#ffc0cb', 'زهري': '#ffc0cb', 'pink': '#ffc0cb',
+          'بنفسجي': '#8a2be2', 'purple': '#800080', 'violet': '#8a2be2',
+          'برتقالي': '#ffa500', 'orange': '#ffa500',
+          'بني': '#8b4513', 'brown': '#8b4513',
+          'رمادي': '#808080', 'gray': '#808080', 'grey': '#808080',
+          'كحلي': '#000080', 'navy': '#000080',
+          'بيج': '#f5f5dc', 'beige': '#f5f5dc',
+          'ذهبي': '#ffd700', 'gold': '#ffd700',
+          'فضي': '#c0c0c0', 'silver': '#c0c0c0'
         };
         return map[t] || '#666666';
       };
 
-        // Map colors to known options and add color cards (split combined like "أسود وأبيض" إلى لونين)
+      // Map colors to known options and add color cards (split combined like "أسود وأبيض" إلى لونين)
       if (targetColors.length) {
-        const mappedCards: Array<{ key:string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }> = [];
+        const mappedCards: Array<{ key: string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }> = [];
         const toCreate: string[] = []
-          const splitCombined = (c:string): string[] => {
-            const s = String(c||'');
-            // split on common separators and "و"
-            return s.split(/\s*(?:,|،|\+|\/|\-|\sو\s)\s*/).map(x=>x.trim()).filter(Boolean);
-          };
-          for (const rawC of targetColors) {
-            const parts = splitCombined(rawC);
-            const list = parts.length? parts : [rawC];
-            for (const c of list) {
-              const match = colorOptions.find(o=> String(o.name||'').toLowerCase() === String(c).toLowerCase());
-          if (match) {
-            mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: match.name, selectedImageIdxs: [] });
-          } else {
-                toCreate.push(c)
-              }
+        const splitCombined = (c: string): string[] => {
+          const s = String(c || '');
+          // split on common separators and "و"
+          return s.split(/\s*(?:,|،|\+|\/|\-|\sو\s)\s*/).map(x => x.trim()).filter(Boolean);
+        };
+        for (const rawC of targetColors) {
+          const parts = splitCombined(rawC);
+          const list = parts.length ? parts : [rawC];
+          for (const c of list) {
+            const match = colorOptions.find(o => String(o.name || '').toLowerCase() === String(c).toLowerCase());
+            if (match) {
+              mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: match.name, selectedImageIdxs: [] });
+            } else {
+              toCreate.push(c)
+            }
           }
         }
         // Create missing colors
-        for (const raw of toCreate){
-          try{
-            const name = String(raw).slice(0,40)
+        for (const raw of toCreate) {
+          try {
+            const name = String(raw).slice(0, 40)
             const hex = guessHex(name)
-            const rc = await fetch(`${apiBase}/api/admin/attributes/colors`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ name, hex }) })
-            const cj = await rc.json().catch(()=>({}))
-            if (rc.ok && cj?.color?.name){
+            const rc = await fetch(`${apiBase}/api/admin/attributes/colors`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json', ...authHeaders() }, body: JSON.stringify({ name, hex }) })
+            const cj = await rc.json().catch(() => ({}))
+            if (rc.ok && cj?.color?.name) {
               mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: cj.color.name, selectedImageIdxs: [] })
             } else {
               // Fallback: ensure UI select contains this color temporarily
               setColorOptions(prev => {
-                const exists = (prev||[]).some(o=> String(o.name||'').toLowerCase()===name.toLowerCase());
-                return exists ? prev : [...(prev||[]), { id: `tmp:${name}`, name, hex } as any];
+                const exists = (prev || []).some(o => String(o.name || '').toLowerCase() === name.toLowerCase());
+                return exists ? prev : [...(prev || []), { id: `tmp:${name}`, name, hex } as any];
               });
               mappedCards.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color: name, selectedImageIdxs: [] })
             }
-          } catch {}
+          } catch { }
         }
         // refresh colors
-        try{ const r=await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials:'include', headers:{ ...authHeaders() } }); const j=await r.json(); setColorOptions(j.colors||[]); } catch {}
+        try { const r = await fetch(`${apiBase}/api/admin/attributes/colors`, { credentials: 'include', headers: { ...authHeaders() } }); const j = await r.json(); setColorOptions(j.colors || []); } catch { }
         if (mappedCards.length) {
           setColorCards(mappedCards);
           // Also ensure selectedColors reflect target colors immediately
-          setSelectedColors(Array.from(new Set(mappedCards.map(c=>c.color).filter(Boolean))) as string[])
+          setSelectedColors(Array.from(new Set(mappedCards.map(c => c.color).filter(Boolean))) as string[])
         } else if (targetColors.length) {
           // Last-resort fallback: reflect target colors in selection
           setSelectedColors(targetColors)
         }
       }
-    } catch {}
+    } catch { }
   }
 
   async function fileToBase64(file: File): Promise<string> {
@@ -2064,7 +2092,7 @@ export default function AdminProductCreate(): JSX.Element {
     } catch {
       return await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result||''));
+        reader.onload = () => resolve(String(reader.result || ''));
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
@@ -2088,12 +2116,12 @@ export default function AdminProductCreate(): JSX.Element {
             if (!ctx) { URL.revokeObjectURL(url); return reject(new Error('no_ctx')); }
             ctx.drawImage(img, 0, 0, targetW, targetH);
             const mime = 'image/webp';
-            canvas.toBlob((blob)=>{
+            canvas.toBlob((blob) => {
               try {
                 URL.revokeObjectURL(url);
                 if (!blob) return reject(new Error('no_blob'));
                 const reader = new FileReader();
-                reader.onload = () => resolve(String(reader.result||''));
+                reader.onload = () => resolve(String(reader.result || ''));
                 reader.onerror = reject;
                 reader.readAsDataURL(blob);
               } catch (e) { reject(e as any); }
@@ -2103,7 +2131,7 @@ export default function AdminProductCreate(): JSX.Element {
             reject(e as any);
           }
         };
-        img.onerror = (e)=> { URL.revokeObjectURL(url); reject(new Error('img_error')); };
+        img.onerror = (e) => { URL.revokeObjectURL(url); reject(new Error('img_error')); };
         img.src = url;
       } catch (e) { reject(e as any); }
     });
@@ -2114,7 +2142,7 @@ export default function AdminProductCreate(): JSX.Element {
     const urlStrings = (images || '').split(',').map(s => s.trim()).filter(Boolean);
     return Array.from(new Set([...
       urlStrings,
-      ...fileUrls
+    ...fileUrls
     ]));
   }
 
@@ -2132,7 +2160,7 @@ export default function AdminProductCreate(): JSX.Element {
         }
         return { ...card, selectedImageIdxs: newIdxs, primaryImageIdx: nextPrimary };
       }));
-    } catch {}
+    } catch { }
   }
 
   function removeImageAt(index: number): void {
@@ -2173,19 +2201,19 @@ export default function AdminProductCreate(): JSX.Element {
   function applyColorMappingFromCards() {
     try {
       const fromCards = buildColorMappingFromCards();
-      setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), ...fromCards } }));
-    } catch {}
+      setReview((r: any) => ({ ...(r || {}), mapping: { ...((r || {}).mapping || {}), ...fromCards } }));
+    } catch { }
   }
 
   // Keep the primary-color radio in sync when editing existing product
-  React.useEffect(()=>{
+  React.useEffect(() => {
     if (!primaryColorName) return;
     try {
-      const card = colorCards.find(c => String(c.color||'').trim() === String(primaryColorName||'').trim());
+      const card = colorCards.find(c => String(c.color || '').trim() === String(primaryColorName || '').trim());
       if (card && primaryColorCardKey !== card.key) setPrimaryColorCardKey(card.key);
-    } catch {}
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [primaryColorName, JSON.stringify(colorCards.map(c=> ({ k:c.key, c:c.color })))]);
+    } catch { }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [primaryColorName, JSON.stringify(colorCards.map(c => ({ k: c.key, c: c.color })))]);
 
   // --- Color tags persistence helpers ---
   function buildColorTagsFromState(finalImages: string[]): string[] {
@@ -2198,11 +2226,11 @@ export default function AdminProductCreate(): JSX.Element {
       if (color && url) tags.push(`colorPrimaryImage:${color}=${url as string}`);
     }
     // Per-color gallery from colorCards selections
-    const urlStringsLen = (images || '').split(',').map(s=>s.trim()).filter(Boolean).length;
+    const urlStringsLen = (images || '').split(',').map(s => s.trim()).filter(Boolean).length;
     for (const card of colorCards) {
-      const c = String(card.color||'').trim(); if (!c) continue;
+      const c = String(card.color || '').trim(); if (!c) continue;
       const selectedUrls: string[] = [];
-      for (const idx of (card.selectedImageIdxs||[])) {
+      for (const idx of (card.selectedImageIdxs || [])) {
         if (idx < urlStringsLen) {
           const u = finalImages[idx]; if (u) selectedUrls.push(u);
         } else {
@@ -2220,18 +2248,18 @@ export default function AdminProductCreate(): JSX.Element {
     return Array.from(new Set(tags));
   }
 
-  function parseColorTagsToState(productTags: string[], productImages: string[]): { mapping: Record<string,string|undefined>; cards: Array<{ key:string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }> } {
+  function parseColorTagsToState(productTags: string[], productImages: string[]): { mapping: Record<string, string | undefined>; cards: Array<{ key: string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }> } {
     const mapping: Record<string, string | undefined> = {};
-    const cardsByColor = new Map<string, { key:string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }>();
+    const cardsByColor = new Map<string, { key: string; color?: string; selectedImageIdxs: number[]; primaryImageIdx?: number }>();
     const urlIndex = (u?: string) => (u ? productImages.findIndex(x => x === u) : -1);
-    for (const t of (productTags||[])) {
-      const s = String(t||'');
+    for (const t of (productTags || [])) {
+      const s = String(t || '');
       if (s.startsWith('primaryColor:')) {
         const name = s.split(':').slice(1).join(':');
-        if (name) { try { setPrimaryColorName(name); } catch {} }
+        if (name) { try { setPrimaryColorName(name); } catch { } }
       } else if (s.startsWith('colorPrimaryImage:')) {
         const [k, v] = s.replace('colorPrimaryImage:', '').split('=');
-        const color = String(k||'').trim(); const url = String(v||'').trim();
+        const color = String(k || '').trim(); const url = String(v || '').trim();
         if (color && url) {
           mapping[color] = url;
           const idx = urlIndex(url);
@@ -2241,11 +2269,11 @@ export default function AdminProductCreate(): JSX.Element {
         }
       } else if (s.startsWith('colorImages:')) {
         const [k, v] = s.replace('colorImages:', '').split('=');
-        const color = String(k||'').trim(); const urls = String(v||'').split('|').map(x=>x.trim()).filter(Boolean);
+        const color = String(k || '').trim(); const urls = String(v || '').split('|').map(x => x.trim()).filter(Boolean);
         if (color && urls.length) {
           const card = cardsByColor.get(color) || { key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, color, selectedImageIdxs: [], primaryImageIdx: undefined };
           const idxs = urls.map(u => urlIndex(u)).filter(i => i >= 0);
-          card.selectedImageIdxs = Array.from(new Set([...(card.selectedImageIdxs||[]), ...idxs]));
+          card.selectedImageIdxs = Array.from(new Set([...(card.selectedImageIdxs || []), ...idxs]));
           cardsByColor.set(color, card);
         }
       }
@@ -2256,12 +2284,12 @@ export default function AdminProductCreate(): JSX.Element {
 
   // Derived mapping used for UI previews (table thumbnails)
   const mergedColorMapping = React.useMemo<Record<string, string | undefined>>(() => {
-    try { return { ...(review?.mapping||{}), ...buildColorMappingFromCards() }; } catch { return (review as any)?.mapping || {}; }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(colorCards), JSON.stringify((review as any)?.mapping||{})]);
+    try { return { ...(review?.mapping || {}), ...buildColorMappingFromCards() }; } catch { return (review as any)?.mapping || {}; }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(colorCards), JSON.stringify((review as any)?.mapping || {})]);
 
-  React.useEffect(()=>{
-    const unique = Array.from(new Set(colorCards.map(c => (c.color||'')).filter(Boolean)));
+  React.useEffect(() => {
+    const unique = Array.from(new Set(colorCards.map(c => (c.color || '')).filter(Boolean)));
     setSelectedColors(unique as string[]);
   }, [colorCards]);
 
@@ -2281,22 +2309,22 @@ export default function AdminProductCreate(): JSX.Element {
     const activeSizeTypes = resolvedSizeTypes;
     const colorList = selectedColors;
     // Build SKU base from product SKU or name
-    const skuBase = (sku || name || 'PRD').toUpperCase().replace(/[^A-Z0-9]+/g,'');
+    const skuBase = (sku || name || 'PRD').toUpperCase().replace(/[^A-Z0-9]+/g, '');
     const sizeValueOf = (sizeToken?: string): string => {
-      const raw = String(sizeToken||'').trim(); if (!raw) return '';
+      const raw = String(sizeToken || '').trim(); if (!raw) return '';
       if (raw.includes('|')) {
-        const vals = raw.split('|').map(part=> {
-          const idx = part.indexOf(':'); return idx>0 ? part.slice(idx+1).trim() : part.trim();
+        const vals = raw.split('|').map(part => {
+          const idx = part.indexOf(':'); return idx > 0 ? part.slice(idx + 1).trim() : part.trim();
         }).filter(Boolean);
-        return vals.join('-').toUpperCase().replace(/[^A-Z0-9-]+/g,'').slice(0, 12);
+        return vals.join('-').toUpperCase().replace(/[^A-Z0-9-]+/g, '').slice(0, 12);
       }
       const idx = raw.indexOf(':');
-      const v = (idx>0 ? raw.slice(idx+1) : raw).trim();
-      return v.toUpperCase().replace(/[^A-Z0-9-]+/g,'').slice(0, 12);
+      const v = (idx > 0 ? raw.slice(idx + 1) : raw).trim();
+      return v.toUpperCase().replace(/[^A-Z0-9-]+/g, '').slice(0, 12);
     };
     const seqBySize = new Map<string, number>();
-    const nextSeq = (sizeKey: string): number => { const n=(seqBySize.get(sizeKey)||0)+1; seqBySize.set(sizeKey,n); return n; };
-    const hasColors = Array.isArray(colorList) && colorList.length>0;
+    const nextSeq = (sizeKey: string): number => { const n = (seqBySize.get(sizeKey) || 0) + 1; seqBySize.set(sizeKey, n); return n; };
+    const hasColors = Array.isArray(colorList) && colorList.length > 0;
     const rows: Array<{ name: string; value: string; price?: number; purchasePrice?: number; stockQuantity: number; sku?: string; size?: string; color?: string; option_values?: Array<{ name: string; value: string; label?: string }> }> = [];
     // Build color→image mapping from colorCards selections, falling back to review.mapping
     const urls = allProductImageUrls();
@@ -2309,10 +2337,10 @@ export default function AdminProductCreate(): JSX.Element {
       const url = (pickIdx !== undefined) ? urls[pickIdx] : undefined;
       if (url) selectedMapping[cname] = url;
     }
-    const mergedMapping: Record<string,string|undefined> = { ...(review?.mapping||{}), ...selectedMapping };
+    const mergedMapping: Record<string, string | undefined> = { ...(review?.mapping || {}), ...selectedMapping };
     const makeSku = (parts: string[]): string => {
-      const base = (sku || name || 'PRD').toUpperCase().replace(/[^A-Z0-9]+/g,'').slice(0,8) || 'PRD';
-      const tail = parts.map(p=> String(p||'').toUpperCase().replace(/\s+/g,'').replace(/[^A-Z0-9]+/g,'').slice(0,6)).filter(Boolean).join('-');
+      const base = (sku || name || 'PRD').toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 8) || 'PRD';
+      const tail = parts.map(p => String(p || '').toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9]+/g, '').slice(0, 6)).filter(Boolean).join('-');
       return [base, tail].filter(Boolean).join('-');
     };
 
@@ -2323,7 +2351,7 @@ export default function AdminProductCreate(): JSX.Element {
           for (const c of colorList) {
             const sizeToken = `${t1.name}:${s1}|${t2.name}:${s2}`;
             const sizeShort = sizeValueOf(sizeToken);
-            const seq = nextSeq(sizeShort||'ALL');
+            const seq = nextSeq(sizeShort || 'ALL');
             rows.push({
               name: `${t1.name}: ${s1} • ${t2.name}: ${s2} • اللون: ${c}`,
               value: `${t1.name}: ${s1} • ${t2.name}: ${s2} • اللون: ${c}`,
@@ -2375,7 +2403,7 @@ export default function AdminProductCreate(): JSX.Element {
         for (const c of colorList) {
           const sizeToken = `${t1.name}:${s1}`;
           const sizeShort = sizeValueOf(sizeToken);
-          const seq = nextSeq(sizeShort||'ALL');
+          const seq = nextSeq(sizeShort || 'ALL');
           rows.push({
             name: `${t1.name}: ${s1} • اللون: ${c}`,
             value: `${t1.name}: ${s1} • اللون: ${c}`,
@@ -2449,12 +2477,12 @@ export default function AdminProductCreate(): JSX.Element {
     }
     // Guard: ensure description table (strictDetails) is embedded if available
     try {
-      const rows = (review as any)?.strictDetails as Array<{label:string; value:string}> | undefined;
+      const rows = (review as any)?.strictDetails as Array<{ label: string; value: string }> | undefined;
       const html = detailsToHtmlTable(rows);
       if (html && html.length && (!description || description.indexOf('<table') === -1)) {
         setDescription(html);
       }
-    } catch {}
+    } catch { }
     setBusy(true);
     const existingImageUrls: string[] = (images || '').split(',').map(s => s.trim()).filter(Boolean).filter(u => !u.startsWith('blob:'));
     let uploadedOrBase64: string[] = [];
@@ -2479,7 +2507,7 @@ export default function AdminProductCreate(): JSX.Element {
         }));
         uploadedOrBase64 = results.filter((u): u is string => Boolean(u));
       }
-    } catch {}
+    } catch { }
     const baseImages: string[] = Array.from(new Set([...existingImageUrls, ...uploadedOrBase64]));
     const productPayload: any = {
       name,
@@ -2493,34 +2521,39 @@ export default function AdminProductCreate(): JSX.Element {
       stockQuantity: (stockQuantity === '' ? 999999 : Number(stockQuantity || 0)),
       sku: sku || undefined,
       brand: brand || undefined,
-      pointsFixed: pointsFixed===''? undefined : Number(pointsFixed||0),
-      pointsPercent: pointsPercent===''? undefined : Number(pointsPercent||0),
-      loyaltyMultiplier: loyaltyMultiplier===''? undefined : Number(loyaltyMultiplier||0),
+      pointsFixed: pointsFixed === '' ? undefined : Number(pointsFixed || 0),
+      pointsPercent: pointsPercent === '' ? undefined : Number(pointsPercent || 0),
+      loyaltyMultiplier: loyaltyMultiplier === '' ? undefined : Number(loyaltyMultiplier || 0),
       excludeFromPoints: excludeFromPoints || undefined,
-      tags: (()=>{
-        const base = [supplier ? `supplier:${supplier}` : '', purchasePrice!=='' ? `purchase:${purchasePrice}` : ''].filter(Boolean) as string[];
+      tags: (() => {
+        const base = [supplier ? `supplier:${supplier}` : '', purchasePrice !== '' ? `purchase:${purchasePrice}` : ''].filter(Boolean) as string[];
         const colorTags = buildColorTagsFromState(baseImages);
         return Array.from(new Set([...base, ...colorTags]));
       })(),
       isActive: !draft,
       // Persist color galleries formally for API/DB
-      colors: (()=>{
+      colors: (() => {
         const urls = baseImages;
-        const list: Array<{ name:string; primaryImageUrl?:string; isPrimary?:boolean; order?:number; images?:string[] }> = [];
-        for (let i=0;i<colorCards.length;i++){
+        const list: Array<{ name: string; primaryImageUrl?: string; isPrimary?: boolean; order?: number; images?: string[] }> = [];
+        for (let i = 0; i < colorCards.length; i++) {
           const card = colorCards[i];
-          const name = String(card.color||'').trim(); if (!name) continue;
+          const name = String(card.color || '').trim(); if (!name) continue;
           const imgs: string[] = [];
-          for (const idx of (card.selectedImageIdxs||[])){ if (urls[idx]) imgs.push(urls[idx]); }
-          const primary = (typeof card.primaryImageIdx==='number' && urls[card.primaryImageIdx]) ? urls[card.primaryImageIdx] : (review?.mapping?.[name]);
-          list.push({ name, primaryImageUrl: primary, isPrimary: primaryColorName===name, order:i, images: imgs.length? imgs: undefined });
+          for (const idx of (card.selectedImageIdxs || [])) { if (urls[idx]) imgs.push(urls[idx]); }
+          const primary = (typeof card.primaryImageIdx === 'number' && urls[card.primaryImageIdx]) ? urls[card.primaryImageIdx] : (review?.mapping?.[name]);
+          list.push({ name, primaryImageUrl: primary, isPrimary: primaryColorName === name, order: i, images: imgs.length ? imgs : undefined });
         }
         // Ensure primaryColor present even if no card yet
-        if (primaryColorName && !list.some(c=> c.name===primaryColorName)) list.push({ name: primaryColorName, isPrimary: true });
+        if (primaryColorName && !list.some(c => c.name === primaryColorName)) list.push({ name: primaryColorName, isPrimary: true });
         return list;
       })(),
-      seoTitle: seoTitle||undefined,
-      seoDescription: seoDescription||undefined,
+      seoTitle: seoTitle || undefined,
+      seoDescription: seoDescription || undefined,
+      slug: slug || undefined,
+      seoKeywords: seoKeywords || undefined,
+      canonicalUrl: canonicalUrl || undefined,
+      metaRobots: metaRobots || undefined,
+      hiddenContent: hiddenContent || undefined,
     };
     const editId = search?.get('id');
     // Build normalized variants once for either create or patch
@@ -2535,14 +2568,14 @@ export default function AdminProductCreate(): JSX.Element {
           const sizeToken = v.size ? String(v.size) : undefined;
           const colorToken = v.color ? String(v.color) : undefined;
           const ov = Array.isArray(v.option_values) ? v.option_values : [];
-          const withSize = sizeToken ? ov.filter(o=>o.name!=='size').concat(
+          const withSize = sizeToken ? ov.filter(o => o.name !== 'size').concat(
             sizeToken.includes('|')
               ? sizeToken.split('|').map(part => {
-                  const [k,val] = part.split(':',2); return { name:'size', value: val? `${k}:${val}` : String(part) };
-                })
-              : [{ name:'size', value:String(sizeToken) }]
+                const [k, val] = part.split(':', 2); return { name: 'size', value: val ? `${k}:${val}` : String(part) };
+              })
+              : [{ name: 'size', value: String(sizeToken) }]
           ) : ov;
-          const withBoth = colorToken ? withSize.filter(o=>o.name!=='color').concat([{ name:'color', value:String(colorToken) }]) : withSize;
+          const withBoth = colorToken ? withSize.filter(o => o.name !== 'color').concat([{ name: 'color', value: String(colorToken) }]) : withSize;
           return { ...v, size: sizeToken, color: colorToken, option_values: withBoth };
         });
       }
@@ -2552,10 +2585,10 @@ export default function AdminProductCreate(): JSX.Element {
     try {
       if (editId) {
         // PATCH existing product with variants in one request
-        const body = { ...productPayload, ...(normalizedVariants.length? { /* do not send variants here; we will replace after */ } : {}) };
-        res = await fetch(`${apiBase}/api/admin/products/${editId}`, { method:'PATCH', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(body) });
+        const body = { ...productPayload, ...(normalizedVariants.length ? { /* do not send variants here; we will replace after */ } : {}) };
+        res = await fetch(`${apiBase}/api/admin/products/${editId}`, { method: 'PATCH', headers: { 'content-type': 'application/json', ...authHeaders() }, credentials: 'include', body: JSON.stringify(body) });
       } else {
-        res = await fetch(`${apiBase}/api/admin/products`, { method:'POST', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(productPayload) });
+        res = await fetch(`${apiBase}/api/admin/products`, { method: 'POST', headers: { 'content-type': 'application/json', ...authHeaders() }, credentials: 'include', body: JSON.stringify(productPayload) });
       }
     } catch (err) {
       setBusy(false);
@@ -2563,53 +2596,53 @@ export default function AdminProductCreate(): JSX.Element {
       return;
     }
     if (!res.ok) {
-      let msg = editId? 'فشل تحديث المنتج' : 'فشل إنشاء المنتج';
+      let msg = editId ? 'فشل تحديث المنتج' : 'فشل إنشاء المنتج';
       try {
         const j = await res.json();
         if (j?.error) msg = String(j.error);
-        if ((j?.message||'').toLowerCase().includes('unique') || (j?.error||'').toLowerCase().includes('unique')) msg = 'SKU مكرر أو بيانات غير صالحة';
+        if ((j?.message || '').toLowerCase().includes('unique') || (j?.error || '').toLowerCase().includes('unique')) msg = 'SKU مكرر أو بيانات غير صالحة';
         if (res.status === 403) msg = 'لا تملك صلاحية العملية، يرجى تسجيل الدخول';
-      } catch {}
+      } catch { }
       setBusy(false);
       showToast(msg, 'err');
       return;
     }
-    const j = await res.json().catch(()=>({}));
+    const j = await res.json().catch(() => ({}));
     const productId = editId || j?.product?.id;
     // Replace variants to persist edits and deletions robustly (even when switching to simple -> send empty list)
     if (productId) {
       try {
         const list = type === 'variable' ? (Array.isArray(normalizedVariants) ? normalizedVariants : []) : [];
         // Normalize stock field name for API (expects `stock`, UI uses `stockQuantity`)
-        const listForApi = list.map((v:any)=> {
+        const listForApi = list.map((v: any) => {
           const hasStock = typeof (v as any).stock === 'number' && Number.isFinite((v as any).stock);
           const hasStockQty = typeof (v as any).stockQuantity === 'number' && Number.isFinite((v as any).stockQuantity);
           const stock = hasStock ? Number((v as any).stock) : (hasStockQty ? Number((v as any).stockQuantity) : 0);
           return { ...v, stock };
         });
         await fetch(`${apiBase}/api/admin/products/${encodeURIComponent(productId)}/variants/replace`, {
-          method:'PUT', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include',
+          method: 'PUT', headers: { 'content-type': 'application/json', ...authHeaders() }, credentials: 'include',
           body: JSON.stringify({ variants: listForApi })
         });
-      } catch {}
+      } catch { }
     }
     // Persist PDP meta (merge first)
-    try{
-      if (productId){
-        let baseMeta:any = {};
-        try{ const gr = await fetch(`${apiBase}/api/admin/pdp/meta/${encodeURIComponent(productId)}`, { credentials:'include', headers:{ ...authHeaders() } }); const gj = await gr.json(); baseMeta = (gj?.meta && typeof gj.meta==='object')? gj.meta : {}; }catch{}
-        const nextMeta = Object.assign({}, baseMeta, { modelEnabled: modelEnabled, model: { imageUrl: modelImageUrl || undefined, fields: modelFields.filter(f=> f.label && f.value) } });
-        await fetch(`${apiBase}/api/admin/pdp/meta/${encodeURIComponent(productId)}`, { method:'PUT', headers:{ 'content-type':'application/json', ...authHeaders() }, credentials:'include', body: JSON.stringify(nextMeta) });
+    try {
+      if (productId) {
+        let baseMeta: any = {};
+        try { const gr = await fetch(`${apiBase}/api/admin/pdp/meta/${encodeURIComponent(productId)}`, { credentials: 'include', headers: { ...authHeaders() } }); const gj = await gr.json(); baseMeta = (gj?.meta && typeof gj.meta === 'object') ? gj.meta : {}; } catch { }
+        const nextMeta = Object.assign({}, baseMeta, { modelEnabled: modelEnabled, model: { imageUrl: modelImageUrl || undefined, fields: modelFields.filter(f => f.label && f.value) } });
+        await fetch(`${apiBase}/api/admin/pdp/meta/${encodeURIComponent(productId)}`, { method: 'PUT', headers: { 'content-type': 'application/json', ...authHeaders() }, credentials: 'include', body: JSON.stringify(nextMeta) });
       }
-    }catch{}
+    } catch { }
     if (uploadedOrBase64.length) {
       setImages(baseImages.join(', '));
       setFiles([]);
     }
     setBusy(false);
-    showToast(editId? 'تم تحديث المنتج بنجاح' : 'تم إنشاء المنتج بنجاح', 'ok');
+    showToast(editId ? 'تم تحديث المنتج بنجاح' : 'تم إنشاء المنتج بنجاح', 'ok');
     // بعد الحفظ، العودة إلى نفس صفحة الجدول (الصف/الفلاتر) إن وُجِدت
-    try{
+    try {
       const params = new URLSearchParams();
       const bp = search?.get('backPage'); if (bp) params.set('page', bp);
       const bs = search?.get('backStatus'); if (bs) params.set('status', bs);
@@ -2624,638 +2657,684 @@ export default function AdminProductCreate(): JSX.Element {
 
   return (
     <div className="container">
-    <main className="panel" style={{ padding:16 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 12 }}>
-        <h1 style={{ margin:0 }}>إنشاء منتج</h1>
-        {(() => {
-          try{
-            const params = new URLSearchParams();
-            const bp = search?.get('backPage'); if (bp) params.set('page', bp);
-            const bs = search?.get('backStatus'); if (bs) params.set('status', bs);
-            const bq = search?.get('backSearch'); if (bq) params.set('search', bq);
-            const bc = search?.get('backCategoryId'); if (bc) params.set('categoryId', bc);
-            const qs = params.toString();
-            const href = qs ? `/products?${qs}` : '/products';
-            return <a href={href} className="btn btn-outline">رجوع</a>;
-          }catch{
-            return <a href="/products" className="btn btn-outline">رجوع</a>;
-          }
-        })()}
-      </div>
-
-      <Section
-        title="Paste & Generate"
-        subtitle="الصق مواصفات المنتج وسيتم تحليلها واقتراح الحقول تلقائياً."
-        toolbar={<>
-          <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
-            <input type="checkbox" checked={deepseekOn} onChange={(e)=> setDeepseekOn(e.target.checked)} />
-            <span>DeepSeek</span>
-          </label>
-          <button type="button" onClick={()=>handleAnalyze(files, deepseekOn)} disabled={busy} className="btn">{busy? 'جارِ التحليل...' : 'حلّل واملأ الحقول'}</button>
-          <button type="button" onClick={()=>handleAnalyze(files, true)} disabled={busy} className="btn" title="تشغيل DeepSeek بالقوة">{busy? '...' : 'حلّل واملأ الحقول (DeepSeek)'}</button>
-          <button type="button" onClick={()=>handleDeepseekOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر DeepSeek محلياً (بدون رفع)">{busy? '...' : 'تحليل عبر DeepSeek (محلي)'} </button>
-          <button type="submit" disabled={busy} className="btn btn-outline">إنشاء المنتج</button>
-        </>}
-      >
-          <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 360px', gap:16 }}>
-          <div style={{ display:'grid', gap:12 }}>
-            <textarea value={paste} onChange={(e)=>setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={10} className="input" style={{ borderRadius:12, whiteSpace:'pre-wrap', wordBreak:'break-word' }} />
-            {error && <span style={{ color:'#ef4444' }}>{error}</span>}
-            {/* إخفاء واجهة المعاينة (مُعطل بالكامل) */}
-            {false && (
-              <div className="panel" style={{ padding:12 }}>
-                <h3 style={{ marginTop:0 }}>Review</h3>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                  <label>الاسم (ثقة {Math.round((review.confidence?.name||0)*100)}%) <SourceBadge src={review.sources?.name} />
-                    <input value={review.name||''} onChange={(e)=> setReview((r:any)=> ({...r, name:e.target.value}))} className="input" />
-                    {!review.name && review?.reasons?.name && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.name}</div>}
-                  </label>
-                  <label>سعر الشراء/التكلفة (ثقة {Math.round((review.confidence?.purchasePrice||0)*100)}%) <SourceBadge src={review.sources?.price_range} /><input type="text" inputMode="decimal" value={review.purchasePrice??''} onChange={(e)=> setReview((r:any)=> ({...r, purchasePrice: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
-                  <label>المخزون (ثقة {Math.round((review.confidence?.stock||0)*100)}%)<input type="text" inputMode="numeric" value={review.stock??''} onChange={(e)=> setReview((r:any)=> ({...r, stock: e.target.value===''? undefined : Number(e.target.value)}))} className="input" /></label>
-                  
-                  <label style={{ gridColumn:'1 / -1' }}>وصف طويل (ثقة {Math.round((review.confidence?.longDesc||0)*100)}%) <SourceBadge src={review.sources?.description} /><textarea ref={longDescRef} value={review.longDesc||''} onChange={(e)=> setReview((r:any)=> ({...r, longDesc:e.target.value}))} rows={4} className="input" /></label>
-                  {Array.isArray(review.strictDetails) && review.strictDetails.length>0 && (
-                    <div style={{ gridColumn:'1 / -1' }}>
-                      <div style={{ marginBottom:6, color:'#9ca3af' }}>جدول تفاصيل المنتج (صارم)</div>
-                      <div style={{ overflowX:'auto' }}>
-                        <table className="table" role="table" aria-label="جدول تفاصيل المنتج">
-                          <thead>
-                            <tr>
-                              <th>البند</th>
-                              <th>القيمة</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {review.strictDetails.map((r:any, idx:number)=> (
-                              <tr key={idx}>
-                                <td>{r.label}</td>
-                                <td>{r.value}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                  <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                    <div>
-                      <div style={{ marginBottom:6, color:'#9ca3af' }}>المقاسات (ثقة {Math.round((review.confidence?.sizes||0)*100)}%) <SourceBadge src={review.sources?.sizes} /></div>
-                      <input value={(review.sizes||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, sizes: sanitizeSizesStrict(cleanTextStrict(paste), e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean), paste) }))} className="input" />
-                      {(!review.sizes || review.sizes.length===0) && review?.reasons?.sizes && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.sizes}</div>}
-                    </div>
-                    <div>
-                      <div style={{ marginBottom:6, color:'#9ca3af' }}>الألوان (ثقة {Math.round((review.confidence?.colors||0)*100)}%) <SourceBadge src={review.sources?.colors} /></div>
-                      <input value={(review.colors||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, colors: sanitizeColorsStrict(cleanTextStrict(paste), e.target.value.split(',').map((c:string)=>c.trim()).filter(Boolean)) }))} className="input" />
-                      {(!review.colors || review.colors.length===0) && review?.reasons?.colors && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.colors}</div>}
-                    </div>
-                    {(() => {
-                      const groups = Array.isArray((review as any).sizeGroups) ? (review as any).sizeGroups as Array<{label:string;values:string[]}> : [];
-                      const g0 = groups[0] || { label: 'مقاس إضافي 1', values: [] };
-                      const g1 = groups[1] || { label: 'مقاس إضافي 2', values: [] };
-                      return (
-                        <>
-                          <div style={{ gridColumn: '1/2' }}>
-                            <div style={{ marginBottom:6, color:'#9ca3af' }}>{g0.label}</div>
-                            <input value={(g0.values||[]).join(', ')} onChange={(e)=> setReview((r:any)=>{
-                              const arr = Array.isArray(r.sizeGroups)? [...r.sizeGroups] : [];
-                              const vals = e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean);
-                              const label = (arr[0]?.label) || g0.label;
-                              arr[0] = { label, values: vals };
-                              return { ...r, sizeGroups: arr };
-                            })} className="input" />
-                          </div>
-                          <div style={{ gridColumn: '2/3' }}>
-                            <div style={{ marginBottom:6, color:'#9ca3af' }}>{g1.label}</div>
-                            <input value={(g1.values||[]).join(', ')} onChange={(e)=> setReview((r:any)=>{
-                              const arr = Array.isArray(r.sizeGroups)? [...r.sizeGroups] : [];
-                              const vals = e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean);
-                              const label = (arr[1]?.label) || g1.label;
-                              arr[1] = { label, values: vals };
-                              return { ...r, sizeGroups: arr };
-                            })} className="input" />
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                  <div style={{ gridColumn:'1 / -1' }}>
-                    <div style={{ marginBottom:6, color:'#9ca3af' }}>كلمات مفتاحية (SEO) <SourceBadge src={review.sources?.tags} /></div>
-                    <input value={(review.keywords||[]).join(', ')} onChange={(e)=> setReview((r:any)=> ({...r, keywords: e.target.value.split(',').map((k:string)=>k.trim()).filter(Boolean)}))} className="input" />
-                    {(!review.keywords || review.keywords.length===0) && review?.reasons?.tags && <div style={{ fontSize:12, color:'#ef4444' }}>{review.reasons.tags}</div>}
-                  </div>
-                </div>
-                <div style={{ marginTop:12, borderTop:'1px solid #1c2333', paddingTop:12 }}>
-                  <div style={{ marginBottom:8, color:'#9ca3af' }}>Images → Colors mapping</div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div>
-                      <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8 }}>
-                        {(review.palettes||[]).map((p:any, idx:number)=> (
-                          <div key={idx} className="panel" style={{ padding:0 }}>
-                            <img src={p.url} alt={String(idx)} style={{ width:'100%', height:100, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
-                            <div style={{ padding:6, display:'flex', alignItems:'center', gap:8 }}>
-                              <span style={{ width:14, height:14, borderRadius:999, background:p.hex, border:'1px solid #111' }} />
-                              <span style={{ fontSize:12 }}>{p.name}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ display:'grid', gap:8 }}>
-                        {(review.colors||[]).map((c:string, i:number)=> (
-                          <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, alignItems:'center' }}>
-                            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                              <span style={{ width:14, height:14, borderRadius:999, background:(KNOWN_COLORS.find(k=>k.name.toLowerCase()===c.toLowerCase())?.hex||'#666'), border:'1px solid #111' }} />
-                              <span>{c}</span>
-                            </div>
-                            <select value={review.mapping?.[c]||''} onChange={(e)=> setReview((r:any)=> ({...r, mapping: { ...(r.mapping||{}), [c]: e.target.value || undefined }}))} className="select">
-                              <option value="">(بدون صورة)</option>
-                              {(review.palettes||[]).map((p:any, idx:number)=> (<option key={idx} value={p.url}>صورة {idx+1}</option>))}
-                            </select>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        <div>
-            <div
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOver(false);
-                const dropped = Array.from(e.dataTransfer.files || []);
-                if (dropped.length) setFiles((prev) => mergeUniqueFiles(prev, dropped));
-              }}
-              className="dropzone"
-            style={{ border: `2px dashed ${dragOver ? '#60a5fa' : 'var(--muted)'}` }}
-            >
-              اسحب وأفلت الصور هنا أو
-              <br />
-            <label className="btn btn-outline" style={{ marginTop: 8, cursor:'pointer' }}>
-                اختر من جهازك
-                <input type="file" accept="image/*" multiple style={{ display:'none' }} onChange={(e) => {
-                  const selected = Array.from(e.target.files || []);
-                  if (selected.length) setFiles((prev) => mergeUniqueFiles(prev, selected));
-                }} />
-              </label>
-              <div style={{ fontSize:12, marginTop:8 }}>يدعم السحب والإفلات والاختيار من المعرض</div>
-            </div>
-            {(() => {
-              const urls = allProductImageUrls();
-              return urls.length > 0 ? (
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:12, marginTop:10, maxWidth:'100%' }}>
-                  {urls.map((u, idx) => (
-                    <div key={`${u}__${idx}`} className="panel" style={{ padding:0, overflow:'hidden', borderRadius:8 }}>
-                      <img src={u} alt={`img-${idx}`} style={{ display:'block', width:'100%', height:120, objectFit:'cover' }} />
-                      <div style={{ padding:8, textAlign:'right', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                        <span className="muted" style={{ fontSize:12, direction:'ltr', textAlign:'left', maxWidth:'70%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u}</span>
-                        <button type="button" onClick={() => removeImageAt(idx)} className="icon-btn">إزالة</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null;
-            })()}
-          </div>
+      <main className="panel" style={{ padding: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h1 style={{ margin: 0 }}>إنشاء منتج</h1>
+          {(() => {
+            try {
+              const params = new URLSearchParams();
+              const bp = search?.get('backPage'); if (bp) params.set('page', bp);
+              const bs = search?.get('backStatus'); if (bs) params.set('status', bs);
+              const bq = search?.get('backSearch'); if (bq) params.set('search', bq);
+              const bc = search?.get('backCategoryId'); if (bc) params.set('categoryId', bc);
+              const qs = params.toString();
+              const href = qs ? `/products?${qs}` : '/products';
+              return <a href={href} className="btn btn-outline">رجوع</a>;
+            } catch {
+              return <a href="/products" className="btn btn-outline">رجوع</a>;
+            }
+          })()}
         </div>
-      </Section>
 
-      
+        <Section
+          title="Paste & Generate"
+          subtitle="الصق مواصفات المنتج وسيتم تحليلها واقتراح الحقول تلقائياً."
+          toolbar={<>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <input type="checkbox" checked={deepseekOn} onChange={(e) => setDeepseekOn(e.target.checked)} />
+              <span>DeepSeek</span>
+            </label>
+            <button type="button" onClick={() => handleAnalyze(files, deepseekOn)} disabled={busy} className="btn">{busy ? 'جارِ التحليل...' : 'حلّل واملأ الحقول'}</button>
+            <button type="button" onClick={() => handleAnalyze(files, true)} disabled={busy} className="btn" title="تشغيل DeepSeek بالقوة">{busy ? '...' : 'حلّل واملأ الحقول (DeepSeek)'}</button>
+            <button type="button" onClick={() => handleDeepseekOnlyPreview(files)} disabled={busy} className="btn btn-outline" title="تحليل عبر DeepSeek محلياً (بدون رفع)">{busy ? '...' : 'تحليل عبر DeepSeek (محلي)'} </button>
+            <button type="submit" disabled={busy} className="btn btn-outline">إنشاء المنتج</button>
+          </>}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 360px', gap: 16 }}>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <textarea value={paste} onChange={(e) => setPaste(e.target.value)} placeholder="الصق مواصفات المنتج (AR/EN)" rows={10} className="input" style={{ borderRadius: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} />
+              {error && <span style={{ color: '#ef4444' }}>{error}</span>}
+              {/* إخفاء واجهة المعاينة (مُعطل بالكامل) */}
+              {false && (
+                <div className="panel" style={{ padding: 12 }}>
+                  <h3 style={{ marginTop: 0 }}>Review</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <label>الاسم (ثقة {Math.round((review.confidence?.name || 0) * 100)}%) <SourceBadge src={review.sources?.name} />
+                      <input value={review.name || ''} onChange={(e) => setReview((r: any) => ({ ...r, name: e.target.value }))} className="input" />
+                      {!review.name && review?.reasons?.name && <div style={{ fontSize: 12, color: '#ef4444' }}>{review.reasons.name}</div>}
+                    </label>
+                    <label>سعر الشراء/التكلفة (ثقة {Math.round((review.confidence?.purchasePrice || 0) * 100)}%) <SourceBadge src={review.sources?.price_range} /><input type="text" inputMode="decimal" value={review.purchasePrice ?? ''} onChange={(e) => setReview((r: any) => ({ ...r, purchasePrice: e.target.value === '' ? undefined : Number(e.target.value) }))} className="input" /></label>
+                    <label>المخزون (ثقة {Math.round((review.confidence?.stock || 0) * 100)}%)<input type="text" inputMode="numeric" value={review.stock ?? ''} onChange={(e) => setReview((r: any) => ({ ...r, stock: e.target.value === '' ? undefined : Number(e.target.value) }))} className="input" /></label>
 
-      <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 20, alignItems:'start' }}>
-        {/* Left main column span 8 */}
-        <div style={{ gridColumn: 'span 8', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <label>نوع المنتج
-            <select value={type} onChange={(e) => setType(e.target.value as any)} className="select">
-              <option value="simple">منتج بسيط</option>
-              <option value="variable">منتج متعدد (مقاسات/ألوان)</option>
-            </select>
-          </label>
-          <label>SKU
-            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-              <input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="سيتم توليده حسب المورّد" className="input" />
-              <button type="button" onClick={async ()=>{
-                if (!vendorId) return;
-                try { const r = await fetch(`${apiBase}/api/admin/vendors/${vendorId}/next-sku`, { credentials:'include', headers: { ...authHeaders() } }); const j = await r.json(); if (r.ok && j?.sku) setSku(j.sku); } catch {}
-              }} className="btn btn-outline">توليد تلقائي</button>
-            </div>
-          </label>
-          <label style={{ gridColumn:'1 / -1' }}>اسم المنتج
-            <input value={name} onChange={(e) => setName(e.target.value)} required className="input" />
-          </label>
-          <label style={{ gridColumn:'1 / -1' }}>الوصف
-            <RichTextEditor value={description} onChange={setDescription} />
-            <small style={{ color:'var(--sub)' }}>يعرض المحرر التنسيق مباشرة (جداول، قوائم، نص منسّق). سيتم حفظ HTML كما هو.</small>
-          </label>
-          <label>المورّد
-            <select value={vendorId} onChange={async (e) => {
-              const v = e.target.value; setVendorId(v);
-              if (v) {
-                try{ const r = await fetch(`${apiBase}/api/admin/vendors/${v}/next-sku`, { credentials:'include', headers: { ...authHeaders() } }); const j = await r.json(); if (r.ok && j?.sku) setSku(j.sku); } catch {}
-              }
-            }} className="select">
-              <option value="">(بدون)</option>
-              {vendorOptions.map((v)=> (<option key={v.id} value={v.id}>{v.name}</option>))}
-            </select>
-          </label>
-          <label>العلامة التجارية
-            <select value={brand} onChange={(e)=> setBrand(e.target.value)} className="select">
-              <option value="">(اختياري)</option>
-              {brandOptions.map(b=> (<option key={b.id} value={b.name}>{b.name}</option>))}
-            </select>
-          </label>
-          <label>التصنيف
-            <CategoryMultiTreeDropdown
-              value={selectedCategoryIds}
-              onChange={(ids)=>{
-                const uniq = Array.from(new Set(ids));
-                setSelectedCategoryIds(uniq);
-                if (!uniq.includes(categoryId)) {
-                  setCategoryId(uniq[0] || '');
-                }
-              }}
-              primaryId={categoryId}
-              onPrimaryChange={(pid)=>{
-                setCategoryId(pid);
-                setSelectedCategoryIds(prev=>{
-                  const set = new Set(prev);
-                  if (pid) set.add(pid);
-                  return Array.from(set);
-                });
-              }}
-              options={categoryOptions}
-            />
-          </label>
-          <label>المخزون
-            <input type="text" inputMode="numeric" value={formatThousands(stockQuantity)} onChange={(e) => {
-              const v = parseLocalizedNumber(e.target.value);
-              setStockQuantity(e.target.value.trim()==='' ? '' : (typeof v==='number' && Number.isFinite(v) ? v : (stockQuantity||'')));
-            }} className="input" />
-          </label>
-          <label>سعر الشراء
-            <input type="text" inputMode="decimal" value={formatThousands(purchasePrice)} onChange={(e) => {
-              const v = parseLocalizedNumber(e.target.value);
-              setPurchasePrice(e.target.value.trim()==='' ? '' : (typeof v==='number' && Number.isFinite(v) ? v : (purchasePrice||'')));
-            }} className="input" />
-          </label>
-          <label>سعر البيع
-            <input type="text" inputMode="decimal" value={formatThousands(salePrice)} onChange={(e) => {
-              const v = parseLocalizedNumber(e.target.value);
-              setSalePrice(e.target.value.trim()==='' ? '' : (typeof v==='number' && Number.isFinite(v) ? v : (salePrice||'')));
-            }} required className="input" />
-          </label>
-          {/* Loyalty configuration */}
-          <label>
-            نقاط ثابتة (لكل قطعة)
-            <input className="input" placeholder="مثلاً 10" value={pointsFixed} onChange={(e)=> setPointsFixed(e.target.value.replace(/[^0-9]/g,''))} />
-          </label>
-          <label>
-            نسبة من السعر ← نقاط
-            <input className="input" placeholder="مثلاً 0.05" value={pointsPercent} onChange={(e)=> setPointsPercent(e.target.value)} />
-          </label>
-          <label>
-            مضاعف النقاط (للمنتج)
-            <input className="input" placeholder="مثلاً 1.5" value={loyaltyMultiplier} onChange={(e)=> setLoyaltyMultiplier(e.target.value)} />
-          </label>
-          <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
-            <input type="checkbox" checked={excludeFromPoints} onChange={(e)=> setExcludeFromPoints(e.target.checked)} />
-            <span>استثناء هذا المنتج من النقاط</span>
-          </label>
-          {type === 'variable' && (
-            <>
-              <div style={{ gridColumn:'1 / -1', display:'grid', gridTemplateColumns:'1fr', gap:12 }}>
-                <div className="panel" style={{ padding:10 }}>
-                  <div style={{ marginBottom:8, color:'#9ca3af' }}>إضافة نوع مقاس</div>
-                  <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                    <select defaultValue="" onChange={(e)=> { addSizeType(e.target.value); e.currentTarget.value=''; }} className="select">
-                      <option value="">اختر نوعًا</option>
-                      {sizeTypeOptions.map((t)=> (<option key={t.id} value={t.id}>{t.name}</option>))}
-                    </select>
-                  </div>
-                  <div style={{ display:'grid', gap:10, marginTop:10 }}>
-                    {selectedSizeTypes.map((t)=>(
-                      <div key={t.id} className="panel" style={{ padding:10 }}>
-                        <div style={{ marginBottom:6, fontWeight:600, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                          <span>{t.name}</span>
-                          <button type="button" className="btn btn-outline" onClick={()=> removeSizeType(t.id)}>إزالة النوع</button>
+                    <label style={{ gridColumn: '1 / -1' }}>وصف طويل (ثقة {Math.round((review.confidence?.longDesc || 0) * 100)}%) <SourceBadge src={review.sources?.description} /><textarea ref={longDescRef} value={review.longDesc || ''} onChange={(e) => setReview((r: any) => ({ ...r, longDesc: e.target.value }))} rows={4} className="input" /></label>
+                    {Array.isArray(review.strictDetails) && review.strictDetails.length > 0 && (
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <div style={{ marginBottom: 6, color: '#9ca3af' }}>جدول تفاصيل المنتج (صارم)</div>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table className="table" role="table" aria-label="جدول تفاصيل المنتج">
+                            <thead>
+                              <tr>
+                                <th>البند</th>
+                                <th>القيمة</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {review.strictDetails.map((r: any, idx: number) => (
+                                <tr key={idx}>
+                                  <td>{r.label}</td>
+                                  <td>{r.value}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                        <div style={{ display:'flex', flexWrap:'wrap', gap:10 }}>
-                          {t.sizes.map(s=> (
-                            <label key={s.id} style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
-                              <input type="checkbox" checked={t.selectedSizes.includes(s.name)} onChange={()=> toggleSizeForType(t.id, s.name)} />
-                              <span>{s.name}</span>
-                            </label>
+                      </div>
+                    )}
+                    <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <div>
+                        <div style={{ marginBottom: 6, color: '#9ca3af' }}>المقاسات (ثقة {Math.round((review.confidence?.sizes || 0) * 100)}%) <SourceBadge src={review.sources?.sizes} /></div>
+                        <input value={(review.sizes || []).join(', ')} onChange={(e) => setReview((r: any) => ({ ...r, sizes: sanitizeSizesStrict(cleanTextStrict(paste), e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean), paste) }))} className="input" />
+                        {(!review.sizes || review.sizes.length === 0) && review?.reasons?.sizes && <div style={{ fontSize: 12, color: '#ef4444' }}>{review.reasons.sizes}</div>}
+                      </div>
+                      <div>
+                        <div style={{ marginBottom: 6, color: '#9ca3af' }}>الألوان (ثقة {Math.round((review.confidence?.colors || 0) * 100)}%) <SourceBadge src={review.sources?.colors} /></div>
+                        <input value={(review.colors || []).join(', ')} onChange={(e) => setReview((r: any) => ({ ...r, colors: sanitizeColorsStrict(cleanTextStrict(paste), e.target.value.split(',').map((c: string) => c.trim()).filter(Boolean)) }))} className="input" />
+                        {(!review.colors || review.colors.length === 0) && review?.reasons?.colors && <div style={{ fontSize: 12, color: '#ef4444' }}>{review.reasons.colors}</div>}
+                      </div>
+                      {(() => {
+                        const groups = Array.isArray((review as any).sizeGroups) ? (review as any).sizeGroups as Array<{ label: string; values: string[] }> : [];
+                        const g0 = groups[0] || { label: 'مقاس إضافي 1', values: [] };
+                        const g1 = groups[1] || { label: 'مقاس إضافي 2', values: [] };
+                        return (
+                          <>
+                            <div style={{ gridColumn: '1/2' }}>
+                              <div style={{ marginBottom: 6, color: '#9ca3af' }}>{g0.label}</div>
+                              <input value={(g0.values || []).join(', ')} onChange={(e) => setReview((r: any) => {
+                                const arr = Array.isArray(r.sizeGroups) ? [...r.sizeGroups] : [];
+                                const vals = e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean);
+                                const label = (arr[0]?.label) || g0.label;
+                                arr[0] = { label, values: vals };
+                                return { ...r, sizeGroups: arr };
+                              })} className="input" />
+                            </div>
+                            <div style={{ gridColumn: '2/3' }}>
+                              <div style={{ marginBottom: 6, color: '#9ca3af' }}>{g1.label}</div>
+                              <input value={(g1.values || []).join(', ')} onChange={(e) => setReview((r: any) => {
+                                const arr = Array.isArray(r.sizeGroups) ? [...r.sizeGroups] : [];
+                                const vals = e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean);
+                                const label = (arr[1]?.label) || g1.label;
+                                arr[1] = { label, values: vals };
+                                return { ...r, sizeGroups: arr };
+                              })} className="input" />
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <div style={{ marginBottom: 6, color: '#9ca3af' }}>كلمات مفتاحية (SEO) <SourceBadge src={review.sources?.tags} /></div>
+                      <input value={(review.keywords || []).join(', ')} onChange={(e) => setReview((r: any) => ({ ...r, keywords: e.target.value.split(',').map((k: string) => k.trim()).filter(Boolean) }))} className="input" />
+                      {(!review.keywords || review.keywords.length === 0) && review?.reasons?.tags && <div style={{ fontSize: 12, color: '#ef4444' }}>{review.reasons.tags}</div>}
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 12, borderTop: '1px solid #1c2333', paddingTop: 12 }}>
+                    <div style={{ marginBottom: 8, color: '#9ca3af' }}>Images → Colors mapping</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                          {(review.palettes || []).map((p: any, idx: number) => (
+                            <div key={idx} className="panel" style={{ padding: 0 }}>
+                              <img src={p.url} alt={String(idx)} style={{ width: '100%', height: 100, objectFit: 'cover', borderTopLeftRadius: 8, borderTopRightRadius: 8 }} />
+                              <div style={{ padding: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ width: 14, height: 14, borderRadius: 999, background: p.hex, border: '1px solid #111' }} />
+                                <span style={{ fontSize: 12 }}>{p.name}</span>
+                              </div>
+                            </div>
                           ))}
                         </div>
                       </div>
-                    ))}
+                      <div>
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          {(review.colors || []).map((c: string, i: number) => (
+                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, alignItems: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ width: 14, height: 14, borderRadius: 999, background: (KNOWN_COLORS.find(k => k.name.toLowerCase() === c.toLowerCase())?.hex || '#666'), border: '1px solid #111' }} />
+                                <span>{c}</span>
+                              </div>
+                              <select value={review.mapping?.[c] || ''} onChange={(e) => setReview((r: any) => ({ ...r, mapping: { ...(r.mapping || {}), [c]: e.target.value || undefined } }))} className="select">
+                                <option value="">(بدون صورة)</option>
+                                {(review.palettes || []).map((p: any, idx: number) => (<option key={idx} value={p.url}>صورة {idx + 1}</option>))}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="panel" style={{ padding:10 }}>
-                  <div style={{ marginBottom:8, color:'#9ca3af', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                    <span>الألوان</span>
-                    <button type="button" className="btn btn-outline" onClick={()=>{
-                      const key = String(Date.now())+'-'+Math.random().toString(36).slice(2);
-                      setColorCards(prev => [...prev, { key, selectedImageIdxs: [] }]);
-                    }}>إضافة لون</button>
-                  </div>
-                  <div style={{ display:'grid', gap:10 }}>
-                    {colorCards.map((card, idx) => (
-                      <div key={card.key} className="panel" style={{ padding:10 }}>
-                        <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:8, alignItems:'center' }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                            <select value={card.color||''} onChange={(e)=>{
-                              const val = e.target.value || undefined;
-                              setColorCards(prev => prev.map((c,i)=> i===idx ? { ...c, color: val } : c));
-                            }} className="select" style={{ minWidth:220 }}>
-                              <option value="">اختر لونًا</option>
-                              {colorOptions.map(opt => (<option key={opt.id} value={opt.name}>{opt.name}</option>))}
-                            </select>
-                            {(() => { const opt = colorOptions.find(o=>o.name===card.color); return opt ? (<span style={{ width:14, height:14, borderRadius:999, background:opt.hex, border:'1px solid #111827' }} />) : null; })()}
-                          </div>
-                          <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
-                            <input type="radio" name="primary-color" checked={primaryColorCardKey===card.key} onChange={()=>{
-                              setPrimaryColorCardKey(card.key);
-                              setPrimaryColorName(card.color);
-                              const urls = allProductImageUrls();
-                              const url = (card.primaryImageIdx!==undefined) ? urls[card.primaryImageIdx] : undefined;
-                              setPrimaryImageUrl(url);
-                              const colorName = card.color;
-                              if (colorName && url) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), [colorName]: url } }));
-                            }} />
-                            <span>اللون الرئيسي للمنتج</span>
-                          </label>
+              )}
+            </div>
+            <div>
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  const dropped = Array.from(e.dataTransfer.files || []);
+                  if (dropped.length) setFiles((prev) => mergeUniqueFiles(prev, dropped));
+                }}
+                className="dropzone"
+                style={{ border: `2px dashed ${dragOver ? '#60a5fa' : 'var(--muted)'}` }}
+              >
+                اسحب وأفلت الصور هنا أو
+                <br />
+                <label className="btn btn-outline" style={{ marginTop: 8, cursor: 'pointer' }}>
+                  اختر من جهازك
+                  <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => {
+                    const selected = Array.from(e.target.files || []);
+                    if (selected.length) setFiles((prev) => mergeUniqueFiles(prev, selected));
+                  }} />
+                </label>
+                <div style={{ fontSize: 12, marginTop: 8 }}>يدعم السحب والإفلات والاختيار من المعرض</div>
+              </div>
+              {(() => {
+                const urls = allProductImageUrls();
+                return urls.length > 0 ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginTop: 10, maxWidth: '100%' }}>
+                    {urls.map((u, idx) => (
+                      <div key={`${u}__${idx}`} className="panel" style={{ padding: 0, overflow: 'hidden', borderRadius: 8 }}>
+                        <img src={u} alt={`img-${idx}`} style={{ display: 'block', width: '100%', height: 120, objectFit: 'cover' }} />
+                        <div style={{ padding: 8, textAlign: 'right', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span className="muted" style={{ fontSize: 12, direction: 'ltr', textAlign: 'left', maxWidth: '70%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u}</span>
+                          <button type="button" onClick={() => removeImageAt(idx)} className="icon-btn">إزالة</button>
                         </div>
-                        <div style={{ marginTop:10 }}>
-                          <div style={{ marginBottom:6, color:'#9ca3af' }}>اختر صور هذا اللون</div>
-                          <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:10 }}>
-                            {allProductImageUrls().map((u, imgIdx) => (
-                              <div key={imgIdx} className="panel" style={{ padding:0 }}>
-                                <img src={u} alt={String(imgIdx)} style={{ width:'100%', height:90, objectFit:'cover', borderTopLeftRadius:8, borderTopRightRadius:8 }} />
-                                <div style={{ padding:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                                  <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
-                                    <input type="checkbox" checked={card.selectedImageIdxs.includes(imgIdx)} onChange={()=>{
-                                      setColorCards(prev => prev.map((c,i)=>{
-                                        if (i!==idx) return c;
-                                        const have = c.selectedImageIdxs.includes(imgIdx);
-                                        const sel = have ? c.selectedImageIdxs.filter(x=>x!==imgIdx) : [...(c.selectedImageIdxs||[]), imgIdx];
-                                        let primaryImageIdx = c.primaryImageIdx;
-                                        if (primaryImageIdx!==undefined && !sel.includes(primaryImageIdx)) primaryImageIdx = undefined;
-                                        return { ...c, selectedImageIdxs: sel, primaryImageIdx };
-                                      }));
-                                    }} />
-                                    <span style={{ fontSize:12 }}>اختيار</span>
-                                  </label>
-                                  <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
-                                    <input type="radio" name={`primary-image-${card.key}`} checked={card.primaryImageIdx===imgIdx} onChange={()=>{
-                                      setColorCards(prev => prev.map((c,i)=> i===idx ? { ...c, primaryImageIdx: imgIdx } : c));
-                                      if (primaryColorCardKey===card.key) {
-                                        setPrimaryImageUrl(u);
-                                        const colorName = card.color;
-                                        if (colorName) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), [colorName]: u } }));
-                                      }
-                                    }} />
-                                    <span style={{ fontSize:12 }}>صورة اللون الرئيسية</span>
-                                  </label>
-                                </div>
-                              </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
+            </div>
+          </div>
+        </Section>
+
+
+
+        <form onSubmit={handleCreate} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 20, alignItems: 'start' }}>
+          {/* Left main column span 8 */}
+          <div style={{ gridColumn: 'span 8', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <label>نوع المنتج
+              <select value={type} onChange={(e) => setType(e.target.value as any)} className="select">
+                <option value="simple">منتج بسيط</option>
+                <option value="variable">منتج متعدد (مقاسات/ألوان)</option>
+              </select>
+            </label>
+            <label>SKU
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="سيتم توليده حسب المورّد" className="input" />
+                <button type="button" onClick={async () => {
+                  if (!vendorId) return;
+                  try { const r = await fetch(`${apiBase}/api/admin/vendors/${vendorId}/next-sku`, { credentials: 'include', headers: { ...authHeaders() } }); const j = await r.json(); if (r.ok && j?.sku) setSku(j.sku); } catch { }
+                }} className="btn btn-outline">توليد تلقائي</button>
+              </div>
+            </label>
+            <label style={{ gridColumn: '1 / -1' }}>اسم المنتج
+              <input value={name} onChange={(e) => setName(e.target.value)} required className="input" />
+            </label>
+            <label style={{ gridColumn: '1 / -1' }}>الوصف
+              <RichTextEditor value={description} onChange={setDescription} />
+              <small style={{ color: 'var(--sub)' }}>يعرض المحرر التنسيق مباشرة (جداول، قوائم، نص منسّق). سيتم حفظ HTML كما هو.</small>
+            </label>
+            <label>المورّد
+              <select value={vendorId} onChange={async (e) => {
+                const v = e.target.value; setVendorId(v);
+                if (v) {
+                  try { const r = await fetch(`${apiBase}/api/admin/vendors/${v}/next-sku`, { credentials: 'include', headers: { ...authHeaders() } }); const j = await r.json(); if (r.ok && j?.sku) setSku(j.sku); } catch { }
+                }
+              }} className="select">
+                <option value="">(بدون)</option>
+                {vendorOptions.map((v) => (<option key={v.id} value={v.id}>{v.name}</option>))}
+              </select>
+            </label>
+            <label>العلامة التجارية
+              <select value={brand} onChange={(e) => setBrand(e.target.value)} className="select">
+                <option value="">(اختياري)</option>
+                {brandOptions.map(b => (<option key={b.id} value={b.name}>{b.name}</option>))}
+              </select>
+            </label>
+            <label>التصنيف
+              <CategoryMultiTreeDropdown
+                value={selectedCategoryIds}
+                onChange={(ids) => {
+                  const uniq = Array.from(new Set(ids));
+                  setSelectedCategoryIds(uniq);
+                  if (!uniq.includes(categoryId)) {
+                    setCategoryId(uniq[0] || '');
+                  }
+                }}
+                primaryId={categoryId}
+                onPrimaryChange={(pid) => {
+                  setCategoryId(pid);
+                  setSelectedCategoryIds(prev => {
+                    const set = new Set(prev);
+                    if (pid) set.add(pid);
+                    return Array.from(set);
+                  });
+                }}
+                options={categoryOptions}
+              />
+            </label>
+            <label>المخزون
+              <input type="text" inputMode="numeric" value={formatThousands(stockQuantity)} onChange={(e) => {
+                const v = parseLocalizedNumber(e.target.value);
+                setStockQuantity(e.target.value.trim() === '' ? '' : (typeof v === 'number' && Number.isFinite(v) ? v : (stockQuantity || '')));
+              }} className="input" />
+            </label>
+            <label>سعر الشراء
+              <input type="text" inputMode="decimal" value={formatThousands(purchasePrice)} onChange={(e) => {
+                const v = parseLocalizedNumber(e.target.value);
+                setPurchasePrice(e.target.value.trim() === '' ? '' : (typeof v === 'number' && Number.isFinite(v) ? v : (purchasePrice || '')));
+              }} className="input" />
+            </label>
+            <label>سعر البيع
+              <input type="text" inputMode="decimal" value={formatThousands(salePrice)} onChange={(e) => {
+                const v = parseLocalizedNumber(e.target.value);
+                setSalePrice(e.target.value.trim() === '' ? '' : (typeof v === 'number' && Number.isFinite(v) ? v : (salePrice || '')));
+              }} required className="input" />
+            </label>
+            {/* Loyalty configuration */}
+            <label>
+              نقاط ثابتة (لكل قطعة)
+              <input className="input" placeholder="مثلاً 10" value={pointsFixed} onChange={(e) => setPointsFixed(e.target.value.replace(/[^0-9]/g, ''))} />
+            </label>
+            <label>
+              نسبة من السعر ← نقاط
+              <input className="input" placeholder="مثلاً 0.05" value={pointsPercent} onChange={(e) => setPointsPercent(e.target.value)} />
+            </label>
+            <label>
+              مضاعف النقاط (للمنتج)
+              <input className="input" placeholder="مثلاً 1.5" value={loyaltyMultiplier} onChange={(e) => setLoyaltyMultiplier(e.target.value)} />
+            </label>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <input type="checkbox" checked={excludeFromPoints} onChange={(e) => setExcludeFromPoints(e.target.checked)} />
+              <span>استثناء هذا المنتج من النقاط</span>
+            </label>
+            {type === 'variable' && (
+              <>
+                <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+                  <div className="panel" style={{ padding: 10 }}>
+                    <div style={{ marginBottom: 8, color: '#9ca3af' }}>إضافة نوع مقاس</div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <select defaultValue="" onChange={(e) => { addSizeType(e.target.value); e.currentTarget.value = ''; }} className="select">
+                        <option value="">اختر نوعًا</option>
+                        {sizeTypeOptions.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}
+                      </select>
+                    </div>
+                    <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+                      {selectedSizeTypes.map((t) => (
+                        <div key={t.id} className="panel" style={{ padding: 10 }}>
+                          <div style={{ marginBottom: 6, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span>{t.name}</span>
+                            <button type="button" className="btn btn-outline" onClick={() => removeSizeType(t.id)}>إزالة النوع</button>
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                            {t.sizes.map(s => (
+                              <label key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                                <input type="checkbox" checked={t.selectedSizes.includes(s.name)} onChange={() => toggleSizeForType(t.id, s.name)} />
+                                <span>{s.name}</span>
+                              </label>
                             ))}
                           </div>
                         </div>
-                        <div style={{ marginTop:10, display:'flex', justifyContent:'flex-end' }}>
-                          <button type="button" className="icon-btn" onClick={()=> setColorCards(prev => prev.filter((_,i)=> i!==idx))}>إزالة اللون</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              {/* Variants Section in its own full-width container */}
-              <div style={{ gridColumn:'1 / -1' }}>
-                <section className="panel" style={{ paddingTop:12 }}>
-                  <div className="toolbar" style={{ gap:8, paddingInline:16 }}>
-                    <button type="button" onClick={() => { applyColorMappingFromCards(); setVariantRows(generateVariantRows()); }} className="btn btn-outline">توليد التباينات المتعددة</button>
-                  </div>
-                  {variantRows.length > 0 ? (
-                    <div className="table-wrapper" style={{ width:'100%', maxWidth:'100%', overflowX:'auto', paddingInline:16 }}>
-                      <table className="table" style={{ width:'100%', tableLayout:'auto' }}>
-                      <thead>
-                <tr>
-                  {sizeTypeLabels.map(lbl=> (<th key={lbl}>{lbl}</th>))}
-                  <th>اللون</th>
-                  <th>سعر الشراء</th>
-                  <th>سعر البيع</th>
-                  <th>المخزون</th>
-                  <th>SKU</th>
-                  <th>صورة</th>
-                  <th>المجموعة (قراءة فقط)</th>
-                  <th></th>
-                </tr>
-                      </thead>
-                      <tbody>
-                {variantRows.map((row, idx) => {
-                          const parts = parseCompositeSizes(row.size);
-                          return (
-                          <tr key={idx}>
-                            {sizeTypeLabels.map((lbl)=> (<td key={lbl}><input value={parts[lbl]||''} onChange={(e)=>{
-                              const next = { ...parts, [lbl]: e.target.value };
-                              const comp = Object.entries(next).filter(([k,v])=> (k&&v)).map(([k,v])=> `${k}:${v}`).join('|');
-                              setVariantRows(prev=> prev.map((r,i)=> i===idx? { ...r, size: comp, option_values: [ ...(r.option_values||[]).filter(o=> o.name!=='size'), ...(comp? [{ name:'size', value: comp }]:[]) ] }: r));
-                            }} className="input" />
-                            </td>))}
-                    <td>
-                      <input value={row.color||''} onChange={(e)=> setVariantRows(prev=> prev.map((r,i)=> i===idx? { ...r, color: (e.target.value||undefined), option_values: [ ...(r.option_values||[]).filter(o=> o.name!=='color'), ...(e.target.value? [{ name:'color', value: e.target.value }]:[]) ] }: r))} className="input" />
-                    </td>
-                            <td>
-                              <input type="text" inputMode="decimal" value={row.purchasePrice ?? ''} onChange={(e)=>{
-                                const val = e.target.value === '' ? undefined : Number(e.target.value);
-                                setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, purchasePrice: val } : r));
-                              }} className="input" />
-                            </td>
-                            <td>
-                              <input type="text" inputMode="decimal" value={row.price ?? ''} onChange={(e)=>{
-                                const val = e.target.value === '' ? undefined : Number(e.target.value);
-                                setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, price: val } : r));
-                              }} className="input" />
-                            </td>
-                            <td>
-                              <input type="text" inputMode="numeric" value={row.stockQuantity} onChange={(e)=>{
-                                const val = e.target.value === '' ? 0 : Number(e.target.value);
-                                setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, stockQuantity: val } : r));
-                              }} className="input" />
-                            </td>
-                            <td>
-                              <input value={row.sku ?? ''} onChange={(e)=>{
-                                const val = e.target.value || undefined;
-                                setVariantRows(prev => prev.map((r,i)=> i===idx ? { ...r, sku: val } : r));
-                              }} className="input" />
-                            </td>
-                            <td>
-                              <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', position:'relative' }}>
-                                {(() => {
-                                  const colorName = (row.color || '').toString();
-                                  const urls = allProductImageUrls();
-                                  const card = colorCards.find(c => (c.color||'') === colorName);
-                                  const thumbs = (card?.selectedImageIdxs||[])
-                                    .slice(0,4)
-                                    .map((i)=> urls[i])
-                                    .filter(Boolean);
-                                  return thumbs.length ? (
-                                    <div style={{ display:'flex', gap:4, flexWrap:'nowrap' }}>
-                                      {thumbs.map((u, i)=> (<img key={i} src={u} alt="thumb" className="thumb" style={{ width:28, height:28 }} />))}
-                                    </div>
-                                  ) : null;
-                                })()}
-                                {(() => {
-                                  const allUrls = allProductImageUrls();
-                                  const colorName = (row.color || '').toString();
-                                  const cardIdx = colorCards.findIndex(c => (c.color||'') === colorName);
-                                  const selected = cardIdx>=0 ? (colorCards[cardIdx].selectedImageIdxs||[]) : (Array.isArray((row as any).imageIdxs)? (row as any).imageIdxs : []);
-                                  const primaryIdx = cardIdx>=0 ? colorCards[cardIdx].primaryImageIdx : ((row as any).primaryImageIdx as number|undefined);
-                                  return (
-                                    <VariantImagePicker
-                                      urls={allUrls}
-                                      selected={selected}
-                                      primaryIdx={primaryIdx}
-                                      onToggle={(i)=>{
-                                        if (cardIdx>=0) {
-                                          setColorCards(prev => prev.map((c, idx2)=>{
-                                            if (idx2!==cardIdx) return c;
-                                            const have = (c.selectedImageIdxs||[]).includes(i);
-                                            const sel = have ? c.selectedImageIdxs.filter(x=>x!==i) : [...(c.selectedImageIdxs||[]), i];
-                                            let pIdx = c.primaryImageIdx;
-                                            if (pIdx!==undefined && !sel.includes(pIdx)) pIdx = undefined;
-                                            return { ...c, selectedImageIdxs: sel, primaryImageIdx: pIdx };
-                                          }));
-                                        } else {
-                                          setVariantRows(prev => prev.map((r,i2)=>{
-                                            if (i2!==idx) return r;
-                                            const have = Array.isArray((r as any).imageIdxs) && (r as any).imageIdxs.includes(i);
-                                            const current: number[] = Array.isArray((r as any).imageIdxs)? ([...(r as any).imageIdxs] as number[]) : [];
-                                            const sel = have ? current.filter(x=>x!==i) : [...current, i];
-                                            let pIdx = (r as any).primaryImageIdx as number|undefined;
-                                            if (pIdx!==undefined && !sel.includes(pIdx)) pIdx = undefined;
-                                            return { ...r, imageIdxs: sel, primaryImageIdx: pIdx } as any;
-                                          }));
-                                        }
-                                      }}
-                                      onSetPrimary={(i)=>{
-                                        if (cardIdx>=0) {
-                                          setColorCards(prev => prev.map((c, idx2)=> idx2===cardIdx ? { ...c, primaryImageIdx: i } : c));
-                                          if (primaryColorCardKey && cardIdx>=0 && primaryColorCardKey===colorCards[cardIdx].key) {
-                                            const u = allUrls[i];
-                                            if (u) setPrimaryImageUrl(u);
-                                            const cname = colorCards[cardIdx].color;
-                                            if (cname) setReview((r:any)=> ({ ...(r||{}), mapping: { ...((r||{}).mapping||{}), [String(cname)]: allUrls[i] } }));
-                                          }
-                                        } else {
-                                          setVariantRows(prev => prev.map((r,i2)=> i2===idx ? ({ ...r, primaryImageIdx: i } as any) : r));
-                                        }
-                                      }}
-                                      buttonLabel="اختر صورة"
-                                    />
-                                  );
-                                })()}
-                              </div>
-                            </td>
-                            <td style={{ minWidth:280, color:'#6b7280', whiteSpace:'normal' }}>{[...sizeTypeLabels.map(lbl=> parts[lbl]||'—'), (row.color||'—')].join(' • ')}</td>
-                            <td>
-                              <button type="button" onClick={()=> setVariantRows(prev => prev.filter((_,i)=> i!==idx))} className="icon-btn">حذف</button>
-                            </td>
-                          </tr>
-                        )})}
-                        </tbody>
-                      </table>
+                      ))}
                     </div>
-                  ) : (
-                    <div style={{ marginTop:8, color:'var(--sub)', paddingInline:16 }}>اختر مقاسات وألوان ثم اضغط "توليد التباينات". سيتم ربط صور اللون المختارة تلقائياً.</div>
-                  )}
-                </section>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Right column product images panel removed as requested */}
-
-        {/* Moved preview + SEO + draft to bottom for unobstructed view */}
-        <div className="panel" style={{ gridColumn:'1 / -1', marginTop: 8, padding:12 }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <div style={{ color:'var(--sub)' }}>المعاينة</div>
-            <span className="badge">{type==='variable' ? 'متعدد' : 'بسيط'}</span>
-          </div>
-          <div style={{ fontWeight:700, marginTop:6 }}>{name || '— بدون اسم —'}</div>
-          <div style={{ color:'var(--sub)', fontSize:12 }}>
-            {(() => {
-              const primaryName = categoryOptions.find(c=>c.id===categoryId)?.name;
-              const extraCount = Math.max(0, (selectedCategoryIds||[]).filter(id=> id && id!==categoryId).length);
-              if (!primaryName && (!selectedCategoryIds || !selectedCategoryIds.length)) return 'بدون تصنيف';
-              return primaryName ? (extraCount>0 ? `${primaryName} +${extraCount}` : primaryName) : `${selectedCategoryIds.length} تصنيف(ات)`;
-            })()}
-          </div>
-          <div className="panel" style={{ padding:10, marginTop:8 }}>
-            <div style={{ marginBottom:6, color:'#9ca3af' }}>SEO</div>
-            <div className="grid" style={{ gridTemplateColumns:'1fr', gap:8 }}>
-              <input className="input" placeholder="SEO Title" value={seoTitle} onChange={(e)=> setSeoTitle(e.target.value)} />
-              <input className="input" placeholder="SEO Description" value={seoDescription} onChange={(e)=> setSeoDescription(e.target.value)} />
-            </div>
-          </div>
-          {/* Model section moved here and compacted */}
-          <div className="panel" style={{ padding:10, marginTop:8 }}>
-            <div style={{ marginBottom:6, color:'#9ca3af' }}>عارضة الأزياء</div>
-            <div style={{ display:'grid', gap:12 }}>
-              <label style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
-                <input type="checkbox" checked={modelEnabled} onChange={(e)=> setModelEnabled(e.target.checked)} />
-                <span>تفعيل ظهور هذا القسم</span>
-              </label>
-              <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 160px', gap:12, alignItems:'start' }}>
-                <div>
-                  <div style={{ marginBottom:6, color:'#9ca3af' }}>حقول القياسات</div>
-                  <div style={{ display:'grid', gap:8 }}>
-                    {modelFields.map((f, idx)=> (
-                      <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:8 }}>
-                        <input className="input" placeholder="العنوان" value={f.label} onChange={(e)=> setModelFields((arr)=> arr.map((x,i)=> i===idx? ({ ...x, label: e.target.value }): x))} />
-                        <input className="input" placeholder="القيمة" value={f.value} onChange={(e)=> setModelFields((arr)=> arr.map((x,i)=> i===idx? ({ ...x, value: e.target.value }): x))} />
-                        <button type="button" className="btn btn-outline" onClick={()=> setModelFields((arr)=> arr.filter((_,i)=> i!==idx))}>حذف</button>
+                  </div>
+                  <div className="panel" style={{ padding: 10 }}>
+                    <div style={{ marginBottom: 8, color: '#9ca3af', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>الألوان</span>
+                      <button type="button" className="btn btn-outline" onClick={() => {
+                        const key = String(Date.now()) + '-' + Math.random().toString(36).slice(2);
+                        setColorCards(prev => [...prev, { key, selectedImageIdxs: [] }]);
+                      }}>إضافة لون</button>
+                    </div>
+                    <div style={{ display: 'grid', gap: 10 }}>
+                      {colorCards.map((card, idx) => (
+                        <div key={card.key} className="panel" style={{ padding: 10 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <select value={card.color || ''} onChange={(e) => {
+                                const val = e.target.value || undefined;
+                                setColorCards(prev => prev.map((c, i) => i === idx ? { ...c, color: val } : c));
+                              }} className="select" style={{ minWidth: 220 }}>
+                                <option value="">اختر لونًا</option>
+                                {colorOptions.map(opt => (<option key={opt.id} value={opt.name}>{opt.name}</option>))}
+                              </select>
+                              {(() => { const opt = colorOptions.find(o => o.name === card.color); return opt ? (<span style={{ width: 14, height: 14, borderRadius: 999, background: opt.hex, border: '1px solid #111827' }} />) : null; })()}
+                            </div>
+                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                              <input type="radio" name="primary-color" checked={primaryColorCardKey === card.key} onChange={() => {
+                                setPrimaryColorCardKey(card.key);
+                                setPrimaryColorName(card.color);
+                                const urls = allProductImageUrls();
+                                const url = (card.primaryImageIdx !== undefined) ? urls[card.primaryImageIdx] : undefined;
+                                setPrimaryImageUrl(url);
+                                const colorName = card.color;
+                                if (colorName && url) setReview((r: any) => ({ ...(r || {}), mapping: { ...((r || {}).mapping || {}), [colorName]: url } }));
+                              }} />
+                              <span>اللون الرئيسي للمنتج</span>
+                            </label>
+                          </div>
+                          <div style={{ marginTop: 10 }}>
+                            <div style={{ marginBottom: 6, color: '#9ca3af' }}>اختر صور هذا اللون</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                              {allProductImageUrls().map((u, imgIdx) => (
+                                <div key={imgIdx} className="panel" style={{ padding: 0 }}>
+                                  <img src={u} alt={String(imgIdx)} style={{ width: '100%', height: 90, objectFit: 'cover', borderTopLeftRadius: 8, borderTopRightRadius: 8 }} />
+                                  <div style={{ padding: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                      <input type="checkbox" checked={card.selectedImageIdxs.includes(imgIdx)} onChange={() => {
+                                        setColorCards(prev => prev.map((c, i) => {
+                                          if (i !== idx) return c;
+                                          const have = c.selectedImageIdxs.includes(imgIdx);
+                                          const sel = have ? c.selectedImageIdxs.filter(x => x !== imgIdx) : [...(c.selectedImageIdxs || []), imgIdx];
+                                          let primaryImageIdx = c.primaryImageIdx;
+                                          if (primaryImageIdx !== undefined && !sel.includes(primaryImageIdx)) primaryImageIdx = undefined;
+                                          return { ...c, selectedImageIdxs: sel, primaryImageIdx };
+                                        }));
+                                      }} />
+                                      <span style={{ fontSize: 12 }}>اختيار</span>
+                                    </label>
+                                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                      <input type="radio" name={`primary-image-${card.key}`} checked={card.primaryImageIdx === imgIdx} onChange={() => {
+                                        setColorCards(prev => prev.map((c, i) => i === idx ? { ...c, primaryImageIdx: imgIdx } : c));
+                                        if (primaryColorCardKey === card.key) {
+                                          setPrimaryImageUrl(u);
+                                          const colorName = card.color;
+                                          if (colorName) setReview((r: any) => ({ ...(r || {}), mapping: { ...((r || {}).mapping || {}), [colorName]: u } }));
+                                        }
+                                      }} />
+                                      <span style={{ fontSize: 12 }}>صورة اللون الرئيسية</span>
+                                    </label>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}>
+                            <button type="button" className="icon-btn" onClick={() => setColorCards(prev => prev.filter((_, i) => i !== idx))}>إزالة اللون</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {/* Variants Section in its own full-width container */}
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <section className="panel" style={{ paddingTop: 12 }}>
+                    <div className="toolbar" style={{ gap: 8, paddingInline: 16 }}>
+                      <button type="button" onClick={() => { applyColorMappingFromCards(); setVariantRows(generateVariantRows()); }} className="btn btn-outline">توليد التباينات المتعددة</button>
+                    </div>
+                    {variantRows.length > 0 ? (
+                      <div className="table-wrapper" style={{ width: '100%', maxWidth: '100%', overflowX: 'auto', paddingInline: 16 }}>
+                        <table className="table" style={{ width: '100%', tableLayout: 'auto' }}>
+                          <thead>
+                            <tr>
+                              {sizeTypeLabels.map(lbl => (<th key={lbl}>{lbl}</th>))}
+                              <th>اللون</th>
+                              <th>سعر الشراء</th>
+                              <th>سعر البيع</th>
+                              <th>المخزون</th>
+                              <th>SKU</th>
+                              <th>صورة</th>
+                              <th>المجموعة (قراءة فقط)</th>
+                              <th></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {variantRows.map((row, idx) => {
+                              const parts = parseCompositeSizes(row.size);
+                              return (
+                                <tr key={idx}>
+                                  {sizeTypeLabels.map((lbl) => (<td key={lbl}><input value={parts[lbl] || ''} onChange={(e) => {
+                                    const next = { ...parts, [lbl]: e.target.value };
+                                    const comp = Object.entries(next).filter(([k, v]) => (k && v)).map(([k, v]) => `${k}:${v}`).join('|');
+                                    setVariantRows(prev => prev.map((r, i) => i === idx ? { ...r, size: comp, option_values: [...(r.option_values || []).filter(o => o.name !== 'size'), ...(comp ? [{ name: 'size', value: comp }] : [])] } : r));
+                                  }} className="input" />
+                                  </td>))}
+                                  <td>
+                                    <input value={row.color || ''} onChange={(e) => setVariantRows(prev => prev.map((r, i) => i === idx ? { ...r, color: (e.target.value || undefined), option_values: [...(r.option_values || []).filter(o => o.name !== 'color'), ...(e.target.value ? [{ name: 'color', value: e.target.value }] : [])] } : r))} className="input" />
+                                  </td>
+                                  <td>
+                                    <input type="text" inputMode="decimal" value={row.purchasePrice ?? ''} onChange={(e) => {
+                                      const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                      setVariantRows(prev => prev.map((r, i) => i === idx ? { ...r, purchasePrice: val } : r));
+                                    }} className="input" />
+                                  </td>
+                                  <td>
+                                    <input type="text" inputMode="decimal" value={row.price ?? ''} onChange={(e) => {
+                                      const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                      setVariantRows(prev => prev.map((r, i) => i === idx ? { ...r, price: val } : r));
+                                    }} className="input" />
+                                  </td>
+                                  <td>
+                                    <input type="text" inputMode="numeric" value={row.stockQuantity} onChange={(e) => {
+                                      const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                      setVariantRows(prev => prev.map((r, i) => i === idx ? { ...r, stockQuantity: val } : r));
+                                    }} className="input" />
+                                  </td>
+                                  <td>
+                                    <input value={row.sku ?? ''} onChange={(e) => {
+                                      const val = e.target.value || undefined;
+                                      setVariantRows(prev => prev.map((r, i) => i === idx ? { ...r, sku: val } : r));
+                                    }} className="input" />
+                                  </td>
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', position: 'relative' }}>
+                                      {(() => {
+                                        const colorName = (row.color || '').toString();
+                                        const urls = allProductImageUrls();
+                                        const card = colorCards.find(c => (c.color || '') === colorName);
+                                        const thumbs = (card?.selectedImageIdxs || [])
+                                          .slice(0, 4)
+                                          .map((i) => urls[i])
+                                          .filter(Boolean);
+                                        return thumbs.length ? (
+                                          <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap' }}>
+                                            {thumbs.map((u, i) => (<img key={i} src={u} alt="thumb" className="thumb" style={{ width: 28, height: 28 }} />))}
+                                          </div>
+                                        ) : null;
+                                      })()}
+                                      {(() => {
+                                        const allUrls = allProductImageUrls();
+                                        const colorName = (row.color || '').toString();
+                                        const cardIdx = colorCards.findIndex(c => (c.color || '') === colorName);
+                                        const selected = cardIdx >= 0 ? (colorCards[cardIdx].selectedImageIdxs || []) : (Array.isArray((row as any).imageIdxs) ? (row as any).imageIdxs : []);
+                                        const primaryIdx = cardIdx >= 0 ? colorCards[cardIdx].primaryImageIdx : ((row as any).primaryImageIdx as number | undefined);
+                                        return (
+                                          <VariantImagePicker
+                                            urls={allUrls}
+                                            selected={selected}
+                                            primaryIdx={primaryIdx}
+                                            onToggle={(i) => {
+                                              if (cardIdx >= 0) {
+                                                setColorCards(prev => prev.map((c, idx2) => {
+                                                  if (idx2 !== cardIdx) return c;
+                                                  const have = (c.selectedImageIdxs || []).includes(i);
+                                                  const sel = have ? c.selectedImageIdxs.filter(x => x !== i) : [...(c.selectedImageIdxs || []), i];
+                                                  let pIdx = c.primaryImageIdx;
+                                                  if (pIdx !== undefined && !sel.includes(pIdx)) pIdx = undefined;
+                                                  return { ...c, selectedImageIdxs: sel, primaryImageIdx: pIdx };
+                                                }));
+                                              } else {
+                                                setVariantRows(prev => prev.map((r, i2) => {
+                                                  if (i2 !== idx) return r;
+                                                  const have = Array.isArray((r as any).imageIdxs) && (r as any).imageIdxs.includes(i);
+                                                  const current: number[] = Array.isArray((r as any).imageIdxs) ? ([...(r as any).imageIdxs] as number[]) : [];
+                                                  const sel = have ? current.filter(x => x !== i) : [...current, i];
+                                                  let pIdx = (r as any).primaryImageIdx as number | undefined;
+                                                  if (pIdx !== undefined && !sel.includes(pIdx)) pIdx = undefined;
+                                                  return { ...r, imageIdxs: sel, primaryImageIdx: pIdx } as any;
+                                                }));
+                                              }
+                                            }}
+                                            onSetPrimary={(i) => {
+                                              if (cardIdx >= 0) {
+                                                setColorCards(prev => prev.map((c, idx2) => idx2 === cardIdx ? { ...c, primaryImageIdx: i } : c));
+                                                if (primaryColorCardKey && cardIdx >= 0 && primaryColorCardKey === colorCards[cardIdx].key) {
+                                                  const u = allUrls[i];
+                                                  if (u) setPrimaryImageUrl(u);
+                                                  const cname = colorCards[cardIdx].color;
+                                                  if (cname) setReview((r: any) => ({ ...(r || {}), mapping: { ...((r || {}).mapping || {}), [String(cname)]: allUrls[i] } }));
+                                                }
+                                              } else {
+                                                setVariantRows(prev => prev.map((r, i2) => i2 === idx ? ({ ...r, primaryImageIdx: i } as any) : r));
+                                              }
+                                            }}
+                                            buttonLabel="اختر صورة"
+                                          />
+                                        );
+                                      })()}
+                                    </div>
+                                  </td>
+                                  <td style={{ minWidth: 280, color: '#6b7280', whiteSpace: 'normal' }}>{[...sizeTypeLabels.map(lbl => parts[lbl] || '—'), (row.color || '—')].join(' • ')}</td>
+                                  <td>
+                                    <button type="button" onClick={() => setVariantRows(prev => prev.filter((_, i) => i !== idx))} className="icon-btn">حذف</button>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
                       </div>
-                    ))}
-                    <button type="button" className="btn" onClick={()=> setModelFields((arr)=> [...arr, { label:'', value:'' }])}>+ إضافة حقل</button>
+                    ) : (
+                      <div style={{ marginTop: 8, color: 'var(--sub)', paddingInline: 16 }}>اختر مقاسات وألوان ثم اضغط "توليد التباينات". سيتم ربط صور اللون المختارة تلقائياً.</div>
+                    )}
+                  </section>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Right column product images panel removed as requested */}
+
+          {/* Moved preview + SEO + draft to bottom for unobstructed view */}
+          <div className="panel" style={{ gridColumn: '1 / -1', marginTop: 8, padding: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ color: 'var(--sub)' }}>المعاينة</div>
+              <span className="badge">{type === 'variable' ? 'متعدد' : 'بسيط'}</span>
+            </div>
+            <div style={{ fontWeight: 700, marginTop: 6 }}>{name || '— بدون اسم —'}</div>
+            <div style={{ color: 'var(--sub)', fontSize: 12 }}>
+              {(() => {
+                const primaryName = categoryOptions.find(c => c.id === categoryId)?.name;
+                const extraCount = Math.max(0, (selectedCategoryIds || []).filter(id => id && id !== categoryId).length);
+                if (!primaryName && (!selectedCategoryIds || !selectedCategoryIds.length)) return 'بدون تصنيف';
+                return primaryName ? (extraCount > 0 ? `${primaryName} +${extraCount}` : primaryName) : `${selectedCategoryIds.length} تصنيف(ات)`;
+              })()}
+            </div>
+            <div className="panel" style={{ padding: 10, marginTop: 8 }}>
+              <div style={{ marginBottom: 6, color: '#9ca3af' }}>معاينة محرك البحث (SEO)</div>
+
+              {/* Google Preview */}
+              <div className="panel" style={{ padding: 12, marginBottom: 12, background: '#fff', border: '1px solid #dfe1e5', borderRadius: 8 }}>
+                <div dir="rtl">
+                  <div style={{ color: '#1a0dab', fontSize: 18, fontWeight: 400, lineHeight: 1.2, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 2 }}>
+                    {(seoTitle || name || 'عنوان المنتج')} | {(siteName || 'الموقع')}
+                  </div>
+                  <div style={{ color: '#006621', fontSize: 14, lineHeight: 1.3, direction: 'ltr', textAlign: 'right' }}>
+                    {(siteUrl || 'https://jeeey.com').replace(/\/$/, '')}/product/{(name ? name.trim().replace(/\s+/g, '-') : 'product-name')}
+                  </div>
+                  <div style={{ color: '#545454', fontSize: 13, lineHeight: 1.4, marginTop: 4, wordWrap: 'break-word' }}>
+                    {seoDescription || (description ? cleanText(description).slice(0, 160) : 'وصف موجز للمنتج سيظهر في نتائج البحث.')}
                   </div>
                 </div>
+              </div>
+
+              <div className="grid" style={{ gridTemplateColumns: '1fr', gap: 8 }}>
                 <div>
-                  <div style={{ marginBottom:6, color:'#9ca3af' }}>صورة العارضة</div>
-                  <ImageDropdown
-                    value={modelImageUrl}
-                    options={(images||'').split(',').map(s=> s.trim()).filter(Boolean)}
-                    onChange={(v)=> setModelImageUrl(v||'')}
-                    placeholder="(من الصور الرئيسية)"
-                  />
-                  <div style={{ marginTop:8, width:120, height:120, borderRadius:12, overflow:'hidden', border:'1px solid #1c2333', display:'grid', placeItems:'center' }}>
-                    {modelImageUrl? (<img src={modelImageUrl} alt="model" className="thumb" style={{ width:'100%', height:'100%', objectFit:'cover' }} />) : (<span className="muted">(معاينة)</span>)}
+                  <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: '#9ca3af' }}>عنوان الصفحة (SEO Title)</label>
+                  <input className="input" placeholder="اتركه فارغاً لاستخدام اسم المنتج" value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: '#9ca3af' }}>وصف الصفحة (SEO Description)</label>
+                  <textarea className="input" rows={3} placeholder="اتركه فارغاً لاستخدام وصف المنتج" value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} style={{ resize: 'vertical' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: '#9ca3af' }}>Slug (رابط دائم)</label>
+                  <input className="input" dir="ltr" placeholder="leave-empty-to-generate" value={slug} onChange={(e) => setSlug(e.target.value)} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: '#9ca3af' }}>كلمات مفتاحية (Keywords)</label>
+                  <input className="input" placeholder="كلمة1، كلمة2..." value={seoKeywords} onChange={(e) => setSeoKeywords(e.target.value)} />
+                </div>
+                <details style={{ marginTop: 12, border: '1px solid #1c2333', borderRadius: 8, padding: 10, background: '#0f1320' }}>
+                  <summary style={{ cursor: 'pointer', color: '#94a3b8', fontSize: 13, userSelect: 'none' }}>إعدادات SEO متقدمة</summary>
+                  <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+                    <label style={{ display: 'block', fontSize: 12, color: '#9ca3af' }}>Canonical URL
+                      <input className="input" dir="ltr" style={{ marginTop: 4 }} value={canonicalUrl} onChange={e => setCanonicalUrl(e.target.value)} />
+                    </label>
+                    <label style={{ display: 'block', fontSize: 12, color: '#9ca3af' }}>Meta Robots
+                      <input className="input" dir="ltr" style={{ marginTop: 4 }} placeholder="e.g. index, follow" value={metaRobots} onChange={e => setMetaRobots(e.target.value)} />
+                    </label>
+                    <label style={{ display: 'block', fontSize: 12, color: '#9ca3af' }}>محتوى مخفي (Hidden Content)
+                      <textarea className="input" style={{ marginTop: 4 }} rows={3} value={hiddenContent} onChange={e => setHiddenContent(e.target.value)} />
+                    </label>
+                  </div>
+                </details>
+              </div>
+            </div>
+
+            {/* Model section moved here and compacted */}
+            <div className="panel" style={{ padding: 10, marginTop: 8 }}>
+              <div style={{ marginBottom: 6, color: '#9ca3af' }}>عارضة الأزياء</div>
+              <div style={{ display: 'grid', gap: 12 }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <input type="checkbox" checked={modelEnabled} onChange={(e) => setModelEnabled(e.target.checked)} />
+                  <span>تفعيل ظهور هذا القسم</span>
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 160px', gap: 12, alignItems: 'start' }}>
+                  <div>
+                    <div style={{ marginBottom: 6, color: '#9ca3af' }}>حقول القياسات</div>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      {modelFields.map((f, idx) => (
+                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8 }}>
+                          <input className="input" placeholder="العنوان" value={f.label} onChange={(e) => setModelFields((arr) => arr.map((x, i) => i === idx ? ({ ...x, label: e.target.value }) : x))} />
+                          <input className="input" placeholder="القيمة" value={f.value} onChange={(e) => setModelFields((arr) => arr.map((x, i) => i === idx ? ({ ...x, value: e.target.value }) : x))} />
+                          <button type="button" className="btn btn-outline" onClick={() => setModelFields((arr) => arr.filter((_, i) => i !== idx))}>حذف</button>
+                        </div>
+                      ))}
+                      <button type="button" className="btn" onClick={() => setModelFields((arr) => [...arr, { label: '', value: '' }])}>+ إضافة حقل</button>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ marginBottom: 6, color: '#9ca3af' }}>صورة العارضة</div>
+                    <ImageDropdown
+                      value={modelImageUrl}
+                      options={(images || '').split(',').map(s => s.trim()).filter(Boolean)}
+                      onChange={(v) => setModelImageUrl(v || '')}
+                      placeholder="(من الصور الرئيسية)"
+                    />
+                    <div style={{ marginTop: 8, width: 120, height: 120, borderRadius: 12, overflow: 'hidden', border: '1px solid #1c2333', display: 'grid', placeItems: 'center' }}>
+                      {modelImageUrl ? (<img src={modelImageUrl} alt="model" className="thumb" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />) : (<span className="muted">(معاينة)</span>)}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
+              <div><div style={{ color: 'var(--sub)', fontSize: 12 }}>سعر البيع</div><div>{salePrice || '—'}</div></div>
+              <div><div style={{ color: 'var(--sub)', fontSize: 12 }}>المخزون</div><div>{stockQuantity || 0}</div></div>
+              <div><div style={{ color: 'var(--sub)', fontSize: 12 }}>الصور</div><div>{(images || '').split(',').filter(Boolean).length + files.length}</div></div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}><input type="checkbox" checked={draft} onChange={(e) => setDraft(e.target.checked)} /> حفظ كمسودّة (غير نشط)</label>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+              <button type="submit" className="btn">حفظ المنتج</button>
+              <a href="/products" className="btn btn-outline">رجوع</a>
+            </div>
           </div>
-          <div style={{ display:'flex', gap:12, marginTop:6 }}>
-            <div><div style={{ color:'var(--sub)', fontSize:12 }}>سعر البيع</div><div>{salePrice || '—'}</div></div>
-            <div><div style={{ color:'var(--sub)', fontSize:12 }}>المخزون</div><div>{stockQuantity || 0}</div></div>
-            <div><div style={{ color:'var(--sub)', fontSize:12 }}>الصور</div><div>{(images||'').split(',').filter(Boolean).length + files.length}</div></div>
-          </div>
-          <label style={{ display:'flex', alignItems:'center', gap:8, marginTop:8 }}><input type="checkbox" checked={draft} onChange={(e)=> setDraft(e.target.checked)} /> حفظ كمسودّة (غير نشط)</label>
-          <div style={{ display:'flex', gap:8, marginTop:8, justifyContent:'flex-end' }}>
-            <button type="submit" className="btn">حفظ المنتج</button>
-            <a href="/products" className="btn btn-outline">رجوع</a>
-          </div>
-        </div>
-      </form>
-      {toast && (<div className={`toast ${toast.type==='ok'?'ok':'err'}`}>{toast.text}</div>)}
-    </main>
-    </div>
+        </form>
+        {toast && (<div className={`toast ${toast.type === 'ok' ? 'ok' : 'err'}`}>{toast.text}</div>)}
+      </main>
+    </div >
   );
 }

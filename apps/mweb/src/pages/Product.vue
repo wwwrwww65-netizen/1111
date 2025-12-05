@@ -1072,7 +1072,7 @@ const router = useRouter()
 const cart = useCart()
 const recent = useRecent()
 const wishlist = useWishlist()
-const id = computed(() => (route.query.id as string) || 'p1')
+const id = computed(() => (route.query.id as string) || (route.params.slug as string) || 'p1')
 const descOpen = ref(false)
 function isAuthenticated(){ return typeof document!=='undefined' && (document.cookie.includes('shop_auth_token=') || document.cookie.includes('auth_token=')) }
 
@@ -2951,22 +2951,74 @@ function injectHeadMeta(){
     const url = new URL(window.location.href)
     ;['fbclid','gclid','_fbp','_fbc'].forEach(k=> url.searchParams.delete(k))
     Array.from(url.searchParams.keys()).forEach(k=>{ if(/^utm_/i.test(k)) url.searchParams.delete(k) })
+    
+    const p = product.value
+    const seo = p?.seo || {}
+    
+    // 1. Title
+    const pageTitle = seo.title || title.value || 'Jeeey Product'
+    document.title = pageTitle
+    
+    // 2. Canonical
+    let canonicalUrl = seo.canonicalUrl || url.href
+    // If we are on a slug route, ensure canonical is clean
+    if (!seo.canonicalUrl && route.params.slug) {
+       // Reconstruct clean URL without query params if possible
+       const clean = new URL(url.origin)
+       clean.pathname = `/product/${route.params.slug}`
+       canonicalUrl = clean.href
+    }
+
     const canonical = document.querySelector('link[rel="canonical"]') || (()=>{ const l = document.createElement('link'); l.rel='canonical'; document.head.appendChild(l); return l })()
-    ;(canonical as HTMLLinkElement).href = url.href
-    const setMeta = (p:string,c:string)=>{ let m = document.querySelector(`meta[property="${p}"]`) as HTMLMetaElement|null; if(!m){ m = document.createElement('meta'); m.setAttribute('property', p); document.head.appendChild(m) } m.content = c }
-    setMeta('og:title', title.value)
+    ;(canonical as HTMLLinkElement).href = canonicalUrl
+
+    // 3. Meta Description
+    const metaDesc = seo.description || (safeDescription.value||'').replace(/\s+/g,' ').slice(0,300)
+    let mDesc = document.querySelector('meta[name="description"]') as HTMLMetaElement|null
+    if (!mDesc){ mDesc = document.createElement('meta'); mDesc.setAttribute('name','description'); document.head.appendChild(mDesc) }
+    mDesc.content = metaDesc
+    
+    // 4. Keywords
+    if (seo.keywords) {
+      let mKey = document.querySelector('meta[name="keywords"]') as HTMLMetaElement|null
+      if (!mKey){ mKey = document.createElement('meta'); mKey.setAttribute('name','keywords'); document.head.appendChild(mKey) }
+      mKey.content = seo.keywords
+    }
+    
+    // 5. Robots
+    if (seo.robots) {
+      let mRobots = document.querySelector('meta[name="robots"]') as HTMLMetaElement|null
+      if (!mRobots){ mRobots = document.createElement('meta'); mRobots.setAttribute('name','robots'); document.head.appendChild(mRobots) }
+      mRobots.content = seo.robots
+    }
+
+    // 6. OG Tags
+    const setMeta = (prop:string, c:string)=>{ let m = document.querySelector(`meta[property="${prop}"]`) as HTMLMetaElement|null; if(!m){ m = document.createElement('meta'); m.setAttribute('property', prop); document.head.appendChild(m) } m.content = c }
+    setMeta('og:title', pageTitle)
     setMeta('og:type', 'product')
-    if (images.value[0] && isValidImageUrl(images.value[0])) setMeta('og:image', images.value[0])
-    setMeta('og:url', url.href)
+    const ogImg = seo.image || (images.value[0] && isValidImageUrl(images.value[0]) ? images.value[0] : '')
+    if (ogImg) setMeta('og:image', ogImg)
+    setMeta('og:url', canonicalUrl)
     setMeta('product:price:amount', String(Number(price.value||0)))
     setMeta('product:price:currency', getCurrency())
-    setMeta('og:description', (safeDescription.value||'').replace(/\s+/g,' ').slice(0,300))
+    setMeta('og:description', metaDesc)
     setMeta('product:retailer_item_id', String(id.value))
     setMeta('product:availability', 'in stock')
     if (brand.value) setMeta('product:brand', brand.value)
     setMeta('product:condition', 'new')
-    // Optional site name
     setMeta('og:site_name', 'jeeey')
+    
+    // 7. Hidden Content (e.g. for SEO text)
+    if (seo.hiddenContent) {
+       let hiddenDiv = document.getElementById('seo-hidden-content')
+       if (!hiddenDiv) {
+         hiddenDiv = document.createElement('div')
+         hiddenDiv.id = 'seo-hidden-content'
+         hiddenDiv.style.display = 'none'
+         document.body.appendChild(hiddenDiv)
+       }
+       hiddenDiv.innerHTML = seo.hiddenContent
+    }
   }catch{}
 }
 // ==================== CLUB THEME HELPERS ====================

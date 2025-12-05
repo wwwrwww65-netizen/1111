@@ -385,6 +385,7 @@ const allCategories = ref<Array<{ id:string; slug?:string|null; name:string; par
 const currentCategory = ref<{ id:string; slug?:string|null; name:string; parentId?:string|null }|null>(null)
 const categories = ref<Array<{ id:string; label:string; img:string }>>([])
 const childCategoryIds = ref<string[]>([])
+const categorySeo = ref<any>(null)
 
 // Products State
 const products = ref<any[]>([])
@@ -664,6 +665,9 @@ async function loadCategories(){
     currentCategory.value = cur
     
     if (!cur) { categories.value = []; childCategoryIds.value = []; return }
+    
+    // Fetch SEO details for this category
+    void fetchCategorySeo(cur.slug || cur.id)
 
     // Re-calculate true children for product fetching logic (Recursive)
     const getDescendants = (parentId: string): string[] => {
@@ -715,6 +719,87 @@ async function loadCategories(){
     }))
   }catch(e){ allCategories.value = []; categories.value = []; childCategoryIds.value = [] }
 }
+
+async function fetchCategorySeo(idOrSlug: string){
+  try{
+    const res = await apiGet<any>(`/api/category/${encodeURIComponent(idOrSlug)}`)
+    if(res && res.category && res.category.seo) {
+      categorySeo.value = res.category.seo
+      injectHeadMeta()
+    } else {
+      categorySeo.value = null
+      injectHeadMeta() // fallback to basic meta
+    }
+  }catch{ categorySeo.value = null }
+}
+
+function injectHeadMeta(){
+  try{
+    const url = new URL(window.location.href)
+    ;['fbclid','gclid','_fbp','_fbc'].forEach(k=> url.searchParams.delete(k))
+    Array.from(url.searchParams.keys()).forEach(k=>{ if(/^utm_/i.test(k)) url.searchParams.delete(k) })
+    
+    const seo = categorySeo.value || {}
+    const baseTitle = currentCategory.value?.name || 'Jeeey Category'
+    
+    // 1. Title
+    const pageTitle = seo.title || baseTitle
+    document.title = pageTitle
+    
+    // 2. Canonical
+    let canonicalUrl = seo.canonicalUrl || url.href
+     if (!seo.canonicalUrl && route.params.slug) {
+       const clean = new URL(url.origin)
+       clean.pathname = `/c/${route.params.slug}`
+       canonicalUrl = clean.href
+    }
+
+    const canonical = document.querySelector('link[rel="canonical"]') || (()=>{ const l = document.createElement('link'); l.rel='canonical'; document.head.appendChild(l); return l })()
+    ;(canonical as HTMLLinkElement).href = canonicalUrl
+
+    // 3. Meta Description
+    const metaDesc = seo.description || `Shop ${baseTitle} on Jeeey`
+    let mDesc = document.querySelector('meta[name="description"]') as HTMLMetaElement|null
+    if (!mDesc){ mDesc = document.createElement('meta'); mDesc.setAttribute('name','description'); document.head.appendChild(mDesc) }
+    mDesc.content = metaDesc
+    
+    // 4. Keywords
+    if (seo.keywords) {
+      let mKey = document.querySelector('meta[name="keywords"]') as HTMLMetaElement|null
+      if (!mKey){ mKey = document.createElement('meta'); mKey.setAttribute('name','keywords'); document.head.appendChild(mKey) }
+      mKey.content = seo.keywords
+    }
+    
+    // 5. Robots
+    if (seo.robots) {
+      let mRobots = document.querySelector('meta[name="robots"]') as HTMLMetaElement|null
+      if (!mRobots){ mRobots = document.createElement('meta'); mRobots.setAttribute('name','robots'); document.head.appendChild(mRobots) }
+      mRobots.content = seo.robots
+    }
+
+    // 6. OG Tags
+    const setMeta = (prop:string, c:string)=>{ let m = document.querySelector(`meta[property="${prop}"]`) as HTMLMetaElement|null; if(!m){ m = document.createElement('meta'); m.setAttribute('property', prop); document.head.appendChild(m) } m.content = c }
+    setMeta('og:title', pageTitle)
+    setMeta('og:type', 'website')
+    const img = currentCategory.value?.image || (categories.value[0] && categories.value[0].img) || ''
+    if (img && !img.startsWith('/')) setMeta('og:image', img)
+    setMeta('og:url', canonicalUrl)
+    setMeta('og:description', metaDesc)
+    setMeta('og:site_name', 'jeeey')
+    
+    // 7. Hidden Content
+    if (seo.hiddenContent) {
+       let hiddenDiv = document.getElementById('seo-hidden-content')
+       if (!hiddenDiv) {
+         hiddenDiv = document.createElement('div')
+         hiddenDiv.id = 'seo-hidden-content'
+         hiddenDiv.style.display = 'none'
+         document.body.appendChild(hiddenDiv)
+       }
+       hiddenDiv.innerHTML = seo.hiddenContent
+    }
+  }catch{}
+
 
 function mapSort(): string {
   if (activeFilter.value==='price') return priceSort.value==='asc' ? 'price_asc' : 'price_desc'

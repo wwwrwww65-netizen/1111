@@ -7,8 +7,19 @@ export default function SeoListPage() {
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
+    function getAuthHeaders() {
+        if (typeof document === 'undefined') return {} as Record<string, string>;
+        const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+        let token = m ? m[1] : '';
+        try { token = decodeURIComponent(token); } catch { }
+        return token ? { Authorization: `Bearer ${token}` } : {} as Record<string, string>;
+    }
+
     useEffect(() => {
-        fetch('/api/admin/seo/pages')
+        fetch('/api/admin/seo/pages', {
+            credentials: 'include',
+            headers: { ...getAuthHeaders() }
+        })
             .then(res => res.json())
             .then(data => {
                 if (data.ok) setPages(data.pages);
@@ -73,7 +84,11 @@ export default function SeoListPage() {
                                         <button
                                             onClick={async () => {
                                                 if (!confirm('هل أنت متأكد من الحذف؟')) return;
-                                                await fetch(`/api/admin/seo/pages/${page.id}`, { method: 'DELETE' });
+                                                await fetch(`/api/admin/seo/pages/${page.id}`, {
+                                                    method: 'DELETE',
+                                                    credentials: 'include',
+                                                    headers: { ...getAuthHeaders() }
+                                                });
                                                 setPages(pages.filter(p => p.id !== page.id));
                                             }}
                                             className="text-red-400 hover:text-red-300"

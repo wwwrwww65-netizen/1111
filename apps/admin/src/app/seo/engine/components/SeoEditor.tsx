@@ -23,6 +23,29 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
     const [analysis, setAnalysis] = useState<any>(null);
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('general'); // general, social, advanced
+    const [siteUrl, setSiteUrl] = useState('');
+    const [siteName, setSiteName] = useState('');
+
+    function getAuthHeaders() {
+        if (typeof document === 'undefined') return {} as Record<string, string>;
+        const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+        let token = m ? m[1] : '';
+        try { token = decodeURIComponent(token); } catch { }
+        return token ? { Authorization: `Bearer ${token}` } : {} as Record<string, string>;
+    }
+
+    useEffect(() => {
+        fetch('/api/admin/settings/list', { credentials: 'include', headers: { ...getAuthHeaders() } })
+            .then(res => res.json())
+            .then(data => {
+                const settings = data.settings || [];
+                const u = settings.find((s: any) => s.key === 'site_url');
+                const n = settings.find((s: any) => s.key === 'site_name');
+                if (u?.value?.value) setSiteUrl(u.value.value);
+                if (n?.value?.value) setSiteName(n.value.value);
+            })
+            .catch(() => { });
+    }, []);
 
     const handleChange = (field: string, value: any) => {
         setFormData((prev: any) => ({ ...prev, [field]: value }));
@@ -38,7 +61,8 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
     const analyzeSeo = async () => {
         const res = await fetch('/api/admin/seo/analyze', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+            credentials: 'include',
             body: JSON.stringify(formData)
         });
         const data = await res.json();
@@ -52,13 +76,15 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
         try {
             const res = await fetch('/api/admin/seo/pages', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                credentials: 'include',
                 body: JSON.stringify(formData)
             });
             const data = await res.json();
             if (data.ok) {
                 alert('تم الحفظ بنجاح');
-                if (isNew) router.push('/seo/engine');
+                router.push('/seo/engine');
+                router.refresh();
             } else {
                 alert('خطأ في الحفظ: ' + data.error);
             }
@@ -67,6 +93,11 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
         } finally {
             setSaving(false);
         }
+    };
+
+    const handlePreview = () => {
+        const url = `${(siteUrl || 'https://jeeey.com').replace(/\/$/, '')}/${formData.slug.replace(/^\//, '')}`;
+        window.open(url, '_blank');
     };
 
     useEffect(() => {
@@ -91,7 +122,7 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
                             <div>
                                 <label className="block text-gray-400 mb-1">الرابط (Slug) <span className="text-red-500">*</span></label>
                                 <div className="flex items-center bg-[#0b0e14] border border-[#1f2937] rounded px-3">
-                                    <span className="text-gray-500 text-sm">example.com/</span>
+                                    <span className="text-gray-500 text-sm">{(siteUrl || 'https://jeeey.com').replace(/\/$/, '')}/</span>
                                     <input
                                         type="text"
                                         value={formData.slug}
@@ -135,7 +166,7 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
                             </div>
 
                             <div>
-                                <label className="block text-gray-400 mb-1">الكلمة المفتاحية (Focus Keyword)</label>
+                                <label className="block text-gray-400 mb-1">الكلمات المفتاحية (Focus Keywords)</label>
                                 <div className="flex items-center gap-2">
                                     <span className="text-xl">🔑</span>
                                     <input
@@ -143,7 +174,7 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
                                         value={formData.focusKeyword}
                                         onChange={e => handleChange('focusKeyword', e.target.value)}
                                         className="w-full bg-[#0b0e14] border border-[#1f2937] rounded p-2 text-white"
-                                        placeholder="الكلمة الأساسية المستهدفة"
+                                        placeholder="الكلمة الأساسية، كلمة ثانوية (افصل بفاصلة)"
                                     />
                                 </div>
                             </div>
@@ -264,7 +295,7 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
                         {saving ? 'جاري الحفظ...' : 'حفظ ونشر'}
                     </button>
                     <div className="flex gap-2">
-                        <button className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded">معاينة</button>
+                        <button onClick={handlePreview} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded">معاينة</button>
                         <button onClick={() => setFormData(initialData || {})} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded">إعادة تعيين</button>
                     </div>
                 </div>
@@ -296,16 +327,16 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
                 {/* Google Snippet Preview */}
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                     <h3 className="text-xs font-bold text-gray-500 mb-2 uppercase">Google Preview</h3>
-                    <div className="font-sans" dir="ltr">
-                        <div className="flex items-center gap-2 mb-1">
+                    <div className="font-sans" dir="rtl">
+                        <div className="flex items-center gap-2 mb-1" dir="ltr">
                             <div className="bg-gray-200 rounded-full w-6 h-6 flex items-center justify-center text-xs">🌐</div>
                             <div className="text-sm text-[#202124]">
-                                example.com › {formData.slug || 'page-url'}
+                                {(siteUrl || 'jeeey.com').replace(/^https?:\/\//, '').replace(/\/$/, '')} › {formData.slug || 'page-url'}
                             </div>
                             <div className="text-xs text-gray-500">⋮</div>
                         </div>
                         <div className="text-[#1a0dab] text-xl hover:underline cursor-pointer truncate">
-                            {formData.titleSeo || 'عنوان الصفحة'} | {initialData?.siteName || 'اسم الموقع'}
+                            {formData.titleSeo || 'عنوان الصفحة'} | {siteName || initialData?.siteName || 'اسم الموقع'}
                         </div>
                         <div className="text-[#4d5156] text-sm mt-1 line-clamp-2">
                             {formData.metaDescription || 'وصف الصفحة يظهر هنا. هذا النص يساعد المستخدمين على فهم محتوى الصفحة قبل النقر عليها.'}
@@ -323,7 +354,7 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
                             <div className="w-full h-40 bg-gray-800 flex items-center justify-center text-gray-600">No Image</div>
                         )}
                         <div className="p-3">
-                            <div className="text-gray-400 text-xs uppercase mb-1">EXAMPLE.COM</div>
+                            <div className="text-gray-400 text-xs uppercase mb-1">{(siteUrl || 'JEEEY.COM').replace(/^https?:\/\//, '').replace(/\/$/, '').toUpperCase()}</div>
                             <div className="font-bold text-white mb-1 truncate">{formData.ogTags.title || formData.titleSeo || 'العنوان'}</div>
                             <div className="text-gray-400 text-sm line-clamp-2">{formData.ogTags.description || formData.metaDescription || 'الوصف'}</div>
                         </div>

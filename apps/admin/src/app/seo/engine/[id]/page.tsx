@@ -5,8 +5,16 @@ import SeoEditor from '../components/SeoEditor';
 export default function EditSeoPage({ params }: { params: { id: string } }) {
     const [data, setData] = useState(null);
 
+    function getAuthHeaders() {
+        if (typeof document === 'undefined') return {} as Record<string, string>;
+        const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
+        let token = m ? m[1] : '';
+        try { token = decodeURIComponent(token); } catch { }
+        return token ? { Authorization: `Bearer ${token}` } : {} as Record<string, string>;
+    }
+
     useEffect(() => {
-        fetch('/api/admin/seo/pages')
+        fetch('/api/admin/seo/pages', { credentials: 'include', headers: { ...getAuthHeaders() } })
             .then(res => res.json())
             .then(d => {
                 if (d.ok) {

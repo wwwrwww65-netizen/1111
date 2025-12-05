@@ -15,6 +15,29 @@ seoRouter.use((req: any, res, next) => {
 // List SEO Pages
 seoRouter.get('/pages', async (req, res) => {
   try {
+    // Ensure system pages exist
+    const systemPages = [
+      { slug: '/', titleSeo: 'الرئيسية', metaDescription: 'الصفحة الرئيسية للمتجر' },
+      { slug: '/cart', titleSeo: 'سلة التسوق', metaDescription: 'سلة المشتريات' },
+      { slug: '/categories', titleSeo: 'التصنيفات', metaDescription: 'جميع تصنيفات المتجر' },
+      { slug: '/products', titleSeo: 'المنتجات', metaDescription: 'تصفح جميع المنتجات' },
+      { slug: '/account', titleSeo: 'حسابي', metaDescription: 'إدارة حسابك الشخصي' },
+    ];
+
+    for (const p of systemPages) {
+      const exists = await db.seoPage.findUnique({ where: { slug: p.slug } });
+      if (!exists) {
+        await db.seoPage.create({
+          data: {
+            slug: p.slug,
+            titleSeo: p.titleSeo,
+            metaDescription: p.metaDescription,
+            focusKeyword: ''
+          }
+        });
+      }
+    }
+
     const pages = await db.seoPage.findMany({ orderBy: { updatedAt: 'desc' } });
     res.json({ ok: true, pages });
   } catch (e: any) {
@@ -123,26 +146,34 @@ seoRouter.post('/analyze', async (req, res) => {
     issues.push('الوصف طويل جداً (أكثر من 160 حرف)');
     score -= 5;
   }
-
   if (focusKeyword) {
-    if (!titleSeo?.includes(focusKeyword)) {
-      issues.push('الكلمة المفتاحية غير موجودة في العنوان');
-      score -= 20;
-    }
-    if (!metaDescription?.includes(focusKeyword)) {
-      issues.push('الكلمة المفتاحية غير موجودة في الوصف');
-      score -= 20;
-    }
-    if (!slug?.includes(focusKeyword.replace(/\s+/g, '-'))) {
-      issues.push('الكلمة المفتاحية غير موجودة في الرابط');
-      score -= 10;
+    const keywords = focusKeyword.split(',').map((k: string) => k.trim()).filter(Boolean);
+    const primaryKeyword = keywords[0];
+
+    if (primaryKeyword) {
+      if (!titleSeo?.includes(primaryKeyword)) {
+        issues.push(`الكلمة المفتاحية الرئيسية (${primaryKeyword}) غير موجودة في العنوان`);
+        score -= 20;
+      }
+      if (!metaDescription?.includes(primaryKeyword)) {
+        issues.push(`الكلمة المفتاحية الرئيسية (${primaryKeyword}) غير موجودة في الوصف`);
+        score -= 20;
+      }
+
+      // Slug check with decoding and normalization
+      const normalizedSlug = decodeURIComponent(slug || '').toLowerCase();
+      const normalizedKeyword = primaryKeyword.toLowerCase();
+      const keywordWithDashes = normalizedKeyword.replace(/\s+/g, '-');
+
+      if (!normalizedSlug.includes(normalizedKeyword) && !normalizedSlug.includes(keywordWithDashes)) {
+        issues.push(`الكلمة المفتاحية الرئيسية (${primaryKeyword}) غير موجودة في الرابط`);
+        score -= 10;
+      }
     }
   } else {
     issues.push('لم يتم تحديد كلمة مفتاحية');
     score -= 10;
   }
-
-  res.json({ ok: true, score: Math.max(0, score), issues });
 });
 
 export default seoRouter;
