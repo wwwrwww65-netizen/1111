@@ -3,6 +3,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 import { createPortal } from "react-dom";
 import { resolveApiBase } from "../../lib/apiBase";
+import ProductSeoEditor, { SeoData } from "../components/ProductSeoEditor";
 
 function useApiBase() {
   return React.useMemo(() => resolveApiBase(), []);
@@ -221,6 +222,9 @@ export default function AdminProductCreate(): JSX.Element {
   const [canonicalUrl, setCanonicalUrl] = React.useState("");
   const [metaRobots, setMetaRobots] = React.useState("");
   const [hiddenContent, setHiddenContent] = React.useState("");
+  const [ogTagsStr, setOgTagsStr] = React.useState("");
+  const [twitterCardStr, setTwitterCardStr] = React.useState("");
+  const [schemaStr, setSchemaStr] = React.useState("");
   // Becomes true after any successful analysis (rules/AI preview or full analyze)
   const [analysisDone, setAnalysisDone] = React.useState<boolean>(false);
 
@@ -279,6 +283,9 @@ export default function AdminProductCreate(): JSX.Element {
           setCanonicalUrl(String(seo.canonicalUrl || ''));
           setMetaRobots(String(seo.metaRobots || ''));
           setHiddenContent(String(seo.hiddenContent || ''));
+          setOgTagsStr(seo.ogTags ? JSON.stringify(seo.ogTags, null, 2) : '');
+          setTwitterCardStr(seo.twitterCard ? JSON.stringify(seo.twitterCard, null, 2) : '');
+          setSchemaStr(seo.schema ? JSON.stringify(seo.schema, null, 2) : '');
           setDraft(!Boolean(p.isActive));
           // Loyalty fields
           try {
@@ -2554,6 +2561,9 @@ export default function AdminProductCreate(): JSX.Element {
       canonicalUrl: canonicalUrl || undefined,
       metaRobots: metaRobots || undefined,
       hiddenContent: hiddenContent || undefined,
+      ogTags: (() => { try { return ogTagsStr ? JSON.parse(ogTagsStr) : undefined } catch { return undefined } })(),
+      twitterCard: (() => { try { return twitterCardStr ? JSON.parse(twitterCardStr) : undefined } catch { return undefined } })(),
+      schema: (() => { try { return schemaStr ? JSON.parse(schemaStr) : undefined } catch { return undefined } })(),
     };
     const editId = search?.get('id');
     // Build normalized variants once for either create or patch
@@ -3233,56 +3243,37 @@ export default function AdminProductCreate(): JSX.Element {
               })()}
             </div>
             <div className="panel" style={{ padding: 10, marginTop: 8 }}>
-              <div style={{ marginBottom: 6, color: '#9ca3af' }}>معاينة محرك البحث (SEO)</div>
-
-              {/* Google Preview */}
-              <div className="panel" style={{ padding: 12, marginBottom: 12, background: '#fff', border: '1px solid #dfe1e5', borderRadius: 8 }}>
-                <div dir="rtl">
-                  <div style={{ color: '#1a0dab', fontSize: 18, fontWeight: 400, lineHeight: 1.2, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 2 }}>
-                    {(seoTitle || name || 'عنوان المنتج')} | {(siteName || 'الموقع')}
-                  </div>
-                  <div style={{ color: '#006621', fontSize: 14, lineHeight: 1.3, direction: 'ltr', textAlign: 'right' }}>
-                    {(siteUrl || 'https://jeeey.com').replace(/\/$/, '')}/product/{(name ? name.trim().replace(/\s+/g, '-') : 'product-name')}
-                  </div>
-                  <div style={{ color: '#545454', fontSize: 13, lineHeight: 1.4, marginTop: 4, wordWrap: 'break-word' }}>
-                    {seoDescription || (description ? cleanText(description).slice(0, 160) : 'وصف موجز للمنتج سيظهر في نتائج البحث.')}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid" style={{ gridTemplateColumns: '1fr', gap: 8 }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: '#9ca3af' }}>عنوان الصفحة (SEO Title)</label>
-                  <input className="input" placeholder="اتركه فارغاً لاستخدام اسم المنتج" value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: '#9ca3af' }}>وصف الصفحة (SEO Description)</label>
-                  <textarea className="input" rows={3} placeholder="اتركه فارغاً لاستخدام وصف المنتج" value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} style={{ resize: 'vertical' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: '#9ca3af' }}>Slug (رابط دائم)</label>
-                  <input className="input" dir="ltr" placeholder="leave-empty-to-generate" value={slug} onChange={(e) => setSlug(e.target.value)} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: '#9ca3af' }}>كلمات مفتاحية (Keywords)</label>
-                  <input className="input" placeholder="كلمة1، كلمة2..." value={seoKeywords} onChange={(e) => setSeoKeywords(e.target.value)} />
-                </div>
-                <details style={{ marginTop: 12, border: '1px solid #1c2333', borderRadius: 8, padding: 10, background: '#0f1320' }}>
-                  <summary style={{ cursor: 'pointer', color: '#94a3b8', fontSize: 13, userSelect: 'none' }}>إعدادات SEO متقدمة</summary>
-                  <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-                    <label style={{ display: 'block', fontSize: 12, color: '#9ca3af' }}>Canonical URL
-                      <input className="input" dir="ltr" style={{ marginTop: 4 }} value={canonicalUrl} onChange={e => setCanonicalUrl(e.target.value)} />
-                    </label>
-                    <label style={{ display: 'block', fontSize: 12, color: '#9ca3af' }}>Meta Robots
-                      <input className="input" dir="ltr" style={{ marginTop: 4 }} placeholder="e.g. index, follow" value={metaRobots} onChange={e => setMetaRobots(e.target.value)} />
-                    </label>
-                    <label style={{ display: 'block', fontSize: 12, color: '#9ca3af' }}>محتوى مخفي (Hidden Content)
-                      <textarea className="input" style={{ marginTop: 4 }} rows={3} value={hiddenContent} onChange={e => setHiddenContent(e.target.value)} />
-                    </label>
-                  </div>
-                </details>
-              </div>
+              <div style={{ marginBottom: 6, color: '#9ca3af' }}>محرك البحث (SEO)</div>
+              <ProductSeoEditor
+                siteName={siteName}
+                siteUrl={siteUrl}
+                data={{
+                  slug,
+                  titleSeo: seoTitle,
+                  metaDescription: seoDescription,
+                  focusKeyword: seoKeywords,
+                  canonicalUrl,
+                  metaRobots,
+                  schema: schemaStr,
+                  hiddenContent,
+                  ogTags: (() => { try { return ogTagsStr ? JSON.parse(ogTagsStr) : {} } catch { return {} } })(),
+                  twitterCard: (() => { try { return twitterCardStr ? JSON.parse(twitterCardStr) : {} } catch { return {} } })()
+                }}
+                onChange={(changes) => {
+                  if (changes.slug !== undefined) setSlug(changes.slug);
+                  if (changes.titleSeo !== undefined) setSeoTitle(changes.titleSeo);
+                  if (changes.metaDescription !== undefined) setSeoDescription(changes.metaDescription);
+                  if (changes.focusKeyword !== undefined) setSeoKeywords(changes.focusKeyword);
+                  if (changes.canonicalUrl !== undefined) setCanonicalUrl(changes.canonicalUrl);
+                  if (changes.metaRobots !== undefined) setMetaRobots(changes.metaRobots);
+                  if (changes.schema !== undefined) setSchemaStr(changes.schema);
+                  if (changes.hiddenContent !== undefined) setHiddenContent(changes.hiddenContent);
+                  if (changes.ogTags !== undefined) setOgTagsStr(JSON.stringify(changes.ogTags, null, 2));
+                  if (changes.twitterCard !== undefined) setTwitterCardStr(JSON.stringify(changes.twitterCard, null, 2));
+                }}
+              />
             </div>
+
 
             {/* Model section moved here and compacted */}
             <div className="panel" style={{ padding: 10, marginTop: 8 }}>

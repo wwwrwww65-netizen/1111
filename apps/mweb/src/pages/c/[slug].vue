@@ -284,6 +284,13 @@
         </div>
       </div>
       
+      <!-- Empty State -->
+      <div v-if="!productsLoading && products.length === 0" class="flex flex-col items-center justify-center py-20 text-gray-500">
+        <Frown class="w-12 h-12 mb-2 opacity-50" />
+        <p>عذراً، لم يتم العثور على منتجات في هذا القسم.</p>
+        <button @click="goBack" class="mt-4 px-4 py-2 bg-[#8a1538] text-white rounded-md text-[13px]">عودة</button>
+      </div>
+      
       <!-- إشعار: يرجى تحديد الخيارات -->
       <Transition name="fade">
         <div v-if="requireOptionsNotice" class="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
@@ -348,7 +355,7 @@
           <button class="btn btn-outline" @click="closeFilter">إلغاء</button>
           <button class="btn" style="background:#8a1538;color:#fff" @click="applyFilters">تطبيق</button>
         </div>
-```
+
       </div>
     </div>
   </div>
@@ -367,6 +374,7 @@ import {
   Search,
   Camera,
   Filter,
+  Frown,
   ChevronDown as ArrowDown,
 } from 'lucide-vue-next';
 import ProductGridCard from '@/components/ProductGridCard.vue'
@@ -382,8 +390,8 @@ const { items } = storeToRefs(cart);
 
 // Categories State
 const allCategories = ref<Array<{ id:string; slug?:string|null; name:string; parentId?:string|null; image?:string|null }>>([])
-const currentCategory = ref<{ id:string; slug?:string|null; name:string; parentId?:string|null }|null>(null)
-const categories = ref<Array<{ id:string; label:string; img:string }>>([])
+const currentCategory = ref<{ id:string; slug?:string|null; name:string; parentId?:string|null; image?:string|null }|null>(null)
+const categories = ref<Array<{ id:string; slug?:string|null; label:string; img:string }>>([])
 const childCategoryIds = ref<string[]>([])
 const categorySeo = ref<any>(null)
 
@@ -444,9 +452,80 @@ function probeRatioPromise(p:any): Promise<void>{
 }
 
 const cartBadge = computed(() => cart.count);
-const activeFilter = ref<'recommend'|'popular'|'price'|'rating'>('recommend');
-const priceSort = ref<'asc'|'desc'|null>(null);
-const compact = ref(false);
+const activeFilter = ref('recommend') // recommend | popular | price | rating
+const priceSort = ref<'asc'|'desc'>('asc')
+const showFilters = ref(false)
+const compact = ref(false)
+
+// Computed for categories
+const visibleCategories = computed(() => categories.value)
+const compactCategories = computed(() => categories.value)
+
+// Core functions
+async function loadProducts(append = false) {
+  if (!append) productsLoading.value = true
+  else isLoadingMore.value = true
+
+  try {
+    const catIds = [currentCategory.value?.id, ...childCategoryIds.value].filter(Boolean)
+    const params: Record<string,any> = {
+      limit: 20,
+      offset: append ? products.value.length : 0,
+      categoryIds: catIds.join(',')
+    }
+    
+    // Sort
+    if (activeFilter.value === 'price') {
+      params.sort = priceSort.value === 'asc' ? 'price_asc' : 'price_desc'
+    } else if (activeFilter.value === 'popular') {
+      params.sort = 'popular' 
+    } else if (activeFilter.value === 'rating') {
+      params.sort = 'rating'
+    } else {
+      params.sort = 'new'
+    }
+
+    // Apply attribute filters
+    if (selSizes.value.length) params.sizes = selSizes.value.join(',')
+    if (selColors.value.length) params.colors = selColors.value.join(',')
+    if (selMaterials.value.length) params.materials = selMaterials.value.join(',')
+    if (selStyles.value.length) params.styles = selStyles.value.join(',')
+
+    const res = await apiGet<any>('/api/products', params)
+    const items = Array.isArray(res?.items) ? res.items : []
+
+    // Map images
+    items.forEach((p:any)=>{
+      if (typeof p.images === 'string') p.images = [p.images]
+      else if (!Array.isArray(p.images)) p.images = []
+      p.images = p.images.filter(Boolean)
+      if (!p.images.length) p.images.push('/images/placeholder-product.jpg')
+      probeRatioOnce(p) // existing helper
+    })
+
+    if (append) {
+      products.value = [...products.value, ...items]
+    } else {
+      products.value = items
+    }
+    hasMore.value = items.length >= 20
+  } catch(e) {
+    console.error(e)
+  } finally {
+    productsLoading.value = false
+    isLoadingMore.value = false
+  }
+}
+
+async function loadMoreProducts() {
+  if (isLoadingMore.value || !hasMore.value) return
+  await loadProducts(true)
+}
+
+async function bootstrap() {
+  await loadCategories()
+  await loadProducts()
+};
 const page = ref<HTMLElement | null>(null);
 const searchQ = ref('')
 
@@ -554,9 +633,11 @@ function togglePriceSort() {
   void loadProducts()
 }
 
-function onCategoryClick(c: {id:string;label:string;img:string}) {
-  if (!c?.id) return
-  router.push({ path: `/c/${encodeURIComponent(c.id)}` })
+
+function onCategoryClick(c: {id:string; slug?:string|null; label:string; img:string}) {
+  if (!c?.id && !c?.slug) return
+  const target = c.slug || c.id
+  router.push({ path: `/c/${encodeURIComponent(target)}` })
 }
 
 // Filters
@@ -664,7 +745,36 @@ async function loadCategories(){
     
     currentCategory.value = cur
     
-    if (!cur) { categories.value = []; childCategoryIds.value = []; return }
+    if (!cur) {
+      // Fallback: Try fetching category directly by ID/Slug if not found in bulk list
+      try {
+        const d = await apiGet<any>(`/api/category/${encodeURIComponent(target)}`)
+        if (d && d.category) {
+          const c = d.category
+          const fallbackCur = { 
+            id: String(c.id), 
+            slug: c.slug || null, 
+            name: String(c.name || ''), 
+            parentId: c.parentId ? String(c.parentId) : null, 
+            image: c.image || null 
+          }
+          currentCategory.value = fallbackCur
+          // Re-assign cur to proceed with logic
+          // Note: we can't easily re-assign 'const cur', so we proceed with fallbackCur logic
+          
+          // Fetch SEO
+          void fetchCategorySeo(fallbackCur.slug || fallbackCur.id)
+          
+          // For children, we might lack data if not in allCategories, but we can try
+          childCategoryIds.value = [fallbackCur.id] 
+          categories.value = []
+          return
+        }
+      } catch {}
+      
+      categories.value = []; childCategoryIds.value = []; 
+      return 
+    }
     
     // Fetch SEO details for this category
     void fetchCategorySeo(cur.slug || cur.id)
@@ -714,6 +824,7 @@ async function loadCategories(){
     
     categories.value = uiCategories.map(c=> ({
       id: c.id,
+      slug: c.slug || null,
       label: c.name,
       img: safeImg(c.image)
     }))
@@ -747,11 +858,17 @@ function injectHeadMeta(){
     document.title = pageTitle
     
     // 2. Canonical
-    let canonicalUrl = seo.canonicalUrl || url.href
-     if (!seo.canonicalUrl && route.params.slug) {
-       const clean = new URL(url.origin)
-       clean.pathname = `/c/${route.params.slug}`
+    // Point to the main desktop site for SEO consolidation
+    const mainSiteUrl = 'https://jeeey.com' 
+    let canonicalUrl = seo.canonicalUrl
+    
+    if (!canonicalUrl && route.params.slug) {
+       // Construct canonical from main site
+       const clean = new URL(mainSiteUrl)
+       clean.pathname = `/category/${route.params.slug}`
        canonicalUrl = clean.href
+    } else if (!canonicalUrl) {
+       canonicalUrl = url.href
     }
 
     const canonical = document.querySelector('link[rel="canonical"]') || (()=>{ const l = document.createElement('link'); l.rel='canonical'; document.head.appendChild(l); return l })()
@@ -1041,10 +1158,8 @@ async function computeCouponPrices(list:any[]){
     const match = cups.find(c=> eligibleByTokens(p, c))
     if (match){ p.couponPrice = priceAfterCoupon(base, match).toFixed(2) }
   }
+  }
 }
-
-const visibleCategories = computed(()=> categories.value)
-const compactCategories = computed(()=> categories.value)
 
 </script>
 

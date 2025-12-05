@@ -12,7 +12,7 @@ async function getProductSeo(idOrSlug: string): Promise<any> {
     // Fetch from updated public SEO endpoint
     // NOTE: /api/seo/meta expects `url`. Since we don't know the exact full path from just ID here easily without hardcoding,
     // we can assume /product/:slug. The logic in /seo/meta parses this.
-    const res = await fetch(`${apiUrl}/api/seo/meta?url=/product/${encodeURIComponent(idOrSlug)}&slug=${encodeURIComponent(idOrSlug)}`, { cache: 'no-store' });
+    const res = await fetch(`${apiUrl}/api/seo/meta?url=/p/${encodeURIComponent(idOrSlug)}&slug=${encodeURIComponent(idOrSlug)}`, { cache: 'no-store' });
     if (!res.ok) return null;
     const json = await res.json();
     return json.meta || null;

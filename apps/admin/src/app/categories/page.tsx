@@ -2,6 +2,7 @@
 import React from "react";
 import { Section } from "../components/Ui";
 import { resolveApiBase } from "../lib/apiBase";
+import ProductSeoEditor from "../products/components/ProductSeoEditor";
 export const dynamic = 'force-dynamic';
 
 function useApiBase() {
@@ -44,6 +45,9 @@ export default function CategoriesPage(): JSX.Element {
   "ar": { "name": "", "description": "" },
   "en": { "name": "", "description": "" }
 }`);
+  const [ogTagsStr, setOgTagsStr] = React.useState("");
+  const [twitterCardStr, setTwitterCardStr] = React.useState(""); // Added for compatibility
+  const [schemaStr, setSchemaStr] = React.useState("");
   const [toast, setToast] = React.useState<string>("");
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(""), 1800); };
 
@@ -122,14 +126,19 @@ export default function CategoriesPage(): JSX.Element {
           await fetch(`/api/admin/media`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) }).catch(() => null);
         }
       } catch { }
-      const payload = { name, description, image: finalImage, parentId: parentId || null, slug, seoTitle, seoDescription, seoKeywords: keywords, canonicalUrl, metaRobots, hiddenContent, translations };
+      const payload = {
+        name, description, image: finalImage, parentId: parentId || null, slug, seoTitle, seoDescription, seoKeywords: keywords, canonicalUrl, metaRobots, hiddenContent, translations,
+        ogTags: (() => { try { return ogTagsStr ? JSON.parse(ogTagsStr) : undefined } catch { return undefined } })(),
+        twitterCard: (() => { try { return twitterCardStr ? JSON.parse(twitterCardStr) : undefined } catch { return undefined } })(),
+        schema: (() => { try { return schemaStr ? JSON.parse(schemaStr) : undefined } catch { return undefined } })()
+      };
       const res = await fetch(`/api/admin/categories`, { method: 'POST', headers: { 'content-type': 'application/json', ...authHeaders() }, credentials: 'include', cache: 'no-store', body: JSON.stringify(payload) });
       if (!res.ok) {
         const t = await res.text().catch(() => '');
         showToast(`فشل الإضافة${t ? ': ' + t : ''}`);
         return;
       }
-      setName(""); setDescription(""); setImage(""); setImageFile(null); setParentId(""); setSlug(""); setSeoTitle(""); setSeoDescription(""); setSeoKeywords(""); setCanonicalUrl(""); setMetaRobots(""); setHiddenContent(""); setTrNameAr(""); setTrDescAr(""); setTrNameEn(""); setTrDescEn("");
+      setName(""); setDescription(""); setImage(""); setImageFile(null); setParentId(""); setSlug(""); setSeoTitle(""); setSeoDescription(""); setSeoKeywords(""); setCanonicalUrl(""); setMetaRobots(""); setHiddenContent(""); setTrNameAr(""); setTrDescAr(""); setTrNameEn(""); setTrDescEn(""); setOgTagsStr(""); setSchemaStr("");
       await Promise.all([loadList(), loadTree()]);
       showToast('تمت الإضافة');
     } catch (e: any) {
@@ -198,7 +207,10 @@ export default function CategoriesPage(): JSX.Element {
         canonicalUrl: cat.canonicalUrl || '',
         metaRobots: cat.metaRobots || '',
         hiddenContent: cat.hiddenContent || '',
-        translations: cat.translations ? JSON.stringify(cat.translations, null, 2) : '{\n  "ar": { "name": "", "description": "" },\n  "en": { "name": "", "description": "" }\n}'
+        translations: cat.translations ? JSON.stringify(cat.translations, null, 2) : '{\n  "ar": { "name": "", "description": "" },\n  "en": { "name": "", "description": "" }\n}',
+        ogTagsStr: cat.ogTags ? JSON.stringify(cat.ogTags, null, 2) : '',
+        twitterCardStr: cat.twitterCard ? JSON.stringify(cat.twitterCard, null, 2) : '',
+        schemaStr: cat.schema ? JSON.stringify(cat.schema, null, 2) : ''
       });
       setEditLoading(true);
       const r = await fetch(`/api/admin/categories/${cat.id}`, { credentials: 'include', cache: 'no-store', headers: { ...authHeaders() } });
@@ -218,7 +230,10 @@ export default function CategoriesPage(): JSX.Element {
         canonicalUrl: c.canonicalUrl || '',
         metaRobots: c.metaRobots || '',
         hiddenContent: c.hiddenContent || '',
-        translations: c.translations ? JSON.stringify(c.translations, null, 2) : '{\n  "ar": { "name": "", "description": "" },\n  "en": { "name": "", "description": "" }\n}'
+        translations: c.translations ? JSON.stringify(c.translations, null, 2) : '{\n  "ar": { "name": "", "description": "" },\n  "en": { "name": "", "description": "" }\n}',
+        ogTagsStr: c.ogTags ? JSON.stringify(c.ogTags, null, 2) : '',
+        twitterCardStr: c.twitterCard ? JSON.stringify(c.twitterCard, null, 2) : '',
+        schemaStr: c.schema ? JSON.stringify(c.schema, null, 2) : ''
       });
     } catch { showToast('تعذر جلب البيانات'); }
     finally { setEditLoading(false); }
@@ -255,15 +270,25 @@ export default function CategoriesPage(): JSX.Element {
         image: finalImage,
         parentId: edit.parentId || null,
         slug: edit.slug,
-        seoTitle: edit.seoTitle,
+        seoKeywords: (typeof edit.seoKeywords === 'string' ? edit.seoKeywords.split(',') : (edit.seoKeywords || [])).map((k: any) => String(k).trim()).filter(Boolean),
         seoDescription: edit.seoDescription,
-        seoKeywords: String(edit.seoKeywords || '').split(',').map((s: string) => s.trim()).filter(Boolean),
+        seoTitle: edit.seoTitle,
         canonicalUrl: edit.canonicalUrl,
         metaRobots: edit.metaRobots,
         hiddenContent: edit.hiddenContent,
+        ogTags: (() => { try { return edit.ogTagsStr ? JSON.parse(edit.ogTagsStr) : undefined } catch { return undefined } })(),
+        twitterCard: (() => { try { return edit.twitterCardStr ? JSON.parse(edit.twitterCardStr) : undefined } catch { return undefined } })(),
+        schema: (() => { try { return edit.schemaStr ? JSON.parse(edit.schemaStr) : undefined } catch { return undefined } })(),
         translations
       };
-      const r = await fetch(`/api/admin/categories/${edit.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json', ...authHeaders() }, credentials: 'include', body: JSON.stringify(payload) });
+
+      const r = await fetch(edit.id ? `/api/admin/categories/${edit.id}` : `/api/admin/categories`, {
+        method: edit.id ? 'PUT' : 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json', ...authHeaders() },
+        body: JSON.stringify(payload)
+      });
+
       if (!r.ok) {
         if (r.status === 409) { showToast('Slug مستخدم بالفعل'); return; }
         try { const j = await r.json(); showToast(j?.error || 'فشل الحفظ'); } catch { showToast('فشل الحفظ'); }
@@ -386,46 +411,36 @@ export default function CategoriesPage(): JSX.Element {
           <div style={{ display: 'grid', gap: 10 }}>
             <label>الاسم<input value={name} onChange={(e) => setName(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} /></label>
             <label>الوصف<textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} /></label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <label>Slug
-                <input value={slug} onChange={(e) => setSlug(e.target.value)} onBlur={async () => {
-                  if (!slug.trim()) return;
-                  try {
-                    const r = await fetch(`/api/admin/categories?search=${encodeURIComponent(slug)}`, { credentials: 'include', cache: 'no-store', headers: { ...authHeaders() } });
-                    const j = await r.json();
-                    const exists = Array.isArray(j?.categories) && j.categories.some((c: any) => String(c.slug || '').toLowerCase() === slug.trim().toLowerCase());
-                    if (exists) showToast('Slug مستخدم بالفعل');
-                  } catch { }
-                }} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
-              </label>
-              <label>SEO Title<input value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} /></label>
-              <label>SEO Description<input value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} /></label>
-              <label>SEO Keywords (comma)<input value={seoKeywords} onChange={(e) => setSeoKeywords(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} /></label>
-            </div>
-            <details style={{ marginTop: 8, border: '1px solid #1c2333', borderRadius: 8, padding: 8 }}>
-              <summary style={{ cursor: 'pointer', color: '#94a3b8', fontSize: 13 }}>إعدادات SEO متقدمة</summary>
-              <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-                <label>Canonical<input className="input" value={canonicalUrl} onChange={e => setCanonicalUrl(e.target.value)} /></label>
-                <label>Robots<input className="input" placeholder="index, follow" value={metaRobots} onChange={e => setMetaRobots(e.target.value)} /></label>
-                <label>Hidden<textarea className="input" rows={2} value={hiddenContent} onChange={e => setHiddenContent(e.target.value)} /></label>
-              </div>
-            </details>
-
-            <div style={{ marginTop: 10 }}>
-              <div style={{ color: '#94a3b8', marginBottom: 6 }}>معاينة محرك البحث (SEO)</div>
-              <div className="panel" style={{ padding: 12, marginBottom: 12, background: '#fff', border: '1px solid #dfe1e5', borderRadius: 8 }}>
-                <div dir="rtl">
-                  <div style={{ color: '#1a0dab', fontSize: 18, fontWeight: 400, lineHeight: 1.2, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 2 }}>
-                    {(seoTitle || name || 'عنوان التصنيف')} | {(siteName || 'الموقع')}
-                  </div>
-                  <div style={{ color: '#006621', fontSize: 14, lineHeight: 1.3, direction: 'ltr', textAlign: 'right' }}>
-                    {(siteUrl || 'https://jeeey.com').replace(/\/$/, '')}/c/{slug || 'your-slug'}
-                  </div>
-                  <div style={{ color: '#545454', fontSize: 13, lineHeight: 1.4, marginTop: 4, wordWrap: 'break-word' }}>
-                    {seoDescription || (description ? description.slice(0, 160) : 'وصف موجز للتصنيف سيظهر في نتائج البحث.')}
-                  </div>
-                </div>
-              </div>
+            <div style={{ marginTop: 10, background: '#0b0e14', border: '1px solid #1c2333', borderRadius: 10, padding: 16 }}>
+              <ProductSeoEditor
+                siteName={siteName}
+                siteUrl={siteUrl}
+                pathPrefix="/c/"
+                data={{
+                  slug,
+                  titleSeo: seoTitle,
+                  metaDescription: seoDescription,
+                  focusKeyword: seoKeywords,
+                  canonicalUrl,
+                  metaRobots,
+                  schema: schemaStr,
+                  hiddenContent,
+                  ogTags: (() => { try { return ogTagsStr ? JSON.parse(ogTagsStr) : {} } catch { return {} } })(),
+                  twitterCard: (() => { try { return twitterCardStr ? JSON.parse(twitterCardStr) : {} } catch { return {} } })()
+                }}
+                onChange={(changes) => {
+                  if (changes.slug !== undefined) setSlug(changes.slug);
+                  if (changes.titleSeo !== undefined) setSeoTitle(changes.titleSeo);
+                  if (changes.metaDescription !== undefined) setSeoDescription(changes.metaDescription);
+                  if (changes.focusKeyword !== undefined) setSeoKeywords(changes.focusKeyword);
+                  if (changes.canonicalUrl !== undefined) setCanonicalUrl(changes.canonicalUrl);
+                  if (changes.metaRobots !== undefined) setMetaRobots(changes.metaRobots);
+                  if (changes.schema !== undefined) setSchemaStr(changes.schema);
+                  if (changes.hiddenContent !== undefined) setHiddenContent(changes.hiddenContent);
+                  if (changes.ogTags !== undefined) setOgTagsStr(JSON.stringify(changes.ogTags, null, 2));
+                  if (changes.twitterCard !== undefined) setTwitterCardStr(JSON.stringify(changes.twitterCard, null, 2));
+                }}
+              />
             </div>
 
             <div style={{ border: '1px solid #1c2333', borderRadius: 10, padding: 10 }}>
@@ -528,36 +543,47 @@ function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows
             <label>الوصف
               <textarea value={edit?.description || ''} onChange={(e) => setEdit((c: any) => ({ ...c, description: (e.target as HTMLTextAreaElement).value }))} rows={3} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <label>Slug
-                <input value={edit?.slug || ''} onChange={(e) => setEdit((c: any) => ({ ...c, slug: (e.target as HTMLInputElement).value }))} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
-              </label>
-              <label>التصنيف الأب
-                <select value={edit?.parentId || ''} onChange={(e) => setEdit((c: any) => ({ ...c, parentId: (e.target as HTMLSelectElement).value }))} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }}>
-                  <option value="">(لا يوجد)</option>
-                  {rows.filter((r: any) => r.id !== edit?.id).map((r: any) => (<option key={r.id} value={r.id}>{r.name}</option>))}
-                </select>
-              </label>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <label>SEO Title
-                <input value={edit?.seoTitle || ''} onChange={(e) => setEdit((c: any) => ({ ...c, seoTitle: (e.target as HTMLInputElement).value }))} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
-              </label>
-              <label>SEO Description
-                <input value={edit?.seoDescription || ''} onChange={(e) => setEdit((c: any) => ({ ...c, seoDescription: (e.target as HTMLInputElement).value }))} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
-              </label>
-            </div>
-            <label>SEO Keywords (comma)
-              <input value={edit?.seoKeywords || ''} onChange={(e) => setEdit((c: any) => ({ ...c, seoKeywords: (e.target as HTMLInputElement).value }))} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
+            <label>التصنيف الأب
+              <select value={edit?.parentId || ''} onChange={(e) => setEdit((c: any) => ({ ...c, parentId: (e.target as HTMLSelectElement).value }))} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }}>
+                <option value="">(لا يوجد)</option>
+                {rows.filter((r: any) => r.id !== edit?.id).map((r: any) => (<option key={r.id} value={r.id}>{r.name}</option>))}
+              </select>
             </label>
-            <details style={{ marginTop: 8, border: '1px solid #1c2333', borderRadius: 8, padding: 8 }}>
-              <summary style={{ cursor: 'pointer', color: '#94a3b8', fontSize: 13 }}>إعدادات SEO متقدمة</summary>
-              <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-                <label>Canonical<input className="input" value={edit?.canonicalUrl || ''} onChange={e => setEdit((c: any) => ({ ...c, canonicalUrl: e.target.value }))} /></label>
-                <label>Robots<input className="input" placeholder="index, follow" value={edit?.metaRobots || ''} onChange={e => setEdit((c: any) => ({ ...c, metaRobots: e.target.value }))} /></label>
-                <label>Hidden<textarea className="input" rows={2} value={edit?.hiddenContent || ''} onChange={e => setEdit((c: any) => ({ ...c, hiddenContent: e.target.value }))} /></label>
-              </div>
-            </details>
+            <div className="panel" style={{ marginTop: 10, padding: 12 }}>
+              <ProductSeoEditor
+                // Pass current edit state
+                data={{
+                  slug: edit?.slug || '',
+                  titleSeo: edit?.seoTitle || '',
+                  metaDescription: edit?.seoDescription || '',
+                  focusKeyword: edit?.seoKeywords || '', // handle array/string conversion? edit object has it as array usually. Wait, in openEdit it sets seoKeywords as string (join).
+                  // In edit object it might be string if coming from openEdit.
+                  canonicalUrl: edit?.canonicalUrl || '',
+                  metaRobots: edit?.metaRobots || '',
+                  schema: edit?.schemaStr || '',
+                  hiddenContent: edit?.hiddenContent || '',
+                  ogTags: (() => { try { return edit?.ogTagsStr ? JSON.parse(edit.ogTagsStr) : {} } catch { return {} } })(),
+                  twitterCard: (() => { try { return edit?.twitterCardStr ? JSON.parse(edit.twitterCardStr) : {} } catch { return {} } })()
+                }}
+                pathPrefix="/c/"
+                onChange={(changes) => {
+                  setEdit((prev: any) => {
+                    const next = { ...prev };
+                    if (changes.slug !== undefined) next.slug = changes.slug;
+                    if (changes.titleSeo !== undefined) next.seoTitle = changes.titleSeo;
+                    if (changes.metaDescription !== undefined) next.seoDescription = changes.metaDescription;
+                    if (changes.focusKeyword !== undefined) next.seoKeywords = changes.focusKeyword; // String
+                    if (changes.canonicalUrl !== undefined) next.canonicalUrl = changes.canonicalUrl;
+                    if (changes.metaRobots !== undefined) next.metaRobots = changes.metaRobots;
+                    if (changes.schema !== undefined) next.schemaStr = changes.schema;
+                    if (changes.hiddenContent !== undefined) next.hiddenContent = changes.hiddenContent;
+                    if (changes.ogTags !== undefined) next.ogTagsStr = JSON.stringify(changes.ogTags, null, 2);
+                    if (changes.twitterCard !== undefined) next.twitterCardStr = JSON.stringify(changes.twitterCard, null, 2);
+                    return next;
+                  });
+                }}
+              />
+            </div>
             <label>صورة (URL)
               <input value={edit?.image || ''} onChange={(e) => setEdit((c: any) => ({ ...c, image: (e.target as HTMLInputElement).value }))} placeholder="https://...jpg" style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
             </label>

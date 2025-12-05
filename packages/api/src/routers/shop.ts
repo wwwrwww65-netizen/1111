@@ -1846,68 +1846,40 @@ shop.get('/products', async (req, res) => {
         const targetIds = resolvedCatIds.length > 0 ? resolvedCatIds : categoryIds;
 
         // Try with categoryLinks first (robust against schema differences)
-        try {
-          const catCondition = {
-            OR: [
-              { categoryId: { in: targetIds } },
-              { categoryLinks: { some: { categoryId: { in: targetIds } } } as any }
-            ]
-          };
+        // Schema does not support categoryLinks. Fallback to simple categoryId.
+        const catCondition = {
+          categoryId: { in: targetIds }
+        };
 
-          // If we have 'q', we must AND the category condition with the search condition
-          // Since 'where.AND' is already an array of term conditions, we push the category condition into it
-          let finalWhere = { ...where };
-          if (q && Array.isArray(finalWhere.AND)) {
-            finalWhere.AND.push(catCondition);
-          } else if (q) {
-            // Should not happen with new logic, but fallback
-            finalWhere = { AND: [where, catCondition] };
-          } else {
-            finalWhere = { ...where, ...catCondition };
-          }
-
-          items = await db.product.findMany({
-            where: finalWhere,
-            select: {
-              id: true, name: true, price: true, images: true, categoryId: true,
-              colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
-            },
-            orderBy,
-            skip: offset,
-            take: limit,
-          }) as any;
-        } catch {
-          // Fallback: simple categoryId
-          let fallbackWhere = { ...where };
-          const simpleCat = { categoryId: { in: targetIds } };
-
-          if (q && Array.isArray(fallbackWhere.AND)) {
-            fallbackWhere.AND.push(simpleCat);
-          } else if (q) {
-            fallbackWhere = { AND: [where, simpleCat] };
-          } else {
-            fallbackWhere = { ...where, ...simpleCat };
-          }
-
-          items = await db.product.findMany({
-            where: fallbackWhere,
-            select: {
-              id: true, name: true, price: true, images: true, categoryId: true,
-              categoryLinks: { select: { categoryId: true } },
-              colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
-            },
-            orderBy,
-            skip: offset,
-            take: limit,
-          }) as any;
+        // If we have 'q', we must AND the category condition with the search condition
+        // Since 'where.AND' is already an array of term conditions, we push the category condition into it
+        let finalWhere = { ...where };
+        if (q && Array.isArray(finalWhere.AND)) {
+          finalWhere.AND.push(catCondition);
+        } else if (q) {
+          // Should not happen with new logic, but fallback
+          finalWhere = { AND: [where, catCondition] };
+        } else {
+          finalWhere = { ...where, ...catCondition };
         }
+
+        items = await db.product.findMany({
+          where: finalWhere,
+          select: {
+            id: true, name: true, price: true, images: true, categoryId: true,
+            colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
+          },
+          orderBy,
+          skip: offset,
+          take: limit,
+        }) as any;
+
       } else {
         // No category filter
         items = await db.product.findMany({
           where,
           select: {
             id: true, name: true, price: true, images: true, categoryId: true,
-            categoryLinks: { select: { categoryId: true } },
             colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
           },
           orderBy,
@@ -1922,7 +1894,6 @@ shop.get('/products', async (req, res) => {
       // Map categoryIds from categoryLinks + categoryId
       it.categoryIds = Array.from(new Set([
         it.categoryId,
-        ...(it.categoryLinks || []).map((l: any) => l.categoryId)
       ].filter(Boolean)));
 
       if (Array.isArray(it.colors) && it.colors.length > 0) {
@@ -2003,7 +1974,6 @@ shop.get('/product/:id', async (req, res) => {
       where: { OR: [{ id: idParam }, { seo: { slug: idParam } }] },
       include: {
         category: { select: { id: true, name: true, slug: true } },
-        categoryLinks: { select: { categoryId: true } },
         reviews: true,
         variants: true,
         seo: true,
@@ -2135,7 +2105,6 @@ shop.get('/product/:id', async (req, res) => {
       colorGalleries,
       categoryIds: Array.from(new Set([
         p.categoryId,
-        ...(p.categoryLinks || []).map((l: any) => l.categoryId)
       ].filter(Boolean)))
     });
     {
@@ -2418,7 +2387,6 @@ shop.get('/recommendations/recent', async (_req, res) => {
       where: { isActive: true },
       select: {
         id: true, name: true, price: true, images: true, brand: true, categoryId: true,
-        categoryLinks: { select: { categoryId: true } },
         colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
       },
       orderBy: { updatedAt: 'desc' },
@@ -2429,7 +2397,6 @@ shop.get('/recommendations/recent', async (_req, res) => {
       // Map categoryIds
       it.categoryIds = Array.from(new Set([
         it.categoryId,
-        ...(it.categoryLinks || []).map((l: any) => l.categoryId)
       ].filter(Boolean)));
 
       if (Array.isArray(it.colors) && it.colors.length > 0) {
@@ -2480,7 +2447,6 @@ shop.get('/recommendations/similar/:productId', async (req, res) => {
       where: { categoryId: p.categoryId, isActive: true, NOT: { id: productId } },
       select: {
         id: true, name: true, price: true, images: true, brand: true, categoryId: true,
-        categoryLinks: { select: { categoryId: true } },
         colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
       },
       orderBy: { updatedAt: 'desc' },
@@ -2491,7 +2457,6 @@ shop.get('/recommendations/similar/:productId', async (req, res) => {
       // Map categoryIds
       it.categoryIds = Array.from(new Set([
         it.categoryId,
-        ...(it.categoryLinks || []).map((l: any) => l.categoryId)
       ].filter(Boolean)));
 
       if (Array.isArray(it.colors) && it.colors.length > 0) {
@@ -3442,7 +3407,7 @@ shop.post('/pricing/effective', async (req: any, res) => {
     const ids = Array.from(new Set(items.map(i => String(i.id || '').trim()).filter(Boolean)));
     const prods = await db.product.findMany({
       where: { id: { in: ids } },
-      select: { id: true, price: true, categoryId: true, brand: true, sku: true, categoryLinks: { select: { categoryId: true } } }
+      select: { id: true, price: true, categoryId: true, brand: true, sku: true }
     });
     const prodMap = new Map<string, any>();
     for (const p of prods) {
@@ -3703,7 +3668,7 @@ shop.get('/catalog/:slug', async (req, res) => {
     // Include products whose primary category OR additional link table is within the set of category + descendants
     const andConds: any[] = [
       { isActive: true },
-      { OR: [{ categoryId: { in: catIds } }, { categoryLinks: { some: { categoryId: { in: catIds } } } }] }
+      { categoryId: { in: catIds } }
     ];
     if (q) andConds.push({ name: { contains: q, mode: 'insensitive' } });
     if (brand) andConds.push({ brand: { contains: brand, mode: 'insensitive' } as any });
@@ -6134,7 +6099,6 @@ shop.get('/products/recent', async (req: any, res) => {
         categoryId: it.categoryId,
         categoryIds: Array.from(new Set([
           it.categoryId,
-          ...(it.categoryLinks || []).map((l: any) => l.categoryId)
         ].filter(Boolean)))
       };
     });

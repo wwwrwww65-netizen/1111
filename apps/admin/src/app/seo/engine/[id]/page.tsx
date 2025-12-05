@@ -14,12 +14,11 @@ export default function EditSeoPage({ params }: { params: { id: string } }) {
     }
 
     useEffect(() => {
-        fetch('/api/admin/seo/pages', { credentials: 'include', headers: { ...getAuthHeaders() } })
+        fetch(`/api/admin/seo/pages/${params.id}`, { credentials: 'include', headers: { ...getAuthHeaders() } })
             .then(res => res.json())
             .then(d => {
                 if (d.ok) {
-                    const page = d.pages.find((p: any) => p.id === params.id);
-                    setData(page);
+                    setData(d.page);
                 }
             });
     }, [params.id]);

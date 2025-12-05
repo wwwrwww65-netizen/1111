@@ -27,8 +27,9 @@ function themeBg(theme?: string): string {
 export default function ProductDetailClient({ id }: { id: string }): JSX.Element {
     const { t } = useI18n();
     const { data, isLoading, error } = trpc.products.getById.useQuery({ id });
-    const rpc: any = trpc as any;
+    const rpc = trpc;
     const addItem = trpc.cart.addItem.useMutation();
+    const createReview = trpc.reviews.create.useMutation();
     const [activeIdx, setActiveIdx] = React.useState(0);
     const [qty, setQty] = React.useState(1);
     const [tab, setTab] = React.useState<'desc' | 'specs' | 'reviews'>("desc");
@@ -69,7 +70,7 @@ export default function ProductDetailClient({ id }: { id: string }): JSX.Element
         ]);
         if (COLOR_WORDS.has(t)) return true;
         if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s)) return true;
-        if (/^[\p{L}\s]{2,}$/u.test(s) && /ي$/.test(s)) return true;
+        if (/^[\u0600-\u06FF\s]{2,}$/.test(s) && /ي$/.test(s)) return true;
         return false;
     };
     const normalizeDigits = (input: string): string => String(input || '').replace(/[\u0660-\u0669]/g, (d) => String((d as any).charCodeAt(0) - 0x0660));
@@ -236,17 +237,18 @@ export default function ProductDetailClient({ id }: { id: string }): JSX.Element
                                     </div>
                                 </div>
                             ))}
-                            <ul className="space-y-1 text-sm text-gray-600 list-disc pr-5">
-                                {(product.specs || []).map((s: any, idx: number) => (
-                                    <li key={idx}>{typeof s === 'string' ? s : `${s.name}: ${s.value}`}</li>
-                                ))}
-                            </ul>
+                            {/* Specs removed as property does not exist */}
                         </div>
                     )}
                     {tab === 'reviews' && (
                         <div className="mt-4">
                             {/* Rating summary */}
-                            <div className="text-sm text-gray-700 mb-3">التقييم العام: {product.averageRating} ({product.reviewCount} تقييم)</div>
+                            <div className="text-sm text-gray-700 mb-3">التقييم العام: {(() => {
+                                const reviews = (product.reviews as any[]) || [];
+                                const count = reviews.length;
+                                const avg = count ? (reviews.reduce((a, b) => a + (b.rating || 0), 0) / count).toFixed(1) : 0;
+                                return `${avg} (${count} تقييم)`;
+                            })()}</div>
                             {(() => {
                                 const rows = (product.reviews || []).filter((r: any) => r.isApproved !== false);
                                 const total = rows.length || 1;
@@ -309,7 +311,7 @@ export default function ProductDetailClient({ id }: { id: string }): JSX.Element
                                 ) : (
                                     <form
                                         className="space-y-2"
-                                        onSubmit={async (e) => { e.preventDefault(); try { await rpc.reviews.create.mutateAsync({ productId: product.id, rating, comment }); setComment(''); } catch { } }}
+                                        onSubmit={async (e) => { e.preventDefault(); try { await createReview.mutateAsync({ productId: product.id, rating, comment }); setComment(''); } catch { } }}
                                     >
                                         <div className="flex items-center gap-2">
                                             {[1, 2, 3, 4, 5].map(n => (
@@ -390,16 +392,24 @@ export default function ProductDetailClient({ id }: { id: string }): JSX.Element
 }
 
 function RecommendedGrid(): JSX.Element {
-    const query: any = (trpc as any);
-    const { data } = query.products.list.useQuery({ limit: 10 });
+    const { data } = trpc.products.list.useQuery({ limit: 10 });
     const items = data?.items ?? [];
     return (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {items.map((p: any) => (
                 <ProductCard
                     key={p.id}
-                    product={{ id: p.id, name: p.name, description: p.description, price: p.price, images: p.images, stock: p.stockQuantity, rating: p.averageRating || 0, reviewCount: p.reviewCount || 0 }}
-                    onViewDetails={(id) => (window.location.href = `/products/${id}`)}
+                    product={{
+                        id: p.id,
+                        name: p.name,
+                        description: p.description,
+                        price: p.price,
+                        images: p.images,
+                        stock: p.stockQuantity,
+                        rating: (p.reviews && p.reviews.length) ? (p.reviews.reduce((a: any, b: any) => a + (b.rating || 0), 0) / p.reviews.length) : 0,
+                        reviewCount: p.reviews?.length || 0
+                    }}
+                    onViewDetails={(id) => (window.location.href = `/p/${id}`)}
                 />
             ))}
         </div>

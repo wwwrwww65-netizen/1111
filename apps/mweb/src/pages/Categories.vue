@@ -113,7 +113,7 @@
             v-for="c in displayedCategories" 
             :key="c.id" 
             class="cell cursor-pointer" 
-            @click="go(`/c/${encodeURIComponent(c.id)}`); trackCategoryClick(c)"
+            @click="go(resolveLink(c.id)); trackCategoryClick(c)"
           >
             <img :src="thumb(c.image, 160)" :alt="c.name" loading="lazy" />
             <div class="name">{{ c.name }}</div>
@@ -129,7 +129,7 @@
               v-for="(sug, idx) in activeSuggestions" 
               :key="idx" 
               class="cell cursor-pointer"
-              @click="go(`/c/${encodeURIComponent(sug.id)}`); trackSuggestionClick(sug)"
+              @click="go(resolveLink(sug.id)); trackSuggestionClick(sug)"
             >
               <img :src="thumb(sug.image, 180)" :alt="sug.name" loading="lazy" />
               <div class="name">{{ sug.name }}</div>
@@ -241,6 +241,11 @@ const activePromoBanner = computed(()=>{
 const router = useRouter()
 function go(path: string) { router.push(path) }
 
+function resolveLink(id: string) {
+    const hasChildren = cats.value.some(c => String(c.parent) === String(id));
+    return hasChildren ? `/categories/${encodeURIComponent(id)}` : `/c/${encodeURIComponent(id)}`;
+}
+
 // Enhanced Sidebar with icons (from config or fallback)
 const activeTabCfg = computed(()=> (catConfig.value?.tabs||[]).find((t:any)=> String(t.key||'')===active.value) )
 const sidebarItems = computed<SidebarItem[]>(()=>{
@@ -319,7 +324,7 @@ const featuredCategories = computed(() => {
   if (active.value === 'all') return []
   if (currentSideCfg.value && Array.isArray((currentSideCfg.value as any).featured)) return (currentSideCfg.value as any).featured
   if (activeTabCfg.value && Array.isArray((activeTabCfg.value as any).featured)) return (activeTabCfg.value as any).featured
-  return categoryHierarchy[active.value] || []
+  return []
 })
 
 const showFeaturedSection = computed(() => {
@@ -403,9 +408,9 @@ const displayedCategories = computed(() => {
         return sorted.slice(0, limit)
       }
     }
-    return categoryHierarchy[active.value] || []
+    return []
   }
-  return cats.value
+  return []
 })
 
 // Section title
@@ -539,6 +544,7 @@ onMounted(async () => {
       image: c.image || `https://picsum.photos/seed/${encodeURIComponent(c.slug || c.id)}/200/200`,
       categoryType: c.categoryType,
       badge: badges[c.slug||c.id] || undefined,
+      parent: c.parentId || c.parent || undefined,
     }))
   } else {
     // Fallback with mixed categories

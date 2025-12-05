@@ -34,7 +34,7 @@ export default function Page(): JSX.Element {
           const items = json?.items || [];
           if (items.length) setFallbackProducts(items);
         }
-      } catch {}
+      } catch { }
     };
     fetchFallback();
     const timer = setTimeout(() => { if (!fallbackProducts) fetchFallback(); }, 1200);
@@ -88,7 +88,7 @@ export default function Page(): JSX.Element {
                   rating: 0,
                   reviewCount: 0,
                 }}
-                onViewDetails={(id) => (window.location.href = `/products/${id}`)}
+                onViewDetails={(id) => (window.location.href = `/p/${id}`)}
               />
             )
           ))}

@@ -72,7 +72,7 @@ export default function CategoryClientPage({ category }: { category: any }): JSX
                             rating: p.rating || 0,
                             reviewCount: p.reviewCount || 0,
                         }}
-                        onViewDetails={(id) => (window.location.href = `/products/${id}`)}
+                        onViewDetails={(id) => (window.location.href = `/p/${id}`)}
                     />
                 ))}
                 {products.length === 0 && (

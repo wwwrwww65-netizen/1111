@@ -2960,12 +2960,14 @@ function injectHeadMeta(){
     document.title = pageTitle
     
     // 2. Canonical
-    let canonicalUrl = seo.canonicalUrl || url.href
+    const mainSiteUrl = 'https://jeeey.com'
+    let canonicalUrl = seo.canonicalUrl
     // If we are on a slug route, ensure canonical is clean
-    if (!seo.canonicalUrl && route.params.slug) {
+    if (!canonicalUrl) {
        // Reconstruct clean URL without query params if possible
-       const clean = new URL(url.origin)
-       clean.pathname = `/product/${route.params.slug}`
+       const clean = new URL(mainSiteUrl)
+       const pathSlug = route.params.slug || id.value
+       clean.pathname = `/products/${pathSlug}` // Web app uses /products/
        canonicalUrl = clean.href
     }
 

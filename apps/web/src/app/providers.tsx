@@ -2,11 +2,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, httpLink, splitLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
-import type { AnyRouter } from "@trpc/server";
+import type { AppRouter } from "@repo/api";
 import React from "react";
 import { I18nProvider } from "../lib/i18n";
 
-export const trpc = createTRPCReact<AnyRouter>();
+export const trpc = createTRPCReact<AppRouter>();
 
 export function AppProviders({ children }: { children: React.ReactNode }): JSX.Element {
   const [queryClient] = React.useState(() => new QueryClient());
@@ -34,7 +34,6 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
           condition: (op) => op.type === 'query',
           true: httpLink({
             url: '/api/trpc',
-            method: 'GET',
             fetch(input, init) {
               return fetch(input, { ...(init ?? {}), credentials: "include" });
             },
@@ -66,14 +65,14 @@ export function AppProviders({ children }: { children: React.ReactNode }): JSX.E
         const r = theme.radius || {};
         if (r.md != null) root.style.setProperty('--radius-md', String(r.md) + 'px');
         if (r.lg != null) root.style.setProperty('--radius-lg', String(r.lg) + 'px');
-      } catch {}
+      } catch { }
     }
     if (typeof window !== 'undefined') loadTheme();
   }, []);
 
   React.useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      try { navigator.serviceWorker.register('/sw.js'); } catch {}
+      try { navigator.serviceWorker.register('/sw.js'); } catch { }
     }
   }, []);
 

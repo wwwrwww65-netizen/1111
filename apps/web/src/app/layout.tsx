@@ -8,12 +8,49 @@ import { CookieConsent } from "../components/CookieConsent";
 import { Tajawal } from "next/font/google";
 import { PromoHost } from "../components/PromoHost";
 
-const tajawal = Tajawal({ subsets: ["arabic"], weight: ["400","500","700","800"] });
+const tajawal = Tajawal({ subsets: ["arabic"], weight: ["400", "500", "700", "800"] });
 
 export const metadata: Metadata = {
-  title: "Jeeey | موضة نساء على الإنترنت | تسوق الفساتين والأحذية والحقائب",
-  description:
-    "اكتشف أحدث صيحات الموضة النسائية. تسوق فساتين، أحذية، حقائب، وإكسسوارات محدثة أسبوعياً.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com'),
+  title: {
+    default: 'Jeeey - Global Shopping | تسوق عالمي',
+    template: '%s | Jeeey'
+  },
+  description: 'Jeeey is your gateway to global shopping. Fashion, Tech, Home and more. تسوق من أرقى العلامات التجارية العالمية في مكان واحد.',
+  openGraph: {
+    type: 'website',
+    locale: 'ar_SA',
+    url: '/',
+    siteName: 'Jeeey',
+    images: [
+      {
+        url: '/og-image.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'Jeeey Global Shopping',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    site: '@jeeey_com',
+    creator: '@jeeey_com',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  verification: {
+    google: 'verification_token',
+    yandex: 'yandex_verification',
+  },
 };
 
 export const viewport: Viewport = {

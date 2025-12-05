@@ -33,6 +33,20 @@ publicSeoRouter.get('/robots.txt', async (req, res) => {
     }
 });
 
+// Helper to escape XML special chars
+function escapeXml(unsafe: string): string {
+    return unsafe.replace(/[<>&'"]/g, (c) => {
+        switch (c) {
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '&': return '&amp;';
+            case '\'': return '&apos;';
+            case '"': return '&quot;';
+        }
+        return c;
+    });
+}
+
 // 2. Sitemap.xml
 publicSeoRouter.get('/sitemap.xml', async (req, res) => {
     try {
@@ -52,7 +66,7 @@ publicSeoRouter.get('/sitemap.xml', async (req, res) => {
         // Static Home
         xml += `
   <url>
-    <loc>${baseUrl.replace(/\/$/, '')}/</loc>
+    <loc>${escapeXml(baseUrl.replace(/\/$/, ''))}/</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>`;
@@ -62,7 +76,7 @@ publicSeoRouter.get('/sitemap.xml', async (req, res) => {
             const cleanSlug = page.slug.startsWith('/') ? page.slug.slice(1) : page.slug;
             xml += `
   <url>
-    <loc>${baseUrl.replace(/\/$/, '')}/${cleanSlug}</loc>
+    <loc>${escapeXml(baseUrl.replace(/\/$/, ''))}/${escapeXml(cleanSlug)}</loc>
     <lastmod>${(page.updatedAt || new Date()).toISOString().split('T')[0]}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -74,7 +88,7 @@ publicSeoRouter.get('/sitemap.xml', async (req, res) => {
             const slug = cat.slug || cat.id;
             xml += `
   <url>
-    <loc>${baseUrl.replace(/\/$/, '')}/c/${slug}</loc>
+    <loc>${escapeXml(baseUrl.replace(/\/$/, ''))}/category/${escapeXml(slug)}</loc>
     <lastmod>${cat.updatedAt.toISOString().split('T')[0]}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -86,7 +100,7 @@ publicSeoRouter.get('/sitemap.xml', async (req, res) => {
             const slug = product.seo?.slug || product.id;
             xml += `
   <url>
-    <loc>${baseUrl.replace(/\/$/, '')}/p/${slug}</loc>
+    <loc>${escapeXml(baseUrl.replace(/\/$/, ''))}/products/${escapeXml(slug)}</loc>
     <lastmod>${product.updatedAt.toISOString().split('T')[0]}</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
@@ -344,7 +358,7 @@ publicSeoRouter.get('/feed/products.xml', async (req, res) => {
 
         const products = await db.product.findMany({
             where: { isActive: true },
-            select: { id: true, name: true, description: true, price: true, images: true, updatedAt: true, sku: true }
+            select: { id: true, name: true, description: true, price: true, images: true, updatedAt: true, sku: true, seo: { select: { slug: true } } }
         });
 
         let xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -355,12 +369,13 @@ publicSeoRouter.get('/feed/products.xml', async (req, res) => {
 <description>Product Feed</description>`;
 
         for (const p of products) {
+            const slug = p.seo?.slug || p.id;
             xml += `
 <item>
 <g:id>${p.id}</g:id>
 <g:title>${p.name.replace(/&/g, '&amp;')}</g:title>
 <g:description>${(p.description || '').replace(/&/g, '&amp;')}</g:description>
-<g:link>${baseUrl}/p/${p.id}</g:link>
+<g:link>${baseUrl}/p/${slug}</g:link>
 <g:image_link>${p.images[0] || ''}</g:image_link>
 <g:price>${p.price} SAR</g:price>
 <g:availability>in stock</g:availability>

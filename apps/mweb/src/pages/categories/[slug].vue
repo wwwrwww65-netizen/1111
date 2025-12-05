@@ -59,7 +59,7 @@
 
         <SkeletonGrid v-if="loading" :count="12" :cols="3" />
         <div v-else class="grid">
-          <a v-for="c in displayedCategories" :key="c.id" class="cell" :href="`/c/${encodeURIComponent(c.id)}`">
+            <a v-for="c in displayedCategories" :key="c.id" class="cell" :href="resolveLink(c.id)">
             <img :src="thumb(c.image, 160)" :alt="c.name" loading="lazy" />
             <div class="name">{{ c.name }}</div>
             <div v-if="c.badge" class="badge">{{ c.badge }}</div>
@@ -69,7 +69,7 @@
         <template v-if="activeSuggestions.length">
           <h3 class="ttl2">{{ activeSuggestionsTitle }}</h3>
           <div class="grid suggestions">
-            <a v-for="(sug, idx) in activeSuggestions" :key="idx" class="cell" :href="`/c/${encodeURIComponent(sug.id)}`">
+            <a v-for="(sug, idx) in activeSuggestions" :key="idx" class="cell" :href="resolveLink(sug.id)">
               <img :src="thumb(sug.image, 180)" :alt="sug.name" loading="lazy" />
               <div class="name">{{ sug.name }}</div>
             </a>
@@ -91,7 +91,7 @@ import { buildThumbUrl } from '@/lib/media'
 import BottomNav from '@/components/BottomNav.vue'
 import { Bell, ShoppingCart, Search } from 'lucide-vue-next'
 
-type Cat = { id: string; name: string; image: string; badge?: string }
+type Cat = { id: string; name: string; image: string; badge?: string; parentId?: string; slug?: string }
 type Mini = { id: string; name: string; image?: string; badge?: string }
 type GridExplicit = { mode: 'explicit'; categories: Mini[] }
 type GridFilter = { mode: 'filter'; categoryIds?: string[]; limit?: number; sortBy?: 'name_asc'|'name_desc'|'created_desc' }
@@ -105,6 +105,13 @@ const route = useRoute()
 const router = useRouter()
 function go(path: string){ router.push(path) }
 const slug = computed(()=> String(route.params.slug||''))
+
+function resolveLink(id: string) {
+    const parent = cats.value.find(c => String(c.id) === String(id));
+    const target = parent?.slug || id;
+    const hasChildren = cats.value.some(c => String(c.parentId) === String(id));
+    return hasChildren ? `/categories/${encodeURIComponent(target)}` : `/c/${encodeURIComponent(target)}`;
+}
 
 const cats = ref<Cat[]>([])
 const loading = ref(true)
@@ -172,7 +179,17 @@ const displayedCategories = computed<Mini[]>(()=>{
   }
   if (side?.grid) return resolve(side.grid)
   if (page.value?.grid) return resolve(page.value.grid)
-  return cats.value as any
+  
+  // Fallback: If no tab config, show subcategories of current slug logic
+  if (!page.value?.grid && slug.value) {
+     const current = cats.value.find(c => c.slug === slug.value || c.id === slug.value)
+     if (current) {
+         const children = cats.value.filter(c => c.parentId === current.id || (current.id && c.parentId && String(c.parentId) === String(current.id)))
+         if (children.length) return children as any
+     }
+  }
+
+  return []
 })
 
 const pageTitle = computed(()=> page.value?.title || 'مختارات من أجلك')
@@ -235,7 +252,13 @@ onMounted(async()=>{
   try{
     const dataCats = await apiGet<any>('/api/categories?limit=200')
     if (dataCats && Array.isArray(dataCats.categories)){
-      cats.value = dataCats.categories.map((c:any)=> ({ id: c.slug||c.id, name: c.name, image: c.image || `https://picsum.photos/seed/${encodeURIComponent(c.slug||c.id)}/200/200` }))
+      cats.value = dataCats.categories.map((c:any)=> ({ 
+        id: String(c.id), // Keep explicit UUID 
+        slug: c.slug || null, 
+        name: c.name, 
+        image: c.image || `https://picsum.photos/seed/${encodeURIComponent(c.slug||c.id)}/200/200`, 
+        parentId: c.parentId? String(c.parentId) : undefined 
+      }))
     } else { cats.value = [] }
   }catch{ cats.value = [] }
   loading.value = false
