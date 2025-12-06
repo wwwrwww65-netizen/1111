@@ -16,8 +16,8 @@ export default function SearchPage(): JSX.Element {
   const [minPrice, setMinPrice] = React.useState<number | undefined>(undefined);
   const [maxPrice, setMaxPrice] = React.useState<number | undefined>(undefined);
   const [inStock, setInStock] = React.useState<boolean | undefined>(undefined);
-  const [sortBy, setSortBy] = React.useState<'name'|'price'|'rating'|'createdAt'|undefined>(undefined);
-  const [sortOrder, setSortOrder] = React.useState<'asc'|'desc'|undefined>(undefined);
+  const [sortBy, setSortBy] = React.useState<'name' | 'price' | 'rating' | 'createdAt' | undefined>(undefined);
+  const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc' | undefined>(undefined);
 
   const { data, isLoading, error, refetch } = q.search.searchProducts.useQuery({
     categoryId,
@@ -47,8 +47,8 @@ export default function SearchPage(): JSX.Element {
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
             <button className={`px-3 py-1.5 rounded-full border ${inStock ? 'border-[#800020] text-[#800020] bg-white' : 'border-gray-200 bg-white text-gray-800'}`} onClick={() => setInStock(inStock ? undefined : true)}>متوفر</button>
-            <button className={`px-3 py-1.5 rounded-full border ${inStock===false ? 'border-[#800020] text-[#800020] bg-white' : 'border-gray-200 bg-white text-gray-800'}`} onClick={() => setInStock(inStock===false ? undefined : false)}>غير متوفر</button>
-            <button className={`px-3 py-1.5 rounded-full border ${sortBy==='price' ? 'border-[#800020] text-[#800020] bg-white' : 'border-gray-200 bg-white text-gray-800'}`} onClick={() => setSortBy(sortBy==='price'? undefined : 'price')}>السعر</button>
+            <button className={`px-3 py-1.5 rounded-full border ${inStock === false ? 'border-[#800020] text-[#800020] bg-white' : 'border-gray-200 bg-white text-gray-800'}`} onClick={() => setInStock(inStock === false ? undefined : false)}>غير متوفر</button>
+            <button className={`px-3 py-1.5 rounded-full border ${sortBy === 'price' ? 'border-[#800020] text-[#800020] bg-white' : 'border-gray-200 bg-white text-gray-800'}`} onClick={() => setSortBy(sortBy === 'price' ? undefined : 'price')}>السعر</button>
             <select className="px-3 py-1.5 rounded-full border border-gray-200 bg-white text-gray-800" onChange={(e) => setSortBy((e.target.value as any) || undefined)}>
               <option value="">الترتيب</option>
               <option value="createdAt">الأحدث</option>
@@ -102,7 +102,7 @@ export default function SearchPage(): JSX.Element {
               rating: p.rating || 0,
               reviewCount: p.reviewCount || 0,
             }}
-            onViewDetails={(id) => (window.location.href = `/products/${id}`)}
+            onViewDetails={(id) => (window.location.href = `/p/${id}`)}
           />
         ))}
       </div>

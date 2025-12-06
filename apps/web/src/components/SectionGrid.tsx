@@ -23,12 +23,12 @@ export function SectionGrid({ title, products }: SectionGridProps): JSX.Element 
               name: p.name,
               description: p.description,
               price: p.price,
-              images: Array.isArray(p.images) ? p.images.map((u:string)=> buildCdnThumb(u, 512, 60, 'webp')) : p.images,
+              images: Array.isArray(p.images) ? p.images.map((u: string) => buildCdnThumb(u, 512, 60, 'webp')) : p.images,
               stock: p.stockQuantity,
               rating: 0,
               reviewCount: 0,
             }}
-            onViewDetails={(id) => (window.location.href = `/products/${id}`)}
+            onViewDetails={(id) => (window.location.href = `/p/${id}`)}
           />
         ))}
       </div>

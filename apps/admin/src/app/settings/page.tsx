@@ -1,65 +1,240 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect } from 'react';
 import { resolveApiBase } from "../lib/apiBase";
-import { downloadCsv } from "../lib/csv";
-import { exportToXlsx, exportToPdf } from "../lib/export";
+import ImageUploader from '../components/ImageUploader';
 
-export default function SettingsPage(): JSX.Element {
-  const [rows, setRows] = React.useState<any[]>([]);
-  const [q, setQ] = React.useState("");
-  const [keyName, setKeyName] = React.useState("");
-  const [value, setValue] = React.useState("{}");
-  const apiBase = React.useMemo(()=> resolveApiBase(), []);
-  const authHeaders = React.useCallback(()=>{
-    if (typeof document === 'undefined') return {} as Record<string,string>;
+export default function SettingsPage() {
+  const [siteName, setSiteName] = useState('');
+  const [siteLogo, setSiteLogo] = useState('');
+  const [googleVerification, setGoogleVerification] = useState('');
+  const [bingVerification, setBingVerification] = useState('');
+  const [robotsTxt, setRobotsTxt] = useState('User-agent: *\nAllow: /');
+
+  const [saving, setSaving] = useState(false);
+  const [uploadingVer, setUploadingVer] = useState(false);
+  const apiBase = React.useMemo(() => resolveApiBase(), []);
+
+  const authHeaders = React.useCallback(() => {
+    if (typeof document === 'undefined') return {} as Record<string, string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
     let token = m ? m[1] : '';
-    try { token = decodeURIComponent(token); } catch {}
+    try { token = decodeURIComponent(token); } catch { }
     return token ? { Authorization: `Bearer ${token}` } : {};
-  },[]);
-  async function load(){
-    const url = new URL(`${apiBase}/api/admin/settings/list`);
-    if (q.trim()) url.searchParams.set('q', q.trim());
-    const j = await (await fetch(url.toString(), { credentials:'include', headers:{ ...authHeaders() } })).json(); setRows(j.settings||[]);
+  }, []);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  async function loadSettings() {
+    try {
+      const res = await fetch(`${apiBase}/api/admin/settings/list`, {
+        credentials: 'include',
+        headers: { ...authHeaders() }
+      });
+      const data = await res.json();
+      const settings = data.settings || [];
+
+      const getVal = (key: string) => settings.find((s: any) => s.key === key)?.value?.value || '';
+
+      setSiteName(getVal('site_name'));
+      setSiteLogo(getVal('site_logo'));
+      setGoogleVerification(getVal('google_verification'));
+      setBingVerification(getVal('bing_verification'));
+      const r = getVal('robots_txt');
+      if (r) setRobotsTxt(r);
+    } catch (err) {
+      console.error(err);
+    }
   }
-  React.useEffect(()=>{ load(); },[apiBase]);
-  async function upsert(){ await fetch(`${apiBase}/api/admin/settings`, { method:'POST', headers:{'content-type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify({ key: keyName, value: JSON.parse(value||"{}") }) }); setKeyName(""); setValue("{}"); await load(); }
-  async function remove(id:string){ await fetch(`${apiBase}/api/admin/settings/${id}`, { method:'DELETE', headers:{ ...authHeaders() }, credentials:'include' }); await load(); }
+
+  async function handleVerificationUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.html') && !file.name.endsWith('.xml')) {
+      alert('يرجى رفع ملف HTML أو XML فقط');
+      return;
+    }
+
+    setUploadingVer(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const content = reader.result as string;
+        const res = await fetch(`${apiBase}/api/admin/media/upload-verification`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ content, filename: file.name })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          alert(`تم رفع الملف بنجاح! الرابط: ${data.url}`);
+        } else {
+          alert('فشل الرفع');
+        }
+      } catch (err) {
+        alert('خطأ في الرفع');
+      } finally {
+        setUploadingVer(false);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const saveKey = async (key: string, val: string) => {
+        await fetch(`${apiBase}/api/admin/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          credentials: 'include',
+          body: JSON.stringify({ key, value: { value: val } })
+        });
+      };
+
+      await Promise.all([
+        saveKey('site_name', siteName),
+        saveKey('site_logo', siteLogo),
+        saveKey('google_verification', googleVerification),
+        saveKey('bing_verification', bingVerification),
+        saveKey('robots_txt', robotsTxt),
+      ]);
+
+      alert('تم الحفظ بنجاح! ✅');
+    } catch (err) {
+      alert('فشل الحفظ');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <main>
-      <h1 style={{ marginBottom: 16 }}>الإعدادات</h1>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:8, marginBottom:12 }}>
-        <input value={keyName} onChange={(e)=>setKeyName(e.target.value)} placeholder="key" style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-        <input value={value} onChange={(e)=>setValue(e.target.value)} placeholder='{"k":"v"}' style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-        <button onClick={upsert} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>حفظ</button>
-      </div>
-      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
-        <input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="بحث" style={{ padding:8, borderRadius:8, background:'#0b0e14', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-        <button onClick={()=> load()} className="btn">تحديث</button>
-        <button className="btn btn-outline" onClick={()=> downloadCsv(`settings_${new Date().toISOString().slice(0,10)}.csv`, [
-          ['key','value'],
-          ...rows.map((s:any)=> [s.key, JSON.stringify(s.value)])
-        ])}>CSV</button>
-        <button className="btn btn-outline" onClick={()=> exportToXlsx(`settings_${new Date().toISOString().slice(0,10)}.xlsx`, ['key','value'], rows.map((s:any)=> [s.key, JSON.stringify(s.value)]))}>Excel</button>
-        <button className="btn btn-outline" onClick={()=> exportToPdf(`settings_${new Date().toISOString().slice(0,10)}.pdf`, ['key','value'], rows.map((s:any)=> [s.key, JSON.stringify(s.value)]))}>PDF</button>
-      </div>
-      <ul>
-        {rows.map((s)=> (
-          <li key={s.id} style={{ padding:8, border:'1px solid #1c2333', borderRadius:8, marginBottom:8, display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
+    <div className="p-6 max-w-4xl mx-auto" dir="rtl">
+      <h1 className="text-3xl font-bold mb-8 text-white">الإعدادات العامة & SEO</h1>
+
+      <div className="space-y-8">
+        {/* الهوية العامة */}
+        <div className="bg-[#111827] rounded-lg border border-[#1f2937] p-8 space-y-6">
+          <h2 className="text-xl font-bold text-blue-400 border-b border-[#1f2937] pb-4">1. هوية الموقع</h2>
+
+          <div>
+            <label className="block text-lg font-semibold text-gray-300 mb-3">اسم الموقع</label>
+            <input
+              type="text"
+              value={siteName}
+              onChange={(e) => setSiteName(e.target.value)}
+              className="w-full bg-[#0b0e14] border border-[#1f2937] rounded-lg p-4 text-white text-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="أدخل اسم موقعك"
+            />
+          </div>
+
+          <div>
+            <label className="block text-lg font-semibold text-gray-300 mb-3">شعار الموقع</label>
+            <ImageUploader
+              value={siteLogo}
+              onChange={setSiteLogo}
+              label=""
+              hint="يفضل استخدام صورة PNG بخلفية شفافة (200x50 بكسل)"
+            />
+          </div>
+        </div>
+
+        {/* التحقق من الملكية */}
+        <div className="bg-[#111827] rounded-lg border border-[#1f2937] p-8 space-y-6">
+          <h2 className="text-xl font-bold text-green-400 border-b border-[#1f2937] pb-4">2. التحقق من محركات البحث</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <div style={{ fontWeight:700 }}>{s.key}</div>
-              <div style={{ color:'var(--sub)', fontSize:12, direction:'ltr' }}>{JSON.stringify(s.value)}</div>
+              <label className="block text-gray-300 mb-2">Google Verification Code (Meta Tag)</label>
+              <input
+                type="text"
+                value={googleVerification}
+                onChange={(e) => setGoogleVerification(e.target.value)}
+                className="w-full bg-[#0b0e14] border border-[#1f2937] rounded p-3 text-white font-mono text-sm"
+                placeholder='google-site-verification=...'
+                dir="ltr"
+              />
             </div>
-            <div style={{ display:'flex', gap:6 }}>
-              <button className="btn btn-xs" onClick={()=> { setKeyName(s.key); setValue(JSON.stringify(s.value||{})); }}>تعديل</button>
-              <button className="btn btn-xs btn-outline" onClick={()=> remove(s.id)}>حذف</button>
+
+            <div>
+              <label className="block text-gray-300 mb-2">أو رفع ملف التحقق (HTML File)</label>
+              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-[#1f2937] rounded-lg cursor-pointer hover:bg-[#1f2937] transition-colors">
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  <p className="mb-2 text-sm text-gray-400">
+                    {uploadingVer ? 'جاري الرفع...' : 'اضغط لرفع ملف HTML'}
+                  </p>
+                  <p className="text-xs text-gray-500">google......html</p>
+                </div>
+                <input type="file" className="hidden" onChange={handleVerificationUpload} accept=".html,.xml" disabled={uploadingVer} />
+              </label>
             </div>
-          </li>
-        ))}
-      </ul>
-    </main>
+          </div>
+
+          <div>
+            <label className="block text-gray-300 mb-2">Bing Webmaster Verification Code</label>
+            <input
+              type="text"
+              value={bingVerification}
+              onChange={(e) => setBingVerification(e.target.value)}
+              className="w-full bg-[#0b0e14] border border-[#1f2937] rounded p-3 text-white font-mono text-sm"
+              placeholder='<meta name="msvalidate.01" content="..." />'
+              dir="ltr"
+            />
+          </div>
+        </div>
+
+        {/* خريطة الموقع & Robots */}
+        <div className="bg-[#111827] rounded-lg border border-[#1f2937] p-8 space-y-6">
+          <h2 className="text-xl font-bold text-yellow-400 border-b border-[#1f2937] pb-4">3. ملفات الزحف (Crawling)</h2>
+
+          <div className="flex items-center justify-between bg-[#0b0e14] p-4 rounded border border-[#1f2937]">
+            <div>
+              <h3 className="font-bold text-white">خريطة الموقع (Sitemap.xml)</h3>
+              <p className="text-sm text-gray-500">يتم توليدها تلقائياً بناءً على الصفحات</p>
+            </div>
+            <div className="flex gap-3">
+              <a
+                href={`${apiBase.replace('/api', '')}/sitemap.xml`}
+                target="_blank"
+                rel="noreferrer"
+                className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm transition-colors"
+              >
+                👁️ معاينة
+              </a>
+              <a
+                href={`${apiBase.replace('/api', '')}/sitemap.xml`}
+                download="sitemap.xml"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors"
+              >
+                ⬇️ تحميل الملف
+              </a>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-gray-300 mb-2">محتوى ملف Robots.txt</label>
+            <textarea
+              value={robotsTxt}
+              onChange={(e) => setRobotsTxt(e.target.value)}
+              className="w-full bg-[#0b0e14] border border-[#1f2937] rounded p-4 text-white font-mono text-sm h-48"
+              dir="ltr"
+            />
+          </div>
+        </div>
+
+        {/* Save Button */}
+        <div className="sticky bottom-6">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-bold py-4 px-6 rounded-lg text-lg shadow-lg transition-colors"
+          >
+            {saving ? '⏳ جاري الحفظ...' : '💾 حفظ كافة الإعدادات'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
-
-// legacy placeholder removed
-

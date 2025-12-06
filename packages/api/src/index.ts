@@ -58,8 +58,10 @@ try {
 } catch { }
 
 const app = express();
-// Serve uploaded media as static files with long-term cache
+// Serve uploaded media
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads'), { maxAge: '365d', immutable: true }));
+// Serve verification files (Google/Bing HTML files) from root
+app.use('/', express.static(path.resolve(process.cwd(), 'verification')));
 // Android App Links: serve assetlinks.json
 app.get('/.well-known/assetlinks.json', (_req, res) => {
   res.type('application/json').send([{
@@ -413,6 +415,14 @@ app.use('/api', shop);
 // Mount shipping webhooks (required by tests hitting /webhooks/shipping)
 app.use('/webhooks', shippingWebhooks);
 app.use('/api/admin', rbac);
+import seoRouter from './routers/seo';
+app.use('/api/admin/seo', seoRouter);
+import { mediaRouter } from './routers/media';
+app.use('/api/admin/media', mediaRouter);
+import { publicSeoRouter } from './routers/public-seo';
+app.use('/', publicSeoRouter);
+app.use('/api', publicSeoRouter); // Support /api/seo/meta calls from frontend
+
 
 // Mobile Remote Config endpoints (tokens/home) for RN apps
 app.get('/mobile/config/tokens.json', async (_req, res) => {

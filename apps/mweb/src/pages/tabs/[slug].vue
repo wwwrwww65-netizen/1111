@@ -99,6 +99,33 @@ onMounted(async ()=>{
   try{
     const rl = await fetch('/api/tabs/list?device=MOBILE')
     const jl = await rl.json(); tabs.value = Array.isArray(jl.tabs)? jl.tabs : []
+
+    // Hydrate categories with slugs if missing
+    try {
+       const catsRes = await fetch('/api/categories?limit=2000')
+       const catsData = await catsRes.json()
+       if (Array.isArray(catsData.categories)) {
+          const map = new Map<string, string>()
+          catsData.categories.forEach((c:any) => { if(c.slug) map.set(String(c.id), c.slug); if(c.slug && c.slug!==c.id) map.set(c.slug, c.slug) })
+          
+          const traverse = (obj: any) => {
+             if (!obj || typeof obj !== 'object') return
+             // hydrate grid/list items
+             const items = obj.categories || obj.items || obj.brands
+             if (Array.isArray(items)) {
+                items.forEach((it: any) => {
+                   if (it.id && !it.slug) {
+                      const s = map.get(String(it.id))
+                      if (s) it.slug = s
+                   }
+                })
+             }
+             // recursive
+             Object.values(obj).forEach(traverse)
+          }
+          traverse(content.value)
+       }
+    } catch {}
   }catch{}
   // Live updates from Admin via postMessage
   try{

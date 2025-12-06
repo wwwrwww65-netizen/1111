@@ -62,11 +62,11 @@
         <!-- الوضع العادي -->
         <div v-if="!compact && categories.length>0" key="normal" class="bg-white border-t border-gray-100">
           <div class="flex gap-2 overflow-x-auto no-scrollbar px-2 py-2 items-start">
-            <button
+            <RouterLink
               v-for="c in visibleCategories"
               :key="c.id"
-              class="flex flex-col items-center min-w-[76px] pb-1"
-              @click="onCategoryClick(c)"
+              class="flex flex-col items-center min-w-[76px] pb-1 cursor-pointer"
+              :to="`/c/${encodeURIComponent(c.id)}`"
             >
               <div class="w-14 h-14 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden">
                 <img :src="c.img" :alt="c.label" class="w-full h-full object-cover" />
@@ -74,18 +74,18 @@
               <span class="mt-1 text-[12px] text-gray-700 text-center leading-tight category-title">
                 {{ c.label }}
               </span>
-            </button>
+            </RouterLink>
           </div>
         </div>
 
         <!-- الوضع المضغوط -->
         <div v-else-if="compact && categories.length>0" key="compact" class="bg-white border-t border-gray-100">
           <div class="flex gap-1.5 overflow-x-auto no-scrollbar px-2 py-1 items-center">
-            <button
+            <RouterLink
               v-for="c in compactCategories"
               :key="c.id"
-              class="flex items-center gap-1.5 min-w-[85px] max-w-[85px] px-1 py-1 rounded-md hover:bg-gray-50"
-              @click="onCategoryClick(c)"
+              class="flex items-center gap-1.5 min-w-[85px] max-w-[85px] px-1 py-1 rounded-md hover:bg-gray-50 cursor-pointer"
+              :to="`/c/${encodeURIComponent(c.id)}`"
             >
               <div class="w-9 h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center overflow-hidden shrink-0">
                 <img :src="c.img" :alt="c.label" class="w-full h-full object-cover" />
@@ -95,7 +95,7 @@
                   {{ c.label }}
                 </div>
               </div>
-            </button>
+            </RouterLink>
           </div>
         </div>
       </Transition>
@@ -536,8 +536,9 @@ function togglePriceSort() {
 }
 
 function onCategoryClick(c: {id:string;label:string;img:string}) {
-  if (!c?.id) return
-  // Navigate to specific category page
+  console.log('Category clicked:', c);
+  if (!c?.id) { console.warn('Missing ID for category:', c); return }
+  // Navigate to specific category page (Product List)
   router.push({ path: `/c/${encodeURIComponent(c.id)}` })
 }
 

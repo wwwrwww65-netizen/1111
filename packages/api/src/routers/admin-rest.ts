@@ -10282,7 +10282,7 @@ function transliterateSkuToken(raw?: string): string {
 adminRest.get('/products/:id', async (req, res) => {
   const u = (req as any).user; if (!(await can(u.userId, 'products.read'))) return res.status(403).json({ error: 'forbidden' });
   const { id } = req.params;
-  const p = await db.product.findUnique({ where: { id }, include: { variants: true, category: { select: { id: true, name: true } }, colors: { include: { images: true } } } });
+  const p = await db.product.findUnique({ where: { id }, include: { variants: true, category: { select: { id: true, name: true } }, colors: { include: { images: true } }, seo: true } });
   if (!p) return res.status(404).json({ error: 'product_not_found' });
   // Fetch additional category links
   let additionalCategoryIds: string[] = [];
@@ -10391,6 +10391,27 @@ adminRest.post('/products', async (req, res) => {
       }
     }
   } catch { }
+
+  // Create Product SEO entry
+  try {
+    const { slug, seoTitle, seoDescription, seoKeywords, canonicalUrl, metaRobots, hiddenContent, ogTags, schema } = req.body || {};
+    let finalSlug = slug;
+    if (!finalSlug) {
+      const base = String(name || 'product').toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, '-').replace(/^-+|-+$/g, '');
+      finalSlug = `${base}-${p.id.slice(-4)}`;
+    }
+    await db.productSeo.create({
+      data: {
+        productId: p.id,
+        slug: finalSlug,
+        seoTitle: seoTitle || name,
+        seoDescription: seoDescription || description?.slice(0, 160),
+        seoKeywords: Array.isArray(seoKeywords) ? seoKeywords : [],
+        canonicalUrl, metaRobots, hiddenContent, ogTags, schema
+      }
+    });
+  } catch { }
+
   await audit(req, 'products', 'create', { id: p.id });
   res.json({ product: p });
 });
@@ -10700,7 +10721,7 @@ adminRest.patch('/products/:id', async (req, res) => {
     const allowed: any = {};
     const copy = (k: string) => { if (data[k] !== undefined) allowed[k] = data[k]; };
     ['name', 'description', 'price', 'images', 'categoryId', 'vendorId', 'stockQuantity', 'sku', 'brand', 'tags', 'isActive', 'pointsFixed', 'pointsPercent', 'loyaltyMultiplier', 'excludeFromPoints'].forEach(copy);
-    const old = await db.product.findUnique({ where: { id }, select: { price: true, stockQuantity: true, name: true, sku: true } });
+    const old = await db.product.findUnique({ where: { id }, select: { price: true, stockQuantity: true, name: true, sku: true, seo: { select: { slug: true } } } });
     const p = await db.product.update({ where: { id }, data: allowed });
     await audit(req, 'products', 'update', { id });
     // Update additional categories if provided
@@ -10717,6 +10738,45 @@ adminRest.patch('/products/:id', async (req, res) => {
         }
       }
     } catch { }
+
+    // Update SEO fields
+    try {
+      const { slug, seoTitle, seoDescription, seoKeywords, canonicalUrl, metaRobots, hiddenContent, ogTags, schema } = req.body || {};
+      const seoPatch: any = {};
+
+      if (slug !== undefined) seoPatch.slug = slug;
+      if (seoTitle !== undefined) seoPatch.seoTitle = seoTitle;
+      if (seoDescription !== undefined) seoPatch.seoDescription = seoDescription;
+      if (seoKeywords !== undefined) seoPatch.seoKeywords = Array.isArray(seoKeywords) ? seoKeywords : undefined;
+      if (canonicalUrl !== undefined) seoPatch.canonicalUrl = canonicalUrl;
+      if (metaRobots !== undefined) seoPatch.metaRobots = metaRobots;
+      if (hiddenContent !== undefined) seoPatch.hiddenContent = hiddenContent;
+      if (ogTags !== undefined) seoPatch.ogTags = ogTags;
+      if (schema !== undefined) seoPatch.schema = schema;
+
+      if (Object.keys(seoPatch).length > 0) {
+        await db.productSeo.upsert({
+          where: { productId: id },
+          create: { productId: id, ...seoPatch },
+          update: seoPatch
+        });
+      }
+
+      // Create Redirect if slug changed
+      if (slug && old?.seo?.slug && slug !== old.seo.slug) {
+        try {
+          await db.redirect.create({
+            data: {
+              from: `/products/${old.seo.slug}`,
+              to: `/products/${slug}`,
+              code: 301,
+              isActive: true
+            }
+          });
+        } catch (e) { console.error('Product Redirect creation failed', e); }
+      }
+    } catch { }
+
     // Upsert variants if provided
     try {
       const rows: any[] = Array.isArray((req.body || {}).variants) ? (req.body as any).variants : [];
@@ -11314,8 +11374,14 @@ adminRest.post('/categories/reorder', async (req, res) => {
 adminRest.post('/categories', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.create'))) { await audit(req, 'categories', 'forbidden_create', { path: req.path }); return res.status(403).json({ error: 'forbidden' }); }
-    const { name, slug, description, image, parentId, seoTitle, seoDescription, seoKeywords, translations } = req.body || {};
+    let { name, slug, description, image, parentId, seoTitle, seoDescription, seoKeywords, translations, canonicalUrl, metaRobots, hiddenContent, ogTags, schema } = req.body || {};
     if (!name || !name.trim()) return res.status(400).json({ error: 'name_required' });
+
+    if (!slug) {
+      const base = String(name).toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, '-').replace(/^-+|-+$/g, '');
+      slug = base || `cat-${Date.now()}`;
+    }
+
     // Guard slug uniqueness when provided
     if (slug && typeof slug === 'string') {
       try {
@@ -11345,6 +11411,11 @@ adminRest.post('/categories', async (req, res) => {
       if (typeof seoDescription === 'string') push('seoDescription', seoDescription);
       if (Array.isArray(seoKeywords)) push('seoKeywords', seoKeywords);
       if (translations && typeof translations === 'object') push('translations', translations);
+      if (typeof canonicalUrl === 'string') push('canonicalUrl', canonicalUrl);
+      if (typeof metaRobots === 'string') push('metaRobots', metaRobots);
+      if (typeof hiddenContent === 'string') push('hiddenContent', hiddenContent);
+      if (ogTags) push('ogTags', JSON.stringify(ogTags));
+      if (schema) push('schema', JSON.stringify(schema));
       if (sets.length) {
         await db.$executeRawUnsafe(`UPDATE "Category" SET ${sets.join(', ')}, "updatedAt"=NOW() WHERE id=$1`, id, ...vals);
       }
@@ -11414,7 +11485,9 @@ adminRest.patch('/categories/:id', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.update'))) { await audit(req, 'categories', 'forbidden_update', { path: req.path, id }); return res.status(403).json({ error: 'forbidden' }); }
     await ensureCategorySeo();
-    const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
+    // Fetch old slug for redirect
+    const oldCat = await db.category.findUnique({ where: { id }, select: { slug: true } });
+    const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder, canonicalUrl, metaRobots, hiddenContent, ogTags, schema } = req.body || {};
     if (slug && typeof slug === 'string') {
       try {
         const exists: any[] = await db.$queryRawUnsafe('SELECT 1 FROM "Category" WHERE LOWER("slug") = LOWER($1) AND id<>$2 LIMIT 1', String(slug), String(id));
@@ -11445,7 +11518,27 @@ adminRest.patch('/categories/:id', async (req, res) => {
     if (!cols.seokeywords && seoKeywords !== undefined) metaPatch.seoKeywords = Array.isArray(seoKeywords) ? seoKeywords : undefined;
     if (!cols.translations && translations !== undefined) metaPatch.translations = translations;
     if (typeof sortOrder === 'number' && !cols.sortorder) metaPatch.sortOrder = sortOrder;
+    if (typeof canonicalUrl === 'string') metaPatch.canonicalUrl = canonicalUrl;
+    if (typeof metaRobots === 'string') metaPatch.metaRobots = metaRobots;
+    if (typeof hiddenContent === 'string') metaPatch.hiddenContent = hiddenContent;
+    if (ogTags) metaPatch.ogTags = ogTags;
+    if (schema) metaPatch.schema = schema;
     if (Object.keys(metaPatch).length) await upsertCategoryMeta(id, metaPatch);
+
+    // Create Redirect if slug changed
+    if (slug && oldCat?.slug && slug !== oldCat.slug) {
+      try {
+        await db.redirect.create({
+          data: {
+            from: `/category/${oldCat.slug}`,
+            to: `/category/${slug}`,
+            code: 301,
+            isActive: true
+          }
+        });
+      } catch (e) { console.error('Redirect creation failed', e); }
+    }
+
     await audit(req, 'categories', 'update', { id });
     return res.json({ category: c });
   } catch (e: any) {
@@ -11771,6 +11864,40 @@ adminRest.get('/notifications/rules', async (req, res) => {
     const rows: any[] = await db.$queryRawUnsafe(`SELECT id, trigger, template, channel, enabled, COALESCE(criteria, '{}') as criteria, name, COALESCE("rateLimitSeconds",0) as "rateLimitSeconds" FROM "NotificationRule" ORDER BY "createdAt" DESC`);
     res.json({ rules: rows });
   } catch (e: any) { res.status(500).json({ error: e.message || 'rules_list_failed' }); }
+});
+
+// Generic Settings CRUD (Site Name, Logo, URL, etc.)
+adminRest.get('/settings/list', async (req, res) => {
+  try {
+    const u = (req as any).user;
+    if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error: 'forbidden' });
+    const settings = await db.setting.findMany({});
+    res.json({ settings });
+  } catch (e: any) { res.status(500).json({ error: e.message || 'settings_list_failed' }); }
+});
+
+adminRest.post('/settings', async (req, res) => {
+  try {
+    const u = (req as any).user;
+    if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error: 'forbidden' });
+    const { key, value } = req.body;
+    if (!key) return res.status(400).json({ error: 'key_required' });
+
+    // Special handling for site_url to ensure it doesn't have trailing slash
+    let valToSave = value;
+    if (key === 'site_url' && value?.value) {
+      valToSave = { ...value, value: String(value.value).replace(/\/$/, '') };
+    }
+
+    await db.setting.upsert({
+      where: { key },
+      update: { value: valToSave },
+      create: { key, value: valToSave }
+    });
+
+    await audit(req, 'settings', 'update', { key });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.message || 'settings_save_failed' }); }
 });
 
 // ===== Promotions: Campaigns & Rewards (MVP) =====
@@ -12150,4 +12277,121 @@ adminRest.get('/search/categories', async (req, res) => {
     const items = await db.category.findMany({ where: { name: { contains: q, mode: 'insensitive' } }, select: { id: true, name: true }, take: 10 });
     res.json({ items });
   } catch (e: any) { res.status(500).json({ error: e.message || 'search_categories_failed' }); }
+});
+
+// =====================
+// SEO Pages Management
+// =====================
+adminRest.get('/seo/pages', async (req, res) => {
+  try {
+    const u = (req as any).user;
+    const allowed = (await can(u.userId, 'settings.manage'));
+    if (!allowed) return res.status(403).json({ error: 'forbidden' });
+
+    const pages = await db.seoPage.findMany({
+      orderBy: { updatedAt: 'desc' }
+    });
+    return res.json({ ok: true, pages });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message || 'seo_pages_list_failed' });
+  }
+});
+
+adminRest.get('/seo/pages/:id', async (req, res) => {
+  try {
+    const u = (req as any).user;
+    const allowed = (await can(u.userId, 'settings.manage'));
+    if (!allowed) return res.status(403).json({ error: 'forbidden' });
+
+    const page = await db.seoPage.findUnique({
+      where: { id: req.params.id }
+    });
+    if (!page) return res.status(404).json({ error: 'not_found' });
+    return res.json({ ok: true, page });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message || 'seo_page_get_failed' });
+  }
+});
+
+adminRest.post('/seo/pages', async (req, res) => {
+  try {
+    const u = (req as any).user;
+    const allowed = (await can(u.userId, 'settings.manage'));
+    if (!allowed) return res.status(403).json({ error: 'forbidden' });
+
+    const data = req.body;
+    if (!data.slug) return res.status(400).json({ error: 'slug_required' });
+
+    const cleanSlug = String(data.slug).trim();
+
+    const page = await db.seoPage.create({
+      data: {
+        slug: cleanSlug,
+        titleSeo: data.titleSeo,
+        metaDescription: data.metaDescription,
+        focusKeyword: data.focusKeyword,
+        canonicalUrl: data.canonicalUrl,
+        metaRobots: data.metaRobots,
+        ogTags: data.ogTags,
+        twitterCard: data.twitterCard,
+        schema: data.schema,
+        hiddenContent: data.hiddenContent,
+        isActive: data.isActive !== undefined ? data.isActive : true
+      }
+    });
+
+    await audit(req, 'seo', 'create', { id: page.id, slug: page.slug });
+    return res.json({ ok: true, page });
+  } catch (e: any) {
+    if (e.code === 'P2002') return res.status(400).json({ error: 'slug_taken' });
+    return res.status(500).json({ ok: false, error: e.message || 'seo_page_create_failed' });
+  }
+});
+
+adminRest.put('/seo/pages/:id', async (req, res) => {
+  try {
+    const u = (req as any).user;
+    const allowed = (await can(u.userId, 'settings.manage'));
+    if (!allowed) return res.status(403).json({ error: 'forbidden' });
+
+    const { id } = req.params;
+    const data = req.body;
+
+    const page = await db.seoPage.update({
+      where: { id },
+      data: {
+        ...(data.slug && { slug: String(data.slug).trim() }),
+        titleSeo: data.titleSeo,
+        metaDescription: data.metaDescription,
+        focusKeyword: data.focusKeyword,
+        canonicalUrl: data.canonicalUrl,
+        metaRobots: data.metaRobots,
+        ogTags: data.ogTags,
+        twitterCard: data.twitterCard,
+        schema: data.schema,
+        hiddenContent: data.hiddenContent,
+        isActive: data.isActive
+      }
+    });
+
+    await audit(req, 'seo', 'update', { id: page.id });
+    return res.json({ ok: true, page });
+  } catch (e: any) {
+    if (e.code === 'P2002') return res.status(400).json({ error: 'slug_taken' });
+    return res.status(500).json({ ok: false, error: e.message || 'seo_page_update_failed' });
+  }
+});
+
+adminRest.delete('/seo/pages/:id', async (req, res) => {
+  try {
+    const u = (req as any).user;
+    const allowed = (await can(u.userId, 'settings.manage'));
+    if (!allowed) return res.status(403).json({ error: 'forbidden' });
+
+    await db.seoPage.delete({ where: { id: req.params.id } });
+    await audit(req, 'seo', 'delete', { id: req.params.id });
+    return res.json({ ok: true });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message || 'seo_page_delete_failed' });
+  }
 });

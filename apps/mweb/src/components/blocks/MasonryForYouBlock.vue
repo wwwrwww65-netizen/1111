@@ -675,5 +675,3 @@ async function computeCouponPrices(list:any[]){
 <style scoped>
 .product-grid{column-gap:5px!important;row-gap:0!important}
 </style>
-
-

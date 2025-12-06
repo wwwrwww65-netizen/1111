@@ -59,7 +59,7 @@
 
         <SkeletonGrid v-if="loading" :count="12" :cols="3" />
         <div v-else class="grid">
-          <a v-for="c in displayedCategories" :key="c.id" class="cell" :href="`/c/${encodeURIComponent(c.id)}`">
+            <a v-for="c in displayedCategories" :key="c.id" class="cell" :href="resolveLink(c.id)">
             <img :src="thumb(c.image, 160)" :alt="c.name" loading="lazy" />
             <div class="name">{{ c.name }}</div>
             <div v-if="c.badge" class="badge">{{ c.badge }}</div>
@@ -69,7 +69,7 @@
         <template v-if="activeSuggestions.length">
           <h3 class="ttl2">{{ activeSuggestionsTitle }}</h3>
           <div class="grid suggestions">
-            <a v-for="(sug, idx) in activeSuggestions" :key="idx" class="cell" :href="`/c/${encodeURIComponent(sug.id)}`">
+            <a v-for="(sug, idx) in activeSuggestions" :key="idx" class="cell" :href="resolveLink(sug.id)">
               <img :src="thumb(sug.image, 180)" :alt="sug.name" loading="lazy" />
               <div class="name">{{ sug.name }}</div>
             </a>
@@ -91,20 +91,27 @@ import { buildThumbUrl } from '@/lib/media'
 import BottomNav from '@/components/BottomNav.vue'
 import { Bell, ShoppingCart, Search } from 'lucide-vue-next'
 
-type Cat = { id: string; name: string; image: string; badge?: string }
-type Mini = { id: string; name: string; image?: string }
+type Cat = { id: string; name: string; image: string; badge?: string; parentId?: string; slug?: string }
+type Mini = { id: string; name: string; image?: string; badge?: string }
 type GridExplicit = { mode: 'explicit'; categories: Mini[] }
 type GridFilter = { mode: 'filter'; categoryIds?: string[]; limit?: number; sortBy?: 'name_asc'|'name_desc'|'created_desc' }
 type Grid = GridExplicit | GridFilter
 type Suggestions = { enabled?: boolean; title?: string; items?: Mini[] } | Mini[]
 type SidebarItem = { label: string; href?: string; icon?: string; promoBanner?: any; featured?: Mini[]; grid?: Grid; suggestions?: Suggestions }
-type PageData = { layout?: { showHeader?: boolean; showSidebar?: boolean }; promoBanner?: any; title?: string; featured?: Mini[]; grid?: Grid; sidebarItems?: SidebarItem[]; suggestions?: Suggestions; seo?: { title?: string; description?: string } }
+type PageData = { layout?: { showHeader?: boolean; showSidebar?: boolean }; promoBanner?: any; title?: string; featured?: Mini[]; grid?: Grid; sidebarItems?: SidebarItem[]; suggestions?: Suggestions; seo?: { title?: string; description?: string; keywords?: string; robots?: string; canonicalUrl?: string; hiddenContent?: string } }
 type PageContent = { type: 'categories-v1'; data: PageData }
 
 const route = useRoute()
 const router = useRouter()
 function go(path: string){ router.push(path) }
 const slug = computed(()=> String(route.params.slug||''))
+
+function resolveLink(id: string) {
+    const parent = cats.value.find(c => String(c.id) === String(id));
+    const target = parent?.slug || id;
+    const hasChildren = cats.value.some(c => String(c.parentId) === String(id));
+    return hasChildren ? `/categories/${encodeURIComponent(target)}` : `/c/${encodeURIComponent(target)}`;
+}
 
 const cats = ref<Cat[]>([])
 const loading = ref(true)
@@ -172,7 +179,17 @@ const displayedCategories = computed<Mini[]>(()=>{
   }
   if (side?.grid) return resolve(side.grid)
   if (page.value?.grid) return resolve(page.value.grid)
-  return cats.value as any
+  
+  // Fallback: If no tab config, show subcategories of current slug logic
+  if (!page.value?.grid && slug.value) {
+     const current = cats.value.find(c => c.slug === slug.value || c.id === slug.value)
+     if (current) {
+         const children = cats.value.filter(c => c.parentId === current.id || (current.id && c.parentId && String(c.parentId) === String(current.id)))
+         if (children.length) return children as any
+     }
+  }
+
+  return []
 })
 
 const pageTitle = computed(()=> page.value?.title || 'مختارات من أجلك')
@@ -235,19 +252,77 @@ onMounted(async()=>{
   try{
     const dataCats = await apiGet<any>('/api/categories?limit=200')
     if (dataCats && Array.isArray(dataCats.categories)){
-      cats.value = dataCats.categories.map((c:any)=> ({ id: c.slug||c.id, name: c.name, image: c.image || `https://picsum.photos/seed/${encodeURIComponent(c.slug||c.id)}/200/200` }))
+      cats.value = dataCats.categories.map((c:any)=> ({ 
+        id: String(c.id), // Keep explicit UUID 
+        slug: c.slug || null, 
+        name: c.name, 
+        image: c.image || `https://picsum.photos/seed/${encodeURIComponent(c.slug||c.id)}/200/200`, 
+        parentId: c.parentId? String(c.parentId) : undefined 
+      }))
     } else { cats.value = [] }
   }catch{ cats.value = [] }
   loading.value = false
 
-  // Basic SEO
+  // Enhanced SEO
   try{
-    if (page.value?.seo?.title) document.title = page.value?.seo?.title
-    const d = page.value?.seo?.description||''
-    if (d){
-      let m = document.querySelector('meta[name="description"]') as HTMLMetaElement|null
-      if (!m){ m = document.createElement('meta'); m.setAttribute('name','description'); document.head.appendChild(m) }
-      m.setAttribute('content', d)
+    const s = page.value?.seo || {}
+    const baseTitle = page.value?.title || 'Jeeey'
+    const pageTitle = s.title || baseTitle
+    document.title = pageTitle
+
+    const u = new URL(window.location.href)
+    ;['fbclid','gclid','_fbp','_fbc'].forEach(k=> u.searchParams.delete(k))
+    Array.from(u.searchParams.keys()).forEach(k=>{ if(/^utm_/i.test(k)) u.searchParams.delete(k) })
+    
+    // Canonical
+    let canonicalUrl = s.canonicalUrl || u.href
+    if (!s.canonicalUrl && slug.value) {
+       const clean = new URL(u.origin)
+       clean.pathname = `/categories/${slug.value}`
+       canonicalUrl = clean.href
+    }
+    const linkCan = document.querySelector('link[rel="canonical"]') || (()=>{ const l = document.createElement('link'); l.rel='canonical'; document.head.appendChild(l); return l })()
+    ;(linkCan as HTMLLinkElement).href = canonicalUrl
+
+    // Meta Description
+    const metaDesc = s.description || baseTitle
+    let mDesc = document.querySelector('meta[name="description"]') as HTMLMetaElement|null
+    if (!mDesc){ mDesc = document.createElement('meta'); mDesc.setAttribute('name','description'); document.head.appendChild(mDesc) }
+    mDesc.content = metaDesc
+    
+    // Keywords
+    if (s.keywords) {
+      let mKey = document.querySelector('meta[name="keywords"]') as HTMLMetaElement|null
+      if (!mKey){ mKey = document.createElement('meta'); mKey.setAttribute('name','keywords'); document.head.appendChild(mKey) }
+      mKey.content = s.keywords
+    }
+    
+    // Robots
+    if (s.robots) {
+      let mRobots = document.querySelector('meta[name="robots"]') as HTMLMetaElement|null
+      if (!mRobots){ mRobots = document.createElement('meta'); mRobots.setAttribute('name','robots'); document.head.appendChild(mRobots) }
+      mRobots.content = s.robots
+    }
+
+    // OG Tags
+    const setMeta = (prop:string, c:string)=>{ let m = document.querySelector(`meta[property="${prop}"]`) as HTMLMetaElement|null; if(!m){ m = document.createElement('meta'); m.setAttribute('property', prop); document.head.appendChild(m) } m.content = c }
+    setMeta('og:title', pageTitle)
+    setMeta('og:type', 'website')
+    setMeta('og:url', canonicalUrl)
+    setMeta('og:description', metaDesc)
+    setMeta('og:site_name', 'jeeey')
+    if (page.value?.promoBanner?.image) setMeta('og:image', page.value.promoBanner.image)
+
+    // Hidden Content
+    if (s.hiddenContent) {
+       let hiddenDiv = document.getElementById('seo-hidden-content')
+       if (!hiddenDiv) {
+         hiddenDiv = document.createElement('div')
+         hiddenDiv.id = 'seo-hidden-content'
+         hiddenDiv.style.display = 'none'
+         document.body.appendChild(hiddenDiv)
+       }
+       hiddenDiv.innerHTML = s.hiddenContent
     }
   }catch{}
 
@@ -303,5 +378,3 @@ onMounted(async()=>{
 @media (max-width: 768px){ .layout{grid-template-columns:140px 1fr} }
 @media (max-width: 520px){ .layout{grid-template-columns:110px 1fr} .grid{grid-template-columns:repeat(3,1fr);gap:10px} .cell img{width:72px;height:72px} .name{font-size:11px;max-width:80px} }
 </style>
-
-

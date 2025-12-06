@@ -1060,6 +1060,7 @@
 defineOptions({ name: 'ProductPage' })
 // ==================== IMPORTS ====================
 import { useRoute, useRouter } from 'vue-router'
+import { useHead } from '@unhead/vue'
 import { ref, onMounted, computed, onBeforeUnmount, watch, nextTick, onActivated, onDeactivated } from 'vue'
 import { useCart } from '@/store/cart'
 import { useRecent } from '@/store/recent'
@@ -1084,7 +1085,7 @@ const router = useRouter()
 const cart = useCart()
 const recent = useRecent()
 const wishlist = useWishlist()
-const id = computed(() => (route.query.id as string) || 'p1')
+const id = computed(() => (route.query.id as string) || (route.params.slug as string) || 'p1')
 const descOpen = ref(false)
 function isAuthenticated(){ return typeof document!=='undefined' && (document.cookie.includes('shop_auth_token=') || document.cookie.includes('auth_token=')) }
 
@@ -1972,6 +1973,66 @@ function onScroll(){
     activeTab.value = 'products'
   }
 }
+
+// SEO State
+// SEO State
+const seoData = ref<any>(null)
+
+// Computed SEO values
+const seoTitle = computed(() => seoData.value?.titleSeo || title.value || 'Jeeey Product')
+const seoDesc = computed(() => seoData.value?.metaDescription || '')
+const seoRobots = computed(() => seoData.value?.metaRobots || 'index, follow')
+const seoCanonical = computed(() => seoData.value?.canonicalUrl || '')
+const seoOgTitle = computed(() => seoData.value?.ogTags?.title || seoTitle.value)
+const seoOgDesc = computed(() => seoData.value?.ogTags?.description || seoDesc.value)
+const seoOgImage = computed(() => seoData.value?.ogTags?.image || activeImg.value || '')
+const seoOgUrl = computed(() => seoData.value?.ogTags?.url || seoCanonical.value)
+const seoTwTitle = computed(() => seoData.value?.twitterCard?.title || seoTitle.value)
+const seoTwDesc = computed(() => seoData.value?.twitterCard?.description || seoDesc.value)
+const seoTwImage = computed(() => seoData.value?.twitterCard?.image || activeImg.value || '')
+const seoSchema = computed(() => {
+  if (seoData.value?.schema) return seoData.value.schema
+  return JSON.stringify({
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    "name": title.value,
+    "image": images.value,
+    "offers": { "@type": "Offer", "priceCurrency": getCurrency(), "price": price.value }
+  })
+})
+
+// Initialize Head (Synchronously)
+useHead({
+  title: seoTitle,
+  meta: [
+    { name: 'description', content: seoDesc },
+    { name: 'robots', content: seoRobots },
+    { property: 'og:title', content: seoOgTitle },
+    { property: 'og:description', content: seoOgDesc },
+    { property: 'og:image', content: seoOgImage },
+    { property: 'og:url', content: seoOgUrl },
+    { property: 'og:type', content: 'product' },
+    { name: 'twitter:card', content: 'summary_large_image' },
+    { name: 'twitter:title', content: seoTwTitle },
+    { name: 'twitter:description', content: seoTwDesc },
+    { name: 'twitter:image', content: seoTwImage },
+  ],
+  link: [
+    { rel: 'canonical', href: seoCanonical }
+  ],
+  script: [
+    { type: 'application/ld+json', innerHTML: seoSchema }
+  ]
+})
+
+async function injectHeadMeta() {
+  try {
+    const p = String(id.value)
+    const res = await apiGet<any>(`/api/seo/meta?type=product&id=${encodeURIComponent(p)}`)
+    if (res) seoData.value = res
+  } catch (e) { console.error('SEO Fetch Fail', e) }
+}
+
 
 // ==================== LIFECYCLE HOOKS ====================
 onMounted(async ()=>{ 
@@ -2957,30 +3018,6 @@ function injectProductJsonLd(){
   }catch{}
 }
 
-// ==================== SEO HEAD (canonical/OG) ====================
-function injectHeadMeta(){
-  try{
-    const url = new URL(window.location.href)
-    ;['fbclid','gclid','_fbp','_fbc'].forEach(k=> url.searchParams.delete(k))
-    Array.from(url.searchParams.keys()).forEach(k=>{ if(/^utm_/i.test(k)) url.searchParams.delete(k) })
-    const canonical = document.querySelector('link[rel="canonical"]') || (()=>{ const l = document.createElement('link'); l.rel='canonical'; document.head.appendChild(l); return l })()
-    ;(canonical as HTMLLinkElement).href = url.href
-    const setMeta = (p:string,c:string)=>{ let m = document.querySelector(`meta[property="${p}"]`) as HTMLMetaElement|null; if(!m){ m = document.createElement('meta'); m.setAttribute('property', p); document.head.appendChild(m) } m.content = c }
-    setMeta('og:title', title.value)
-    setMeta('og:type', 'product')
-    if (images.value[0] && isValidImageUrl(images.value[0])) setMeta('og:image', images.value[0])
-    setMeta('og:url', url.href)
-    setMeta('product:price:amount', String(Number(price.value||0)))
-    setMeta('product:price:currency', getCurrency())
-    setMeta('og:description', (safeDescription.value||'').replace(/\s+/g,' ').slice(0,300))
-    setMeta('product:retailer_item_id', String(id.value))
-    setMeta('product:availability', 'in stock')
-    if (brand.value) setMeta('product:brand', brand.value)
-    setMeta('product:condition', 'new')
-    // Optional site name
-    setMeta('og:site_name', 'jeeey')
-  }catch{}
-}
 // ==================== CLUB THEME HELPERS ====================
 const clubThemeClass = computed(()=>{
   const theme = (pdpMeta.value as any)?.clubBanner?.style?.theme || 'orange'
@@ -3294,4 +3331,3 @@ onMounted(()=>{
 
 .product-grid{column-gap:5px!important;row-gap:0!important}
 </style>
-

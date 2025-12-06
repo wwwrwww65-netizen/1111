@@ -29,8 +29,8 @@ export const productsRouter = router({
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input }) => {
-      const product = await db.product.findUnique({
-        where: { id: input.id },
+      const product = await db.product.findFirst({
+        where: { OR: [{ id: input.id }, { seo: { slug: input.id } }] },
         include: {
           category: { select: { id: true, name: true } },
           reviews: { include: { user: { select: { name: true } } } },
