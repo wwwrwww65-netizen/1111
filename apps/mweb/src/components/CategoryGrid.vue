@@ -45,4 +45,3 @@ onMounted(async ()=>{
   .img{width:84px;height:84px}
 }
 </style>
-

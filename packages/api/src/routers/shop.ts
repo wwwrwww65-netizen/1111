@@ -2598,7 +2598,7 @@ shop.get('/categories', async (req, res) => {
 shop.get('/categories/page', async (req, res) => {
   try {
     const site = String(req.query.site || 'mweb');
-    const key = `categoriesPage:${site}:live`;
+    const key = `categoriesPage: ${site}: live`;
     const s = await db.setting.findUnique({ where: { key } });
     const rawConfig = s?.value ?? null;
     if (rawConfig == null) {
@@ -2775,7 +2775,7 @@ shop.get('/search/trending', async (req, res) => {
 
     if (categoryId) {
       params.push(categoryId);
-      categoryCondition = `AND properties->>'categoryId' = $${params.length}`;
+      categoryCondition = `AND properties ->> 'categoryId' = $${params.length}`;
     }
 
     params.push(limit);
@@ -2784,16 +2784,16 @@ shop.get('/search/trending', async (req, res) => {
     // Aggregate search events
     // We look for events named 'search' and extract the 'query' property
     const rows: any[] = await db.$queryRawUnsafe(`
-      SELECT properties->>'query' as term, COUNT(*) as count
+      SELECT properties ->> 'query' as term, COUNT(*) as count
       FROM "Event"
       WHERE name = 'search'
-        AND properties->>'query' IS NOT NULL
-        AND length(properties->>'query') > 1
+        AND properties ->> 'query' IS NOT NULL
+        AND length(properties ->> 'query') > 1
         ${categoryCondition}
       GROUP BY 1
       ORDER BY count DESC
       LIMIT $${limitParamIndex}
-    `, ...params);
+      `, ...params);
 
     const terms = rows.map(r => r.term).filter(Boolean);
 
@@ -2828,7 +2828,7 @@ shop.post('/promotions/events', async (req: any, res) => {
     const name = 'promo_' + String(type);
     const props = JSON.stringify({ campaignId, variantKey, meta: meta || {} });
     await (db as any).$executeRawUnsafe(
-      `INSERT INTO "Event" ("id","name","properties","createdAt") VALUES ($1,$2,$3::jsonb,now())`,
+      `INSERT INTO "Event"("id", "name", "properties", "createdAt") VALUES($1, $2, $3:: jsonb, now())`,
       rnd, name, props
     );
     res.json({ ok: true });
@@ -2921,9 +2921,9 @@ shop.post('/events', async (req: any, res) => {
     if (!payload.sessionId) {
       try {
         const crypto = require('crypto');
-        const uaSig = `${uaInfo.deviceType || ''}|${uaInfo.os || ''}|${uaInfo.browser || ''}`;
+        const uaSig = `${uaInfo.deviceType || ''} | ${uaInfo.os || ''} | ${uaInfo.browser || ''}`;
         const bucket = String(new Date(now.toISOString().slice(0, 13) + ':00:00')).slice(0, 13); // ساعة
-        const raw = `${payload.userId || ''}|${payload.anonymousId || ''}|${ipHash || ''}|${uaSig}|${bucket}`;
+        const raw = `${payload.userId || ''} | ${payload.anonymousId || ''} | ${ipHash || ''}| ${uaSig}| ${bucket} `;
         payload.sessionId = 'sid_' + crypto.createHash('sha256').update(raw).digest('hex').slice(0, 16);
       } catch { payload.sessionId = 'sid_' + Math.random().toString(36).slice(2, 10); }
     }

@@ -2,6 +2,7 @@
 import React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { CategoriesPicker } from "../../../../components/CategoriesPicker";
 
 export const dynamic = 'force-dynamic';
 
@@ -104,17 +105,30 @@ export default function TabPageBuilder(): JSX.Element {
     fetch(`${apiBase}/api/admin/tabs/pages/${id}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
       .then(async j => {
-        const p = j.page; setPage(p || null);
+        const p = j.page;
+        setPage(p || null);
+
+        // 1. Try to set content from the main page record first
+        if (p?.content && p.content.sections && Array.isArray(p.content.sections) && p.content.sections.length > 0) {
+          setContent(p.content);
+        }
+
         if (p?.slug) {
           const pub = await fetch(`${apiBase}/api/tabs/${encodeURIComponent(p.slug)}`, { credentials: 'include' }).then(r => r.ok ? r.json() : null).catch(() => null);
           if (pub) setPublished(pub);
         }
-        // Try load latest version content for editing experience
+
+        // 2. Verified fallback: Fetch latest version to ensure we aren't editing a stale or empty record
         try {
           const vers = await fetch(`${apiBase}/api/admin/tabs/pages/${id}/versions`, { credentials: 'include' }).then(r => r.json()).catch(() => ({ versions: [] }));
           const latest = Array.isArray(vers.versions) ? vers.versions[0] : null;
-          if (latest?.content) setContent(latest.content);
-        } catch { }
+
+          // If main page content was empty, OR if we found a newer version, use the version content
+          if (latest?.content && (!p?.content?.sections?.length || latest.version > (p.version || 0))) {
+            console.log('Hydrating from latest version:', latest.version);
+            setContent(latest.content);
+          }
+        } catch (e) { console.error('Version fetch failed', e); }
       }).catch(() => { });
     // Stats
     fetch(`${apiBase}/api/admin/tabs/pages/${id}/stats?since=30d`, { credentials: 'include' })
@@ -464,7 +478,7 @@ export default function TabPageBuilder(): JSX.Element {
 
       {/* Shared modals */}
       <MediaPickerModal open={mediaOpen} onClose={() => setMediaOpen(false)} onSelect={(u) => { try { mediaOnSelectRef.current && mediaOnSelectRef.current(u); } finally { setMediaOpen(false); } }} />
-      <CategoriesPickerModal open={categoriesOpen} initial={categoriesInitialRef.current} onClose={() => setCategoriesOpen(false)} onSave={(items) => { try { categoriesOnSaveRef.current && categoriesOnSaveRef.current(items); } finally { setCategoriesOpen(false); } }} />
+      <CategoriesPicker open={categoriesOpen} initial={categoriesInitialRef.current} onClose={() => setCategoriesOpen(false)} onSelectMany={(items: any[]) => { try { categoriesOnSaveRef.current && categoriesOnSaveRef.current(items); } finally { setCategoriesOpen(false); } }} />
       <ProductsPickerModal open={productsOpen} onClose={() => setProductsOpen(false)} onSave={(items) => { try { productsOnSaveRef.current && productsOnSaveRef.current(items); } finally { setProductsOpen(false); } }} />
     </div>
   );
@@ -1086,70 +1100,7 @@ function MediaPickerModal({ open, onClose, onSelect }: { open: boolean; onClose:
   );
 }
 
-function CategoriesPickerModal({ open, initial, onClose, onSave }: { open: boolean; initial?: Category[]; onClose: () => void; onSave: (items: Category[]) => void }): JSX.Element | null {
-  const [rows, setRows] = React.useState<Category[]>([]);
-  const [search, setSearch] = React.useState('');
-  const [selected, setSelected] = React.useState<Record<string, Category>>({});
 
-  React.useEffect(() => {
-    if (!open) return;
-    (async () => {
-      try {
-        const r = await fetch(`/api/admin/categories?search=${encodeURIComponent(search)}`, { credentials: 'include' });
-        const j = await r.json();
-        const list = Array.isArray(j.categories) ? j.categories : [];
-        setRows(list);
-      } catch { }
-    })();
-  }, [open, search]);
-
-  React.useEffect(() => {
-    if (!open) return;
-    const init = Array.isArray(initial) ? initial : [];
-    setSelected(() => {
-      const s: Record<string, Category> = {};
-      for (const it of init) { if (it?.id) s[it.id] = it; }
-      return s;
-    });
-  }, [open, initial]);
-
-  if (!open) return null;
-  const items = Object.values(selected);
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }} onClick={onClose}>
-      <div style={{ width: 'min(900px, 94vw)', maxHeight: '86vh', overflow: 'auto', background: '#0b0e14', border: '1px solid #1c2333', borderRadius: 12, padding: 16 }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h3 style={{ margin: 0 }}>اختيار الفئات</h3>
-          <button onClick={onClose} className="btn btn-outline btn-sm">إغلاق</button>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginBottom: 12 }}>
-          <input value={search} onChange={(e) => setSearch((e.target as HTMLInputElement).value)} placeholder="بحث" className="input" />
-          <button className="btn btn-outline btn-sm" onClick={() => setSelected({})}>مسح</button>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 12 }}>
-          {rows.map((c) => {
-            const isSel = !!selected[c.id];
-            return (
-              <label key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: 8, background: isSel ? '#101828' : '#0f1320', border: '1px solid #1c2333', borderRadius: 8, cursor: 'pointer' }}>
-                <input type="checkbox" checked={isSel} onChange={() => setSelected(s => ({ ...s, [c.id]: isSel ? undefined as any : { id: c.id, name: c.name, image: c.image, slug: c.slug } }))} />
-                <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <div className="line-1" style={{ fontSize: 13, fontWeight: 500 }}>{c.name}</div>
-                  <div className="line-1 muted" style={{ fontSize: 11 }}>{c.slug || c.id}</div>
-                </div>
-              </label>
-            );
-          })}
-          {!rows.length && <div className="muted">لا توجد نتائج</div>}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-          <button className="btn btn-outline btn-sm" onClick={onClose}>إلغاء</button>
-          <button className="btn btn-sm" onClick={() => onSave(items)}>تأكيد</button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ProductsPickerModal({ open, onClose, onSave }: { open: boolean; onClose: () => void; onSave: (items: ProductMini[]) => void }): JSX.Element | null {
   const [rows, setRows] = React.useState<ProductMini[]>([]);

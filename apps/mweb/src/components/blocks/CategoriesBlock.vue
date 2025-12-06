@@ -61,5 +61,3 @@ const catColsLocked = computed(()=>{
 .no-scrollbar{scrollbar-width:none;-ms-overflow-style:none}
 .no-scrollbar::-webkit-scrollbar{display:none;height:0;width:0;background:transparent}
 </style>
-
-

@@ -378,5 +378,3 @@ onMounted(async()=>{
 @media (max-width: 768px){ .layout{grid-template-columns:140px 1fr} }
 @media (max-width: 520px){ .layout{grid-template-columns:110px 1fr} .grid{grid-template-columns:repeat(3,1fr);gap:10px} .cell img{width:72px;height:72px} .name{font-size:11px;max-width:80px} }
 </style>
-
-
