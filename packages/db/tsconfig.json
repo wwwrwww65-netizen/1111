@@ -13,6 +13,7 @@
     "node_modules",
     "dist",
     "prisma/seed.ts",
-    "prisma/seed-admin-only.ts"
+    "prisma/seed-admin-only.ts",
+    "debug_order_items.ts"
   ]
 }
