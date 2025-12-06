@@ -217,17 +217,18 @@ publicSeoRouter.get('/seo/meta', async (req, res) => {
                 }
 
                 if (product) {
-                    const productUrl = `${baseUrl}/p/${product.seo?.slug || product.id}`;
+                    const p = product;
+                    const productUrl = `${baseUrl}/p/${p.seo?.slug || p.id}`;
                     // Use first color image as primary if available, else product image
-                    const primaryColor = product.colors.find(c => c.isPrimary) || product.colors[0];
-                    const imageUrl = primaryColor?.primaryImageUrl || primaryColor?.images[0]?.url || product.images[0] || '';
+                    const primaryColor = p.colors.find(c => c.isPrimary) || p.colors[0];
+                    const imageUrl = primaryColor?.primaryImageUrl || primaryColor?.images[0]?.url || p.images[0] || '';
 
                     // Generate Product Schema with Offers
-                    const offers = product.variants.length > 0 ? product.variants.map(v => ({
+                    const offers = p.variants.length > 0 ? p.variants.map(v => ({
                         "@type": "Offer",
                         "url": `${productUrl}?variant=${v.id}`,
                         "priceCurrency": "SAR",
-                        "price": v.price || product.price,
+                        "price": v.price || p.price,
                         "sku": v.sku || v.id,
                         "name": v.name,
                         "availability": v.stockQuantity > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
@@ -236,49 +237,49 @@ publicSeoRouter.get('/seo/meta', async (req, res) => {
                         "@type": "Offer",
                         "url": productUrl,
                         "priceCurrency": "SAR",
-                        "price": product.price,
-                        "availability": product.isActive ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+                        "price": p.price,
+                        "availability": p.isActive ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
                         "itemCondition": "https://schema.org/NewCondition"
                     }];
 
                     let schemaObj = {
                         "@context": "https://schema.org/",
                         "@type": "Product",
-                        "name": product.seo?.seoTitle || product.name,
-                        "image": [imageUrl, ...product.images].filter(Boolean),
-                        "description": (product.seo?.seoDescription || product.description)?.substring(0, 160),
-                        "sku": product.sku || product.id,
+                        "name": p.seo?.seoTitle || p.name,
+                        "image": [imageUrl, ...p.images].filter(Boolean),
+                        "description": (p.seo?.seoDescription || p.description)?.substring(0, 160),
+                        "sku": p.sku || p.id,
                         "brand": {
                             "@type": "Brand",
-                            "name": product.brand || "JEEEY"
+                            "name": p.brand || "JEEEY"
                         },
                         "offers": offers
                     };
 
-                    if (product.seo?.schema && typeof product.seo.schema === 'object') {
-                        schemaObj = { ...schemaObj, ...product.seo.schema };
+                    if (p.seo?.schema && typeof p.seo.schema === 'object') {
+                        schemaObj = { ...schemaObj, ...p.seo.schema };
                     }
 
                     seoData = {
-                        titleSeo: product.seo?.seoTitle || product.name,
-                        metaDescription: (product.seo?.seoDescription || product.description)?.substring(0, 160),
-                        canonicalUrl: product.seo?.canonicalUrl || productUrl,
-                        ogTags: product.seo?.ogTags || {
-                            title: product.seo?.seoTitle || product.name,
-                            description: (product.seo?.seoDescription || product.description)?.substring(0, 160),
+                        titleSeo: p.seo?.seoTitle || p.name,
+                        metaDescription: (p.seo?.seoDescription || p.description)?.substring(0, 160),
+                        canonicalUrl: p.seo?.canonicalUrl || productUrl,
+                        ogTags: p.seo?.ogTags || {
+                            title: p.seo?.seoTitle || p.name,
+                            description: (p.seo?.seoDescription || p.description)?.substring(0, 160),
                             image: imageUrl,
                             url: productUrl,
                             type: 'product'
                         },
                         twitterCard: {
-                            title: product.seo?.seoTitle || product.name,
-                            description: (product.seo?.seoDescription || product.description)?.substring(0, 160),
+                            title: p.seo?.seoTitle || p.name,
+                            description: (p.seo?.seoDescription || p.description)?.substring(0, 160),
                             image: imageUrl,
                             card: 'summary_large_image'
                         },
                         schema: JSON.stringify(schemaObj),
-                        hiddenContent: product.seo?.hiddenContent,
-                        metaRobots: product.seo?.metaRobots || "index, follow"
+                        hiddenContent: p.seo?.hiddenContent,
+                        metaRobots: p.seo?.metaRobots || "index, follow"
                     };
                 }
             }
