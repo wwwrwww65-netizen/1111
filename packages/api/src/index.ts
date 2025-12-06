@@ -413,6 +413,8 @@ import { mediaRouter } from './routers/media';
 app.use('/api/admin/media', mediaRouter);
 import { publicSeoRouter } from './routers/public-seo';
 app.use('/', publicSeoRouter);
+app.use('/api', publicSeoRouter); // Support /api/seo/meta calls from frontend
+
 
 // Mobile Remote Config endpoints (tokens/home) for RN apps
 app.get('/mobile/config/tokens.json', async (_req, res) => {

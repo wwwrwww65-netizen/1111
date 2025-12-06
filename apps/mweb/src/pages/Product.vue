@@ -1048,6 +1048,7 @@
 defineOptions({ name: 'ProductPage' })
 // ==================== IMPORTS ====================
 import { useRoute, useRouter } from 'vue-router'
+import { useHead } from '@unhead/vue'
 import { ref, onMounted, computed, onBeforeUnmount, watch, nextTick, onActivated, onDeactivated } from 'vue'
 import { useCart } from '@/store/cart'
 import { useRecent } from '@/store/recent'
@@ -1960,6 +1961,66 @@ function onScroll(){
     activeTab.value = 'products'
   }
 }
+
+// SEO State
+// SEO State
+const seoData = ref<any>(null)
+
+// Computed SEO values
+const seoTitle = computed(() => seoData.value?.titleSeo || title.value || 'Jeeey Product')
+const seoDesc = computed(() => seoData.value?.metaDescription || '')
+const seoRobots = computed(() => seoData.value?.metaRobots || 'index, follow')
+const seoCanonical = computed(() => seoData.value?.canonicalUrl || '')
+const seoOgTitle = computed(() => seoData.value?.ogTags?.title || seoTitle.value)
+const seoOgDesc = computed(() => seoData.value?.ogTags?.description || seoDesc.value)
+const seoOgImage = computed(() => seoData.value?.ogTags?.image || activeImg.value || '')
+const seoOgUrl = computed(() => seoData.value?.ogTags?.url || seoCanonical.value)
+const seoTwTitle = computed(() => seoData.value?.twitterCard?.title || seoTitle.value)
+const seoTwDesc = computed(() => seoData.value?.twitterCard?.description || seoDesc.value)
+const seoTwImage = computed(() => seoData.value?.twitterCard?.image || activeImg.value || '')
+const seoSchema = computed(() => {
+  if (seoData.value?.schema) return seoData.value.schema
+  return JSON.stringify({
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    "name": title.value,
+    "image": images.value,
+    "offers": { "@type": "Offer", "priceCurrency": getCurrency(), "price": price.value }
+  })
+})
+
+// Initialize Head (Synchronously)
+useHead({
+  title: seoTitle,
+  meta: [
+    { name: 'description', content: seoDesc },
+    { name: 'robots', content: seoRobots },
+    { property: 'og:title', content: seoOgTitle },
+    { property: 'og:description', content: seoOgDesc },
+    { property: 'og:image', content: seoOgImage },
+    { property: 'og:url', content: seoOgUrl },
+    { property: 'og:type', content: 'product' },
+    { name: 'twitter:card', content: 'summary_large_image' },
+    { name: 'twitter:title', content: seoTwTitle },
+    { name: 'twitter:description', content: seoTwDesc },
+    { name: 'twitter:image', content: seoTwImage },
+  ],
+  link: [
+    { rel: 'canonical', href: seoCanonical }
+  ],
+  script: [
+    { type: 'application/ld+json', innerHTML: seoSchema }
+  ]
+})
+
+async function injectHeadMeta() {
+  try {
+    const p = String(id.value)
+    const res = await apiGet<any>(`/api/seo/meta?type=product&id=${encodeURIComponent(p)}`)
+    if (res) seoData.value = res
+  } catch (e) { console.error('SEO Fetch Fail', e) }
+}
+
 
 // ==================== LIFECYCLE HOOKS ====================
 onMounted(async ()=>{ 
@@ -2945,84 +3006,6 @@ function injectProductJsonLd(){
   }catch{}
 }
 
-// ==================== SEO HEAD (canonical/OG) ====================
-function injectHeadMeta(){
-  try{
-    const url = new URL(window.location.href)
-    ;['fbclid','gclid','_fbp','_fbc'].forEach(k=> url.searchParams.delete(k))
-    Array.from(url.searchParams.keys()).forEach(k=>{ if(/^utm_/i.test(k)) url.searchParams.delete(k) })
-    
-    const p = product.value
-    const seo = p?.seo || {}
-    
-    // 1. Title
-    const pageTitle = seo.title || title.value || 'Jeeey Product'
-    document.title = pageTitle
-    
-    // 2. Canonical
-    const mainSiteUrl = 'https://jeeey.com'
-    let canonicalUrl = seo.canonicalUrl
-    // If we are on a slug route, ensure canonical is clean
-    if (!canonicalUrl) {
-       // Reconstruct clean URL without query params if possible
-       const clean = new URL(mainSiteUrl)
-       const pathSlug = route.params.slug || id.value
-       clean.pathname = `/products/${pathSlug}` // Web app uses /products/
-       canonicalUrl = clean.href
-    }
-
-    const canonical = document.querySelector('link[rel="canonical"]') || (()=>{ const l = document.createElement('link'); l.rel='canonical'; document.head.appendChild(l); return l })()
-    ;(canonical as HTMLLinkElement).href = canonicalUrl
-
-    // 3. Meta Description
-    const metaDesc = seo.description || (safeDescription.value||'').replace(/\s+/g,' ').slice(0,300)
-    let mDesc = document.querySelector('meta[name="description"]') as HTMLMetaElement|null
-    if (!mDesc){ mDesc = document.createElement('meta'); mDesc.setAttribute('name','description'); document.head.appendChild(mDesc) }
-    mDesc.content = metaDesc
-    
-    // 4. Keywords
-    if (seo.keywords) {
-      let mKey = document.querySelector('meta[name="keywords"]') as HTMLMetaElement|null
-      if (!mKey){ mKey = document.createElement('meta'); mKey.setAttribute('name','keywords'); document.head.appendChild(mKey) }
-      mKey.content = seo.keywords
-    }
-    
-    // 5. Robots
-    if (seo.robots) {
-      let mRobots = document.querySelector('meta[name="robots"]') as HTMLMetaElement|null
-      if (!mRobots){ mRobots = document.createElement('meta'); mRobots.setAttribute('name','robots'); document.head.appendChild(mRobots) }
-      mRobots.content = seo.robots
-    }
-
-    // 6. OG Tags
-    const setMeta = (prop:string, c:string)=>{ let m = document.querySelector(`meta[property="${prop}"]`) as HTMLMetaElement|null; if(!m){ m = document.createElement('meta'); m.setAttribute('property', prop); document.head.appendChild(m) } m.content = c }
-    setMeta('og:title', pageTitle)
-    setMeta('og:type', 'product')
-    const ogImg = seo.image || (images.value[0] && isValidImageUrl(images.value[0]) ? images.value[0] : '')
-    if (ogImg) setMeta('og:image', ogImg)
-    setMeta('og:url', canonicalUrl)
-    setMeta('product:price:amount', String(Number(price.value||0)))
-    setMeta('product:price:currency', getCurrency())
-    setMeta('og:description', metaDesc)
-    setMeta('product:retailer_item_id', String(id.value))
-    setMeta('product:availability', 'in stock')
-    if (brand.value) setMeta('product:brand', brand.value)
-    setMeta('product:condition', 'new')
-    setMeta('og:site_name', 'jeeey')
-    
-    // 7. Hidden Content (e.g. for SEO text)
-    if (seo.hiddenContent) {
-       let hiddenDiv = document.getElementById('seo-hidden-content')
-       if (!hiddenDiv) {
-         hiddenDiv = document.createElement('div')
-         hiddenDiv.id = 'seo-hidden-content'
-         hiddenDiv.style.display = 'none'
-         document.body.appendChild(hiddenDiv)
-       }
-       hiddenDiv.innerHTML = seo.hiddenContent
-    }
-  }catch{}
-}
 // ==================== CLUB THEME HELPERS ====================
 const clubThemeClass = computed(()=>{
   const theme = (pdpMeta.value as any)?.clubBanner?.style?.theme || 'orange'

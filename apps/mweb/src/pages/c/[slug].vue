@@ -357,6 +357,7 @@
 defineOptions({ name: 'CategoryPage' })
 import { ref, onMounted, onBeforeUnmount, computed, watch, reactive, onActivated, onDeactivated } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useHead } from '@unhead/vue';
 import { useCart } from '../../store/cart';
 import { storeToRefs } from 'pinia';
 import {
@@ -382,7 +383,7 @@ const { items } = storeToRefs(cart);
 
 // Categories State
 const allCategories = ref<Array<{ id:string; slug?:string|null; name:string; parentId?:string|null; image?:string|null }>>([])
-const currentCategory = ref<{ id:string; slug?:string|null; name:string; parentId?:string|null }|null>(null)
+const currentCategory = ref<{ id:string; slug?:string|null; name:string; parentId?:string|null; image?:string|null }|null>(null)
 const categories = ref<Array<{ id:string; label:string; img:string }>>([])
 const childCategoryIds = ref<string[]>([])
 
@@ -470,6 +471,57 @@ let lastScrollY = 0;
 
 const activeSlug = ref('')
 
+// SEO State
+const seoData = ref<any>(null)
+
+// Computed SEO values
+const seoTitle = computed(() => seoData.value?.titleSeo || currentCategory.value?.name || 'الفئة')
+const seoDesc = computed(() => seoData.value?.metaDescription || '')
+const seoRobots = computed(() => seoData.value?.metaRobots || 'index, follow')
+const seoCanonical = computed(() => seoData.value?.canonicalUrl || '')
+const seoOgTitle = computed(() => seoData.value?.ogTags?.title || seoTitle.value)
+const seoOgDesc = computed(() => seoData.value?.ogTags?.description || seoDesc.value)
+const seoOgImage = computed(() => seoData.value?.ogTags?.image || currentCategory.value?.image || '')
+const seoOgUrl = computed(() => seoData.value?.ogTags?.url || seoCanonical.value)
+const seoTwTitle = computed(() => seoData.value?.twitterCard?.title || seoTitle.value)
+const seoTwDesc = computed(() => seoData.value?.twitterCard?.description || seoDesc.value)
+const seoTwImage = computed(() => seoData.value?.twitterCard?.image || currentCategory.value?.image || '')
+const seoSchema = computed(() => seoData.value?.schema || '')
+
+// Initialize Head (Synchronously)
+useHead({
+  title: seoTitle,
+  meta: [
+    { name: 'description', content: seoDesc },
+    { name: 'robots', content: seoRobots },
+    { property: 'og:title', content: seoOgTitle },
+    { property: 'og:description', content: seoOgDesc },
+    { property: 'og:image', content: seoOgImage },
+    { property: 'og:url', content: seoOgUrl },
+    { property: 'og:type', content: 'website' },
+    { name: 'twitter:card', content: 'summary_large_image' },
+    { name: 'twitter:title', content: seoTwTitle },
+    { name: 'twitter:description', content: seoTwDesc },
+    { name: 'twitter:image', content: seoTwImage },
+  ],
+  link: [
+    { rel: 'canonical', href: seoCanonical }
+  ],
+  script: [
+    { type: 'application/ld+json', innerHTML: seoSchema }
+  ]
+})
+
+async function injectHeadMeta() {
+  try {
+     const s = String(route.params.slug || '').trim()
+     if (!s) return
+     const res = await apiGet<any>(`/api/seo/meta?type=category&slug=${encodeURIComponent(s)}`)
+     if (res) seoData.value = res
+  } catch (e) { console.error('SEO Fetch Fail', e) }
+}
+
+
 onMounted(() => {
   lastScrollY = window.scrollY || 0;
   atTop.value = lastScrollY <= 0;
@@ -478,6 +530,7 @@ onMounted(() => {
   
   activeSlug.value = String(route.params.slug || '')
   void bootstrap()
+  injectHeadMeta() // Call SEO injection
 });
 
 onActivated(() => {

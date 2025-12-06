@@ -88,7 +88,7 @@ publicSeoRouter.get('/sitemap.xml', async (req, res) => {
             const slug = cat.slug || cat.id;
             xml += `
   <url>
-    <loc>${escapeXml(baseUrl.replace(/\/$/, ''))}/category/${escapeXml(slug)}</loc>
+    <loc>${escapeXml(baseUrl.replace(/\/$/, ''))}/c/${escapeXml(slug)}</loc>
     <lastmod>${cat.updatedAt.toISOString().split('T')[0]}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -100,7 +100,7 @@ publicSeoRouter.get('/sitemap.xml', async (req, res) => {
             const slug = product.seo?.slug || product.id;
             xml += `
   <url>
-    <loc>${escapeXml(baseUrl.replace(/\/$/, ''))}/products/${escapeXml(slug)}</loc>
+    <loc>${escapeXml(baseUrl.replace(/\/$/, ''))}/p/${escapeXml(slug)}</loc>
     <lastmod>${product.updatedAt.toISOString().split('T')[0]}</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
@@ -121,7 +121,7 @@ publicSeoRouter.get('/sitemap.xml', async (req, res) => {
 // 3. Public SEO Data (For Storefront Head)
 publicSeoRouter.get('/seo/meta', async (req, res) => {
     try {
-        const { slug, type, id } = req.query;
+        const { slug, type, id, url } = req.query; // added url
 
         let seoData: any = null;
 
@@ -129,31 +129,48 @@ publicSeoRouter.get('/seo/meta', async (req, res) => {
         const setting = await db.setting.findUnique({ where: { key: 'site_url' } });
         const baseUrl = (setting?.value as any)?.value || process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com';
 
-        // A. Try fetching from SEO Pages first (Custom Overrides)
-        if (slug && typeof slug === 'string') {
-            const page = await db.seoPage.findUnique({
-                where: { slug },
-                select: {
-                    titleSeo: true,
-                    metaDescription: true,
-                    canonicalUrl: true,
-                    metaRobots: true,
-                    ogTags: true,
-                    twitterCard: true,
-                    schema: true,
-                    hiddenContent: true
-                }
-            });
-            if (page) seoData = page;
+        // Helper: Clean slug from possible URL parts (if passed via url param)
+        let exactSlug = slug as string | undefined;
+        let exactId = id as string | undefined;
+
+        if (url && typeof url === 'string') {
+            // Try to extract slug from /p/slug or /products/slug
+            const pMatch = url.match(/\/p\/([^\/\?]+)/) || url.match(/\/products\/([^\/\?]+)/);
+            if (pMatch) exactSlug = pMatch[1];
+
+            const cMatch = url.match(/\/c\/([^\/\?]+)/) || url.match(/\/category\/([^\/\?]+)/);
+            if (cMatch) exactSlug = cMatch[1];
+        }
+
+        const lookupId = exactId || exactSlug || (slug as string);
+
+        // A. Try fetching from SEO Pages first (Custom Overrides) - ONLY if it's explicitly a Custom Page or we have a slug that matches one
+        if (!type || type === 'page') {
+            if (lookupId) {
+                const page = await db.seoPage.findUnique({
+                    where: { slug: lookupId },
+                    select: {
+                        titleSeo: true,
+                        metaDescription: true,
+                        canonicalUrl: true,
+                        metaRobots: true,
+                        ogTags: true,
+                        twitterCard: true,
+                        schema: true,
+                        hiddenContent: true
+                    }
+                });
+                if (page) seoData = page;
+            }
         }
 
         // B. If not found, check based on type
         if (!seoData) {
             // 1. Check Product
-            if (type === 'product' || id) {
-                const productId = (id as string) || (slug as string);
-                const product = await db.product.findFirst({
-                    where: { OR: [{ id: productId }, { sku: productId }] },
+            if (type === 'product' || id || (url && (url as string).includes('/p/'))) {
+                // Try finding by ID directly first (fastest)
+                let product = await db.product.findUnique({
+                    where: { id: lookupId },
                     select: {
                         id: true,
                         name: true,
@@ -169,6 +186,35 @@ publicSeoRouter.get('/seo/meta', async (req, res) => {
                         seo: true
                     }
                 });
+
+                // If not found by ID (maybe lookupId is a slug), try finding via SEO slug relation
+                if (!product && lookupId) {
+                    // Reverse lookup: Find ProductSeo by slug -> get productId -> fetch Product
+                    // Note: We can't easily join backwards in one findUnique if relations aren't setup that way,
+                    // but we can query Product where seo.slug = lookupId
+                    product = await db.product.findFirst({
+                        where: {
+                            OR: [
+                                { seo: { slug: lookupId } },
+                                { sku: lookupId } // Fallback to SKU
+                            ]
+                        },
+                        select: {
+                            id: true,
+                            name: true,
+                            description: true,
+                            images: true,
+                            price: true,
+                            sku: true,
+                            brand: true,
+                            isActive: true,
+                            updatedAt: true,
+                            variants: { select: { id: true, name: true, price: true, sku: true, stockQuantity: true } },
+                            colors: { include: { images: true } },
+                            seo: true
+                        }
+                    });
+                }
 
                 if (product) {
                     const productUrl = `${baseUrl}/p/${product.seo?.slug || product.id}`;
@@ -238,9 +284,9 @@ publicSeoRouter.get('/seo/meta', async (req, res) => {
             }
 
             // 2. Check Category
-            if (!seoData && (type === 'category' || slug)) {
-                const category = await db.category.findUnique({
-                    where: { slug: slug as string },
+            if (!seoData && (type === 'category' || slug || (url && (url as string).includes('/c/')))) {
+                let category = await db.category.findUnique({
+                    where: { id: lookupId }, // Try ID first
                     select: {
                         id: true,
                         slug: true,
@@ -250,9 +296,26 @@ publicSeoRouter.get('/seo/meta', async (req, res) => {
                         seoTitle: true,
                         seoDescription: true,
                         seoKeywords: true,
-                        seo: true // CategorySeo relation
+                        seo: true
                     }
                 });
+
+                if (!category && lookupId) {
+                    category = await db.category.findUnique({
+                        where: { slug: lookupId }, // Try Slug
+                        select: {
+                            id: true,
+                            slug: true,
+                            name: true,
+                            image: true,
+                            description: true,
+                            seoTitle: true,
+                            seoDescription: true,
+                            seoKeywords: true,
+                            seo: true
+                        }
+                    });
+                }
 
                 if (category) {
                     const categoryUrl = `${baseUrl}/c/${category.slug || category.id}`;

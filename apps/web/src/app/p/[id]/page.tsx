@@ -9,13 +9,10 @@ type Props = {
 async function getProductSeo(idOrSlug: string): Promise<any> {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
   try {
-    // Fetch from updated public SEO endpoint
-    // NOTE: /api/seo/meta expects `url`. Since we don't know the exact full path from just ID here easily without hardcoding,
-    // we can assume /product/:slug. The logic in /seo/meta parses this.
-    const res = await fetch(`${apiUrl}/api/seo/meta?url=/p/${encodeURIComponent(idOrSlug)}&slug=${encodeURIComponent(idOrSlug)}`, { cache: 'no-store' });
+    // Explicitly ask for product meta by ID/Slug using the new API logic
+    const res = await fetch(`${apiUrl}/api/seo/meta?type=product&id=${encodeURIComponent(idOrSlug)}`, { cache: 'no-store' });
     if (!res.ok) return null;
-    const json = await res.json();
-    return json.meta || null;
+    return await res.json();
   } catch {
     return null;
   }
@@ -33,13 +30,17 @@ export async function generateMetadata(
   }
 
   return {
-    title: seo.title,
-    description: seo.description,
+    title: seo.titleSeo || 'Product - Jeeey',
+    description: seo.metaDescription,
     alternates: {
       canonical: seo.canonicalUrl,
     },
-    robots: seo.robots,
+    robots: {
+      index: seo.metaRobots?.includes('index'),
+      follow: seo.metaRobots?.includes('follow'),
+    },
     openGraph: seo.ogTags ? seo.ogTags : undefined,
+    twitter: seo.twitterCard,
     other: {
       'active-hidden': seo.hiddenContent,
     }

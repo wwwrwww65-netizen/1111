@@ -1,5 +1,6 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
+import { createHead } from '@unhead/vue/client';
 import { createRouter, createWebHistory } from 'vue-router';
 import { routes as genRoutes } from './routes.generated';
 import App from './App.vue';
@@ -112,7 +113,9 @@ const manualRoutes = [
 const routes = [...manualRoutes, ...genRoutes];
 
 const app = createApp(App);
+const head = createHead();
 app.use(createPinia());
+app.use(head);
 const router = createRouter({
   history: createWebHistory(),
   routes,
