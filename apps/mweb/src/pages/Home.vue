@@ -249,10 +249,9 @@ async function fetchTab(slug:string, silent:boolean){
 function switchTab(slug:string, idx:number){
   activeTab.value = idx
   // Update URL to reflect the active tab (improves shareability and back/forward navigation)
+  // Always show the tab slug in URL when clicking on any tab
   try{ router.push(`/tabs/${encodeURIComponent(slug)}`) }catch{}
   void loadTab(slug)
-  // احفظ التبويب النشط
-  try{ sessionStorage.setItem('home:active_slug', slug) }catch{}
 }
 function clickTrack(){ try{ if(currentSlug.value) fetch(`${API_BASE}/api/tabs/track`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ slug: currentSlug.value, type:'click' }) }) }catch{} }
 
@@ -279,7 +278,6 @@ onBeforeUnmount(()=>{
   try{
     sessionStorage.setItem('home:scrollY', String(window.scrollY||0))
     const slug = currentSlug.value || tabs.value[activeTab.value]?.slug || ''
-    if (slug) sessionStorage.setItem('home:active_slug', slug)
     // احفظ محتوى التبويب الحالي في ذاكرة الجلسة (لتفادي إعادة جلبه عند الرجوع)
     if (slug && (tabSections.value||[]).length){
       const payload = { [slug]: tabSections.value }
@@ -367,17 +365,19 @@ onMounted(async ()=>{
     const filtered = all.filter((t:any)=> !cats.has(String(t.slug||'')))
     tabs.value = filtered.map((t:any)=> ({ label: t.label, slug: String(t.slug||'') }))
     const paramSlug = String(route.params.slug||'')
-    // حاول استرجاع آخر تبويب نشط من الزيارة السابقة
-    let savedSlug = ''
-    try{ savedSlug = String(sessionStorage.getItem('home:active_slug')||'') }catch{}
-    const initial = paramSlug || savedSlug || (tabs.value[0]?.slug || '')
+    // استخدم أول تبويبة كإعداد افتراضي
+    const initial = paramSlug || (tabs.value[0]?.slug || '')
     if (!previewActive.value && initial) {
-      // If landing on root '/', push the first available tab into the URL for correctness
-      try{
-        if (route.path === '/' || route.matched.length === 0){
-          router.replace(`/tabs/${encodeURIComponent(initial)}`)
+      // If landing on root '/', redirect to the first available tab to ensure content loads correctly
+      if (route.path === '/') {
+        try {
+          await router.replace('/tabs/')
+          // return // Stop execution here, let the redirect trigger a reload/watch
+        } catch (err) {
+          console.error('Failed to redirect to tab:', err)
         }
-      }catch{}
+      }
+      
       // Hydrate tab cache from sessionStorage if available
       try{
         const raw = sessionStorage.getItem('home:tabs_cache')
@@ -416,6 +416,19 @@ watch(()=> route.params.slug, (nv, ov)=>{
   if (previewActive.value) return
   const slug = String(nv||'')
   if (slug && slug !== String(ov||'')) loadTab(slug)
+})
+
+// React to navigating back to root path '/'
+watch(()=> route.path, (newPath)=>{
+  if (previewActive.value) return
+  // If navigating to root '/', load the first tab
+  if (newPath === '/' && tabs.value.length > 0) {
+    const firstSlug = tabs.value[0]?.slug
+    if (firstSlug) {
+      activeTab.value = 0
+      void loadTab(firstSlug)
+    }
+  }
 })
 
 const rows = 3

@@ -507,7 +507,10 @@ async function placeOrder(){
         }catch{}
         try{ sessionStorage.removeItem('checkout_selected_uids') }catch{}
       }catch{}
-      if (selectedPayment.value === 'cod') { router.push(`/order/${(ord as any).order.id}`); return }
+      if (selectedPayment.value === 'cod') { 
+        router.replace({ path: `/order/${(ord as any).order.id}`, query: { new: 'true' } }); 
+        return 
+      }
       const session = await apiPost('/api/payments/session', { amount: totalAll.value, currency: (window as any).__CURRENCY_CODE__||'SAR', method: selectedPayment.value, returnUrl: location.origin + '/pay/success', cancelUrl: location.origin + '/pay/failure', ref: (ord as any).order.id })
       if (session && (session as any).redirectUrl){ location.href = (session as any).redirectUrl; return }
       router.push('/pay/processing')

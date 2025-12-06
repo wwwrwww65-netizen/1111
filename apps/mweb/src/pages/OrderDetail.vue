@@ -71,10 +71,11 @@
 import HeaderBar from '@/components/HeaderBar.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import { apiGet, apiPost } from '@/lib/api'
-import { onMounted, ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { onMounted, onUnmounted, ref, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
+const router = useRouter()
 const id = String(route.params.id||'')
 const order = ref<any|null>(null)
 const currencySymbol = ref('ر.س')
@@ -86,6 +87,15 @@ const isCod = computed(()=>{
     const pm = String((order.value as any)?.paymentMethod || (order.value as any)?.payment?.method || '').toLowerCase()
     return pm==='cod' || pm==='cash_on_delivery' || pm==='cash-on-delivery'
   }catch{ return false }
+})
+
+const handlePhysicalBack = (event: Event) => {
+  // Intercept back button for new orders and redirect to Orders List
+  router.replace('/orders')
+}
+
+onUnmounted(() => {
+  window.removeEventListener('popstate', handlePhysicalBack)
 })
 
 function resolveItemImage(it: any): string {
@@ -185,6 +195,12 @@ const shipLine = computed(()=>{
 })
 
 onMounted(async ()=>{
+  // Smart Order Flow: If this is a new order, trap the back button
+  if (route.query.new === 'true') {
+    window.history.pushState(null, '', window.location.href)
+    window.addEventListener('popstate', handlePhysicalBack)
+  }
+
   // تحميل بيانات الاحتفاظ المحلي كحل بديل فوري لعرض العنوان والصور المختارة
   try{ const a = sessionStorage.getItem('last_checkout_address'); if (a) lastCheckoutAddr.value = JSON.parse(a||'{}') }catch{}
   try{ const l = sessionStorage.getItem('last_checkout_lines'); if (l) lastCheckoutLines.value = JSON.parse(l||'[]') }catch{}

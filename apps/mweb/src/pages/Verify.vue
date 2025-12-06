@@ -1,78 +1,100 @@
 <template>
   <div class="min-h-screen bg-white flex flex-col" dir="rtl">
-    <header class="w-full py-4 flex items-center justify-start px-4">
-      <button aria-label="رجوع" @click="goBack">
+    <header class="w-full py-4 flex items-center justify-between px-4 border-b border-gray-50">
+      <button aria-label="رجوع" @click="goBack" class="p-2 -mr-2 rounded-full hover:bg-gray-50 transition-colors">
         <ArrowRight class="w-6 h-6 text-gray-800" />
       </button>
+      <h1 class="text-[16px] font-bold text-gray-900">تأكيد الرمز</h1>
+      <div class="w-10"></div> <!-- Spacer for centering -->
     </header>
 
-    <main class="flex-1 max-w-md mx-auto px-4 py-6 space-y-6 w-full">
-      <section class="flex items-center justify-between">
-        <div class="text-[13px] text-gray-700">
-          تم إرسال رمز التحقق بواسطة WhatsApp إلى {{ displayPhone }}.
+    <main class="flex-1 max-w-md mx-auto px-6 py-8 space-y-8 w-full">
+      <section class="text-center space-y-2">
+        <div class="text-[14px] text-gray-600">
+          {{ infoText || `تم إرسال رمز التحقق بواسطة ${methodName} إلى` }}
+          <span dir="ltr" class="font-semibold text-gray-900 mx-1">{{ displayPhone }}</span>
         </div>
-        <button class="text-[12px] text-blue-600 font-semibold" @click="editNumber">تعديل الرقم</button>
+        <button v-if="!isForgotFlow" class="text-[13px] text-[#8a1538] font-medium hover:underline" @click="editNumber">تعديل الرقم؟</button>
       </section>
 
-      <section class="space-y-3">
-        <div :class="['flex items-center justify-center gap-2', shake ? 'animate-shake' : '']" dir="ltr">
+      <section class="space-y-6">
+        <div :class="['flex items-center justify-center gap-3', shake ? 'animate-shake' : '']" dir="ltr">
           <input
             v-for="(_, i) in length"
             :key="i"
             :ref="(el)=> setInputRef(el, i)"
             inputmode="numeric"
+            autocomplete="one-time-code"
             maxlength="1"
             :value="code[i]"
             @input="(e:any)=> onChange(i, e.target.value)"
             @keydown="(e:any)=> onKeyDown(i, e)"
             @paste="onPaste"
-            class="w-12 h-12 text-center border border-gray-300 rounded-[6px] text-lg font-semibold text-gray-900 focus:outline-none focus:border-gray-800"
+            class="w-11 h-12 text-center border border-gray-200 rounded-[8px] text-xl font-bold text-gray-900 focus:outline-none focus:border-[#8a1538] focus:ring-1 focus:ring-[#8a1538] transition-all shadow-sm bg-gray-50/50"
           />
         </div>
 
-        <div v-if="errorText" class="flex items-center justify-center text-red-600 text-[12px]">
-          <AlertCircle class="w-4 h-4 ml-1" />
+        <div v-if="errorText" class="text-[13px] text-red-600 font-medium animate-fadeIn text-center">
           {{ errorText }}
         </div>
 
-        <div class="flex items-center justify-center text-[12px] text-gray-600">
-          <template v-if="!canResend">إعادة الإرسال خلال {{ timeLeft }} ثانية</template>
-          <button v-else class="text-blue-600 font-semibold" @click="resend" :disabled="resending">
-            {{ resending ? 'جار الإرسال…' : 'إعادة إرسال' }}
-          </button>
+        <div class="flex flex-col items-center gap-3">
+          <div class="text-[13px] text-gray-500">
+            <template v-if="!canResend">
+              إعادة الإرسال خلال <span class="font-mono font-bold text-gray-900">{{ timeLeft }}</span> ثانية
+            </template>
+            <button v-else class="text-[#8a1538] font-semibold hover:underline flex items-center gap-2" @click="resend" :disabled="resending">
+              {{ resending ? 'جار الإرسال…' : 'إعادة إرسال الرمز' }}
+            </button>
+          </div>
         </div>
 
-        <div class="flex items-start gap-2 mt-2">
-          <button type="button" @click="circleChecked=!circleChecked" class="w-4 h-4 rounded-full flex items-center justify-center mt-0.5 transition-colors duration-150" :style="{ backgroundColor: circleChecked ? primary : '#fff', border: `2px solid ${circleChecked ? primary : '#9ca3af'}` }">
-            <Check v-if="circleChecked" class="w-3 h-3 text-white" />
-          </button>
-          <span class="text-[10px] text-gray-500 leading-5">(اختياري) احصل على النشرات الإخبارية ونصائح الأناقة الحصرية من جي jeeey عبر رسائل واتساب!</span>
+        <div class="bg-gray-50 p-4 rounded-[12px] border border-gray-100">
+          <label class="flex items-start gap-3 cursor-pointer select-none">
+            <div class="relative flex items-center">
+              <input type="checkbox" v-model="circleChecked" class="peer sr-only">
+              <div class="w-5 h-5 border-2 border-gray-300 rounded-[6px] peer-checked:bg-[#8a1538] peer-checked:border-[#8a1538] transition-all flex items-center justify-center">
+                <Check class="w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" :stroke-width="3" />
+              </div>
+            </div>
+            <span class="text-[12px] text-gray-600 leading-5 pt-0.5">
+              احصل على النشرات الإخبارية ونصائح الأناقة الحصرية من <span class="font-bold text-[#8a1538]">jeeey</span> عبر واتساب
+            </span>
+          </label>
         </div>
 
-        <button @click="onSubmit" :disabled="!codeFilled || verifying" class="w-full h-11 rounded-[6px] text-[13px] font-semibold flex items-center justify-center transition-transform duration-200 hover:scale-[1.02]" :class="codeFilled ? 'text-white' : 'bg-gray-200 text-gray-500'" :style="{ backgroundColor: codeFilled ? primary : undefined }">
-          {{ verifying ? 'جار التحقق…' : 'تأكيد الرمز' }}
+        <button 
+          @click="onSubmit" 
+          :disabled="!codeFilled || verifying" 
+          class="w-full h-12 rounded-[8px] text-[14px] font-bold flex items-center justify-center transition-all duration-200 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-sm" 
+          :class="codeFilled ? 'text-white shadow-md shadow-[#8a1538]/20' : 'bg-gray-100 text-gray-400'" 
+          :style="{ backgroundColor: codeFilled ? primary : undefined }"
+        >
+          {{ verifying ? 'جار التحقق…' : 'تأكيد الدخول' }}
         </button>
       </section>
 
-      <section>
-        <div class="relative grid grid-cols-2 rounded-[6px] overflow-hidden" style="background-color:#fff6f3">
-          <div class="flex flex-col items-center justify-center py-6">
-            <Gift class="w-6 h-6 text-red-500 mb-2" />
-            <div class="text-sm font-bold text-gray-900">خصم %15</div>
-            <div class="text-xs text-gray-600">على طلبك الأول</div>
+      <section class="pt-4 border-t border-gray-100">
+        <div class="relative grid grid-cols-2 rounded-[12px] overflow-hidden shadow-sm" style="background-color:#fff6f3">
+          <div class="flex flex-col items-center justify-center py-6 px-2 text-center">
+            <Gift class="w-6 h-6 text-[#8a1538] mb-2" />
+            <div class="text-[13px] font-bold text-gray-900">خصم 10%</div>
+            <div class="text-[11px] text-gray-600">على طلبك الأول</div>
           </div>
-          <div class="absolute left-1/2 w-px bg-black" style="top:30%;bottom:30%" />
-          <div class="flex flex-col items-center justify-center py-6">
+          <div class="absolute left-1/2 top-4 bottom-4 w-px bg-[#8a1538]/10" />
+          <div class="flex flex-col items-center justify-center py-6 px-2 text-center">
             <Star class="w-6 h-6 text-yellow-500 mb-2" />
-            <div class="text-sm font-bold text-gray-900">jeeey CLUB</div>
-            <div class="text-xs text-gray-600">مزايا حصرية</div>
+            <div class="text-[13px] font-bold text-gray-900">نادي jeeey</div>
+            <div class="text-[11px] text-gray-600">مزايا حصرية للأعضاء</div>
           </div>
         </div>
       </section>
     </main>
 
-    <footer class="max-w-md mx-auto px-4 py-4 text-center text-[11px] text-gray-600 leading-5">
-      بتسجيل الدخول إلى حسابك، فإنك توافق على سياسة الخصوصية وملفات تعريف الارتباط والشروط والأحكام الخاصة بنا.
+    <footer class="max-w-md mx-auto px-6 py-6 text-center">
+      <p class="text-[11px] text-gray-400 leading-relaxed">
+        بتسجيل الدخول، أنت توافق على <a href="#" class="underline hover:text-gray-600">الشروط والأحكام</a> و <a href="#" class="underline hover:text-gray-600">سياسة الخصوصية</a>
+      </p>
     </footer>
 
   </div>
@@ -89,6 +111,7 @@ const primary = '#8a1538'
 const router = useRouter()
 const route = useRoute()
 const user = useUser()
+const isForgotFlow = computed(() => route.query.reason === 'forgot')
 
 const countryDial = ref<string>(route.query.dial ? String(route.query.dial) : '+966')
 const phone = ref<string>(route.query.phone ? String(route.query.phone) : '')
@@ -101,7 +124,20 @@ const displayPhone = computed(()=>{
 })
 
 function goBack(){ try{ router.back() } catch{} }
-function editNumber(){ router.push('/login') }
+function editNumber(){ 
+  // Pass current phone and dial back to login to pre-fill
+  const rawPhone = phone.value.replace(/\D/g,'')
+  const rawDial = countryDial.value.replace(/\D/g,'')
+  // If phone starts with dial, strip it for the input field
+  let phoneInput = rawPhone
+  if (phoneInput.startsWith(rawDial)) {
+    phoneInput = phoneInput.substring(rawDial.length)
+  }
+  // Remove leading zeros if any, as the login input usually expects that
+  phoneInput = phoneInput.replace(/^0+/, '')
+  
+  router.push({ path: '/login', query: { phone: phoneInput, dial: countryDial.value } }) 
+}
 
 const length = 6
 const code = ref<string[]>(Array.from({ length }, ()=>''))
@@ -116,29 +152,113 @@ const shake = ref<boolean>(false)
 const errorText = ref<string>('')
 const verifying = ref<boolean>(false)
 
-onMounted(()=>{ tick(); try{ inputsRef.value[0]?.focus() }catch{} })
-// Auto request on arrive if query auto=1
-onMounted(async ()=>{
-  const auto = String(route.query.auto||'') === '1'
-  const ch = String(route.query.ch||'')
-  if (!auto) return
-  try{
-    let local = phone.value.replace(/\D/g,'')
-    if (local.startsWith('0')) local = local.replace(/^0+/, '')
-    const dial = String(countryDial.value||'').replace(/\D/g,'')
-    const e164 = local.startsWith(dial) ? local : (dial + local)
-    const r = await apiPost('/api/auth/otp/request', { phone: e164, channel: ch || 'whatsapp' })
-    if (r && (r.ok || r.sent)) {
-      timeLeft.value = 60; canResend.value = false; if (!timeLeft.value) tick();
-      if ((r as any).channelUsed === 'sms') {
-        errorText.value = 'تم الإرسال عبر SMS تلقائياً.';
-      }
+const verificationMethod = ref<string>('whatsapp')
+const infoText = ref<string>('')
+const methodName = computed(() => verificationMethod.value === 'whatsapp' ? 'WhatsApp' : 'SMS')
+
+let timerInterval: any = null
+
+function startTimer(seconds: number) {
+  timeLeft.value = seconds
+  canResend.value = false
+  if (timerInterval) clearInterval(timerInterval)
+  timerInterval = setInterval(() => {
+    if (timeLeft.value > 0) {
+      timeLeft.value--
     } else {
-      errorText.value = 'تعذر إرسال الرمز عبر واتساب. سنحاول SMS تلقائياً أو أعد المحاولة بعد لحظات.';
+      canResend.value = true
+      if (timerInterval) clearInterval(timerInterval)
     }
-  } catch { errorText.value = 'خطأ في الشبكة' }
+  }, 1000)
+}
+
+onMounted(()=>{ 
+  try{ inputsRef.value[0]?.focus() }catch{} 
 })
-function tick(){ if (timeLeft.value>0){ setTimeout(()=>{ timeLeft.value--; tick() }, 1000) } else { canResend.value = true } }
+// Auto request on arrive if query auto=1
+// Session storage helpers for OTP cooldown
+function getLastSent(p: string) {
+  try { return parseInt(sessionStorage.getItem('last_otp_' + p) || '0') } catch { return 0 }
+}
+function setLastSent(p: string) {
+  try { sessionStorage.setItem('last_otp_' + p, Date.now().toString()) } catch {}
+}
+
+onMounted(async ()=>{
+  // 1. Resolve Phone/Dial immediately from URL or State to ensure persistence works
+  const params = new URLSearchParams(window.location.search)
+  const urlPhone = params.get('phone') || ''
+  const urlDial = params.get('dial') || ''
+  
+  if ((!phone.value || phone.value === 'undefined') && urlPhone) phone.value = urlPhone
+  if (countryDial.value === '+966' && urlDial) countryDial.value = urlDial
+
+  // 2. Check cooldown immediately with the resolved phone
+  const last = getLastSent(phone.value)
+  const diff = (Date.now() - last) / 1000
+  
+  const auto = params.get('auto') === '1'
+  const ch = params.get('ch') || 'whatsapp'
+
+  if (diff < 60) {
+    startTimer(Math.floor(60 - diff))
+  } else {
+    if (auto) {
+      canResend.value = false
+      startTimer(60)
+      setLastSent(phone.value) // Optimistic save so refresh works
+    } else {
+      canResend.value = true
+      timeLeft.value = 0
+    }
+  }
+  
+  if (auto) {
+    // Remove auto from URL silently without triggering router/remount
+    try {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('auto')
+      window.history.replaceState({}, '', url.toString())
+    } catch {}
+
+    // If we are already in cooldown (from step 1), do NOT send again
+    if (diff < 60) return
+
+    try{
+      // Use the most up-to-date values
+      const pVal = phone.value || urlPhone
+      const dVal = countryDial.value || urlDial
+
+      let local = pVal.replace(/\D/g,'')
+      if (local.startsWith('0')) local = local.replace(/^0+/, '')
+      const dial = String(dVal||'').replace(/\D/g,'')
+      const e164 = local.startsWith(dial) ? local : (dial + local)
+      
+      console.log('[Verify] Requesting OTP for:', e164, 'channel:', ch)
+      const r: any = await apiPost('/api/auth/otp/request', { phone: e164, channel: ch })
+      console.log('[Verify] OTP Response:', r)
+
+      if (r && (r.ok || r.sent)) {
+        // Timer already started optimistically
+        if (r.channelUsed === 'sms') {
+          verificationMethod.value = 'sms'
+          infoText.value = 'تم الإرسال عبر SMS تلقائياً.'
+        } else {
+          verificationMethod.value = 'whatsapp'
+        }
+      } else {
+        // Failed, BUT do not stop timer as per user request
+        // Just show the error message
+        console.error('[Verify] OTP Request Failed:', r)
+        errorText.value = r?.error ? `خطأ: ${r.error}` : 'تعذر إرسال الرمز عبر واتساب. سنحاول SMS تلقائياً أو أعد المحاولة بعد لحظات.';
+      }
+    } catch (e) { 
+      // Network error, do not stop timer
+      console.error('[Verify] OTP Network Error:', e)
+      errorText.value = 'خطأ في الشبكة' 
+    }
+  }
+})
 
 function onChange(idx:number, v:string){
   const digit = v.replace(/\D/g,'').slice(0,1)
@@ -146,6 +266,7 @@ function onChange(idx:number, v:string){
   next[idx] = digit
   code.value = next
   if (digit && idx < length-1) inputsRef.value[idx+1]?.focus()
+  if (next.every(c => c.length === 1)) onSubmit()
 }
 function onKeyDown(idx:number, e:KeyboardEvent){
   if (e.key === 'Backspace'){
@@ -162,6 +283,13 @@ function onPaste(e: ClipboardEvent){
   const next = [...code.value]
   for (let i=0;i<length;i++) next[i] = pasted[i]||''
   code.value = next
+  
+  if (next.every(c => c.length === 1)) {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    onSubmit()
+    return
+  }
+
   // move focus to first empty or last
   const firstEmpty = next.findIndex(c=> !c)
   const pos = firstEmpty === -1 ? length-1 : firstEmpty
@@ -181,7 +309,15 @@ async function resend(){
     const e164 = local.startsWith(dial) ? local : (dial + local)
     const r = await apiPost('/api/auth/otp/request', { phone: e164, channel: 'whatsapp' })
     if (r && (r.ok || r.sent)){
-      timeLeft.value = 60; canResend.value = false; tick()
+      setLastSent(phone.value)
+      startTimer(60)
+      if ((r as any).channelUsed === 'sms') {
+          verificationMethod.value = 'sms'
+          infoText.value = 'تم الإرسال عبر SMS تلقائياً.'
+      } else {
+          verificationMethod.value = 'whatsapp'
+          infoText.value = ''
+      }
     } else { errorText.value = 'تعذر إرسال الرمز' }
   } catch { errorText.value = 'خطأ في الشبكة' } finally { resending.value = false }
 }
@@ -276,12 +412,22 @@ async function onSubmit(){
           await cart.syncFromServer(true)
           cart.saveLocal()
         }catch{}
-        if (r.newUser || incomplete) router.push({ path: '/complete-profile', query: { return: ret } })
-        else router.push(ret)
+        if (String(route.query.reason) === 'forgot') {
+          router.push('/reset-password')
+        } else if (r.newUser || incomplete) {
+          router.push({ path: '/complete-profile', query: { return: ret } })
+        } else {
+          router.push(ret)
+        }
       } else {
         // Fallback: honor API hint if provided
-        if (r.newUser) router.push({ path: '/complete-profile', query: { return: ret } })
-        else router.push(ret)
+        if (String(route.query.reason) === 'forgot') {
+          router.push('/reset-password')
+        } else if (r.newUser) {
+          router.push({ path: '/complete-profile', query: { return: ret } })
+        } else {
+          router.push(ret)
+        }
       }
     } else { errorText.value = 'رمز غير صحيح أو منتهي' }
   } catch { errorText.value = 'خطأ في الشبكة' } finally { verifying.value = false }

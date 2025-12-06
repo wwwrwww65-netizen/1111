@@ -1,6 +1,6 @@
 // AUTO-GENERATED FROM Figma mapping.json
 export const routes = [
-  { path: '/', component: () => import('./pages/Home.vue') },
+  { path: '/', redirect: '/tabs/' },
   { path: '/products', component: () => import('./pages/Products.vue') },
   { path: '/cart', component: () => import('./pages/Cart.vue') },
   { path: '/login', component: () => import('./pages/Login.vue') },
@@ -781,6 +781,7 @@ export const routes = [
   { path: '/bulk', component: () => import('./pages/bulk.vue') },
   { path: '/icongeneral', component: () => import('./pages/IconGeneral.vue') },
   { path: '/essetional-510', component: () => import('./pages/Essetional510.vue') },
-  { path: '/video-audio-image-405', component: () => import('./pages/VideoAudioImage405.vue') }
+  { path: '/video-audio-image-405', component: () => import('./pages/VideoAudioImage405.vue') },
+  { path: '/password', component: () => import('./pages/Password.vue') },
 ];
 export const homePath = '/';

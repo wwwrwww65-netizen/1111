@@ -23,12 +23,24 @@
           <!-- Search Bar (shows when scrolled) -->
           <Transition name="fade" mode="out-in">
             <div v-if="showHeaderSearch" key="search" class="w-full max-w-lg">
-              <div class="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-full mx-2">
-                <input 
-                  type="text" 
-                  placeholder="بلايز نسائي" 
-                  class="flex-1 bg-transparent border-0 outline-none text-[13px] text-gray-700 placeholder-gray-400"
-                />
+              <div 
+                class="flex items-center bg-gray-100 rounded-full h-9 pl-1 pr-3 gap-2 cursor-pointer mx-2" 
+                @click="router.push('/search')"
+              >
+                <!-- Input (Readonly/Fake) -->
+                <div class="flex-1 text-[12px] text-gray-500 text-right truncate">
+                  {{ title || 'ابحث في المنتجات' }}
+                </div>
+                
+                <!-- Camera Icon -->
+                <button class="opacity-60 flex items-center justify-center" aria-label="بحث بالصور">
+                  <Camera class="w-5 h-5 text-[#222]" />
+                </button>
+
+                <!-- Search Button (Oval) -->
+                <div class="bg-[#8a1538] rounded-[16px] w-[44px] h-[30px] flex items-center justify-center shadow-sm">
+                  <Search class="w-[18px] h-[18px] text-white" />
+                </div>
               </div>
             </div>
             <!-- Logo (default) -->
@@ -1059,7 +1071,7 @@ import {
   ShoppingCart, Share, Menu, 
   Star as StarIcon, Heart as HeartIcon,
   ChevronLeft, ChevronRight, Camera, ThumbsUp, Truck, DollarSign, 
-  RotateCcw, ShieldCheck, ChevronUp, CheckCircle, Store, Copy, X
+  RotateCcw, ShieldCheck, ChevronUp, CheckCircle, Store, Copy, X, Search
 } from 'lucide-vue-next'
 import { consumePrefetchPayload } from '@/lib/nav'
 import ProductGridCard from '@/components/ProductGridCard.vue'

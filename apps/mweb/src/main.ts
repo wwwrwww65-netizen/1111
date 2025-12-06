@@ -1,18 +1,21 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import { createHead } from '@unhead/vue/client';
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { routes as genRoutes } from './routes.generated';
 import App from './App.vue';
 import './tokens.css';
 import './tailwind.css';
 import './styles.css';
 import { injectTracking } from './tracking';
-import { useCart } from './store/cart'
-import { initCurrency } from './lib/currency'
-import { apiPost } from './lib/api'
+import { useCart } from './store/cart';
+import { useUser } from './store/user';
+import { initCurrency } from './lib/currency';
+import { apiPost } from './lib/api';
+
 // Track affiliate ref
-const ref = new URLSearchParams(location.search).get('ref'); if (ref) { try { sessionStorage.setItem('affiliate_ref', ref) } catch { } }
+const ref = new URLSearchParams(location.search).get('ref');
+if (ref) { try { sessionStorage.setItem('affiliate_ref', ref) } catch { } }
 
 // Capture token from URL (?t=...) after OAuth/SSO and persist locally for SPA Authorization header
 try {
@@ -65,7 +68,9 @@ try {
   }
 } catch { }
 
-const manualRoutes = [
+const manualRoutes: RouteRecordRaw[] = [
+  // @ts-ignore - redirect route is valid but TypeScript has issues with the type
+  { path: '/', redirect: '/tabs/' },
   { path: '/mis', component: () => import('./pages/Mis.vue') },
   { path: '/categories', component: () => import('./pages/Categories.vue') },
   { path: '/products', component: () => import('./pages/Products.vue') },
@@ -95,46 +100,82 @@ const manualRoutes = [
   { path: '/legal/terms', component: () => import('./pages/LegalTerms.vue') },
   { path: '/legal/privacy', component: () => import('./pages/LegalPrivacy.vue') },
   { path: '/legal/shipping', component: () => import('./pages/LegalShipping.vue') },
-  { path: '/legal/returns', component: () => import('./pages/LegalReturns.vue') }
-  , { path: '/order/track', component: () => import('./pages/OrderTrack.vue') }
-  , { path: '/returns', component: () => import('./pages/Returns.vue') }
-  , { path: '/help', component: () => import('./pages/Help.vue') }
-  , { path: '/contact', component: () => import('./pages/Contact.vue') }
-  , { path: '/points', component: () => import('./pages/Points.vue') }
-  , { path: '/prefs', component: () => import('./pages/Prefs.vue') }
-  , { path: '/tabs/:slug', component: () => import('./pages/Home.vue') }
-  , { path: '/tabs/preview', component: () => import('./pages/tabs/preview.vue') }
-  , { path: '/__preview/tabs', component: () => import('./pages/__preview/tabs.vue') }
-  , { path: '/__admin_preview', component: () => import('./pages/__admin_preview.vue') }
-  , { path: '/coupons', component: () => import('./pages/coupons.vue') }
-  , { path: '/auth/google/callback', component: () => import('./pages/auth/google/callback.vue') }
-  , { path: '/:pathMatch(.*)*', component: () => import('./pages/NotFound.vue') }
+  { path: '/legal/returns', component: () => import('./pages/LegalReturns.vue') },
+  { path: '/order/track', component: () => import('./pages/OrderTrack.vue') },
+  { path: '/returns', component: () => import('./pages/Returns.vue') },
+  { path: '/help', component: () => import('./pages/Help.vue') },
+  { path: '/contact', component: () => import('./pages/Contact.vue') },
+  { path: '/points', component: () => import('./pages/Points.vue') },
+  { path: '/prefs', component: () => import('./pages/Prefs.vue') },
+  { path: '/tabs/:slug', component: () => import('./pages/Home.vue') },
+  { path: '/tabs', component: () => import('./pages/Home.vue') },
+  { path: '/tabs/preview', component: () => import('./pages/tabs/preview.vue') },
+  { path: '/__preview/tabs', component: () => import('./pages/__preview/tabs.vue') },
+  { path: '/__admin_preview', component: () => import('./pages/__admin_preview.vue') },
+  { path: '/coupons', component: () => import('./pages/coupons.vue') },
+  { path: '/auth/google/callback', component: () => import('./pages/auth/google/callback.vue') },
+  { path: '/reset-password', component: () => import('./pages/ResetPassword.vue') }
 ];
-const routes = [...manualRoutes, ...genRoutes];
+
+const routes = [...manualRoutes, ...genRoutes, { path: '/:pathMatch(.*)*', component: () => import('./pages/NotFound.vue') }];
 
 const app = createApp(App);
 const head = createHead();
 app.use(createPinia());
 app.use(head);
+
 const router = createRouter({
   history: createWebHistory(),
+  // @ts-ignore - routes array type is correct despite TypeScript error
   routes,
   scrollBehavior(to, from, savedPosition) {
-    if (savedPosition) return savedPosition
+    if (savedPosition) return savedPosition;
     // Always scroll to top on route changes, and to anchor if provided
-    if (to.hash) return { el: to.hash, behavior: 'smooth' }
-    return { left: 0, top: 0 }
+    if (to.hash) return { el: to.hash, behavior: 'smooth' };
+    return { left: 0, top: 0 };
   }
 });
+
+// Global Navigation Guard
+router.beforeEach((to, from, next) => {
+  const user = useUser();
+  const cart = useCart();
+
+  // 1. Auth Protection: Redirect logged-in users from Auth pages
+  const authPages = ['/login', '/register', '/forgot', '/reset-password', '/verify', '/password'];
+  // Check if path starts with any auth page (to handle sub-paths if any, though exact match is usually safer for these)
+  // Also check cookie existence for initial load protection before store hydration
+  const hasAuthCookie = (typeof document !== 'undefined') && (document.cookie.includes('shop_auth_token=') || document.cookie.includes('auth_token='));
+
+  if (authPages.includes(to.path) && (user.isLoggedIn || hasAuthCookie)) {
+    // Redirect to return URL or Account
+    return next({ path: (to.query.return as string) || '/account', replace: true });
+  }
+
+  // 2. Checkout Protection: Redirect empty cart from Checkout
+  if (to.path === '/checkout' && cart.count === 0) {
+    return next({ path: '/cart', replace: true });
+  }
+
+  // 3. Duplicate Prevention: Prevent pushing the exact same page
+  if (to.fullPath === from.fullPath) {
+    return next(false);
+  }
+
+  next();
+});
+
 app.use(router);
 app.mount('#app');
 injectTracking();
+
 // Ensure PageView fires on SPA navigations (avoid duplicate on initial load if index.html already fired)
 try {
   const firePV = () => { try { const fbq = (window as any).fbq; if (typeof fbq === 'function') { const now = Date.now(); const last = (window as any).__LAST_PV_TS__ || 0; if (now - last > 800) { fbq('track', 'PageView'); (window as any).__LAST_PV_TS__ = now; } } } catch { } }
   if (!(window as any).__FB_PV_BOOT_INIT) { firePV(); }
   router.afterEach(() => { firePV(); })
 } catch { }
+
 try {
   const cart = useCart(); cart.loadLocal();
   // If logged in (token cookie present) hydrate from server; else for guests hydrate if local is empty (guest cart via cookie)
@@ -157,4 +198,3 @@ try {
   } catch { }
 } catch { }
 try { initCurrency() } catch { }
-

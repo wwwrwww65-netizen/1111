@@ -52,7 +52,7 @@ export const corsOptions = {
         const host = u.hostname || '';
         if (host === root || host.endsWith('.' + root)) return callback(null, true);
       }
-    } catch {}
+    } catch { }
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
@@ -86,7 +86,7 @@ export const rateLimitConfig = rateLimit({
       if (p.startsWith('/uploads/')) return true;
       // Skip public cacheable shop endpoints
       if (m === 'GET' && /^\/api\/(currency|categories|products|product|recommendations|reviews|cms|geo|shipping|payments)/.test(p)) return true;
-    } catch {}
+    } catch { }
     return false;
   },
   keyGenerator: (req /*, _res */) => {

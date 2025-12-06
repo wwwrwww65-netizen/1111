@@ -98,10 +98,18 @@ app.use((_req, res, next) => {
   const originalJson = res.json.bind(res);
   (res as any).json = (payload: any) => {
     try {
+      if (payload === undefined) return originalJson(payload);
       const safe = JSON.parse(JSON.stringify(payload, (_k, v) => typeof v === 'bigint' ? Number(v) : v));
       return originalJson(safe);
-    } catch {
-      return originalJson(payload);
+    } catch (e) {
+      console.error('JSON serialization error:', e);
+      // Fallback: try to send original payload, if that fails, send error
+      try {
+        return originalJson(payload);
+      } catch (err) {
+        console.error('Fallback JSON serialization failed:', err);
+        return res.status(500).send('Internal Server Error: Serialization Failed');
+      }
     }
   };
   next();

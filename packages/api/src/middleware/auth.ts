@@ -8,7 +8,7 @@ const getJwtSecretLocal = getJwtSecret;
 // Schema for JWT payload
 const JWTPayloadSchema = z.object({
   userId: z.string(),
-  email: z.string().email().optional(),
+  email: z.string().email().optional().or(z.literal('')),
   phone: z.string().optional(),
   role: z.enum(['USER', 'ADMIN']),
   iat: z.number(),
@@ -42,7 +42,7 @@ export const optionalAuthMiddleware = t.middleware(async ({ ctx, next }) => {
     try {
       const payload = verifyToken(token);
       return next({ ctx: { ...ctx, user: payload } });
-    } catch {}
+    } catch { }
   }
   return next({ ctx: { ...ctx, user: null } });
 });

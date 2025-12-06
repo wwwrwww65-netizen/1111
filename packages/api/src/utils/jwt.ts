@@ -5,7 +5,8 @@ import { z } from 'zod';
 const JWTPayloadSchema = z.object({
   userId: z.string(),
   // Email is optional now to support phone-only (WhatsApp) accounts
-  email: z.string().email().optional(),
+  // Relaxed validation to allow 'phone+number@local' which might fail strict email regex
+  email: z.string().optional().or(z.literal('')),
   // Optional phone E.164-ish (we don't strictly validate format here)
   phone: z.string().optional(),
   role: z.enum(['USER', 'ADMIN']),
@@ -52,7 +53,8 @@ export const verifyJwt = (token: string): JWTPayload => {
     try {
       const decoded = jwt.verify(token, s);
       return JWTPayloadSchema.parse(decoded);
-    } catch {}
+    } catch (e) {
+    }
   }
   throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid or expired token' });
 };
@@ -77,7 +79,7 @@ export const readTokenFromRequest = (req: any): string | null => {
   try {
     const q = String(req?.query?.t || '').trim();
     if (q) return q;
-  } catch {}
+  } catch { }
   return null;
 };
 

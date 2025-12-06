@@ -51,6 +51,10 @@ export default defineConfig(({ mode }) => ({
         target: (process.env.API_URL || 'http://localhost:4000') + '/api/media/thumb',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/i/, '')
+      },
+      '/trpc': {
+        target: process.env.API_URL || 'http://localhost:4000',
+        changeOrigin: true,
       }
     }
   },

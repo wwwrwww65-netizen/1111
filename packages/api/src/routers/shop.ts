@@ -130,6 +130,10 @@ shop.get('/auth/me', async (req: any, res) => {
     if (!user) return res.status(404).json({ error: 'user_not_found' });
     return res.json(user);
   } catch (e: any) {
+    // If it's a TRPCError with UNAUTHORIZED, return 401
+    if (e?.code === 'UNAUTHORIZED' || e?.message === 'Invalid or expired token') {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
     return res.status(500).json({ error: e?.message || 'auth_me_failed' });
   }
 });
@@ -1560,6 +1564,65 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
     try { await mergeGuestIntoUserIfPresent(req, res, String(user.id)); } catch { }
     return res.json({ ok: true, token, newUser: !existed });
   } catch (e: any) { return res.status(500).json({ ok: false, error: e.message || 'otp_verify_failed' }); }
+});
+
+shop.post('/auth/phone/login', async (req: any, res) => {
+  try {
+    const phone = String(req.body?.phone || '').trim();
+    const password = String(req.body?.password || '').trim();
+    if (!phone || !password) return res.status(400).json({ ok: false, error: 'phone_password_required' });
+    const normalized = phone.replace(/\s+/g, '');
+    const digitsOnly = normalized.replace(/\D/g, '');
+    const emailLegacy1 = `phone+${normalized}@local`;
+    const emailLegacy2 = `phone+${digitsOnly}@local`;
+    let user = await db.user.findFirst({ where: { OR: [{ email: emailLegacy1 }, { email: emailLegacy2 }, { phone: normalized }, { phone: digitsOnly }, { phone: `+${digitsOnly}` }, { phone: `00${digitsOnly}` }] }, select: { id: true, email: true, password: true, name: true, phone: true, role: true, isVerified: true } } as any);
+    if (!user) return res.status(401).json({ ok: false, error: 'invalid_credentials' });
+    if (!user.password || user.password === '') return res.status(401).json({ ok: false, error: 'password_not_set' });
+    const bcrypt = require('bcryptjs');
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) return res.status(401).json({ ok: false, error: 'invalid_credentials' });
+    const token = signJwt({ userId: user.id, phone: user.phone || normalized, email: user.email, role: (user as any).role || 'USER' });
+    const cookieDomain = process.env.COOKIE_DOMAIN || '.jeeey.com';
+    const isProd = (process.env.NODE_ENV || 'production') === 'production';
+    const host = String(req.headers?.host || '').toLowerCase();
+    const isLocalHost = host.includes('localhost') || host.startsWith('127.0.0.1') || host.startsWith('10.') || host.startsWith('192.168.');
+    try { res.clearCookie('auth_token', { domain: cookieDomain, path: '/' }); const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain; if (root) res.clearCookie('auth_token', { domain: `api.${root}`, path: '/' }); } catch { }
+    try { res.cookie('shop_auth_token', token, { httpOnly: true, domain: isLocalHost ? undefined : cookieDomain, sameSite: isProd && !isLocalHost ? 'none' : 'lax', secure: isProd && !isLocalHost, maxAge: 3600 * 24 * 30 * 1000, path: '/' } as any); } catch { }
+    try { const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain; if (root && !isLocalHost) { res.cookie('shop_auth_token', token, { httpOnly: true, domain: `api.${root}`, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600 * 24 * 30 * 1000, path: '/' }); } } catch { }
+    try { await mergeGuestIntoUserIfPresent(req, res, String(user.id)); } catch { }
+    const { password: _, ...userWithoutPassword } = user;
+    return res.json({ ok: true, token, user: userWithoutPassword });
+  } catch (e: any) { return res.status(500).json({ ok: false, error: e.message || 'login_failed' }); }
+});
+
+shop.post('/auth/password/reset', async (req: any, res) => {
+  try {
+    const token = readTokenFromRequest(req);
+    if (!token) return res.status(401).json({ error: 'unauthorized' });
+    const payload = verifyJwt(token);
+    if (!payload || !payload.userId) return res.status(401).json({ error: 'unauthorized' });
+
+    const { password, confirm } = req.body || {};
+    const passRaw = String(password || '').trim();
+    const confRaw = String(confirm || '').trim();
+
+    if (!passRaw) return res.status(400).json({ ok: false, error: 'password_required' });
+    if (passRaw.length < 6) return res.status(400).json({ ok: false, error: 'password_too_short' });
+    if (passRaw !== confRaw) return res.status(400).json({ ok: false, error: 'passwords_mismatch' });
+
+    const bcrypt = require('bcryptjs');
+    const salt = bcrypt.genSaltSync(10);
+    const hash = bcrypt.hashSync(passRaw, salt);
+
+    await db.user.update({
+      where: { id: payload.userId },
+      data: { password: hash }
+    } as any);
+
+    return res.json({ ok: true });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message || 'password_reset_failed' });
+  }
 });
 
 // Test-only: latest OTP code for a phone (protected by maintenance secret)
@@ -4759,8 +4822,12 @@ shop.get('/cart', async (req: any, res) => {
 
 shop.post('/cart/merge', async (req: any, res) => {
   try {
-    const userId = (req as any)?.user?.userId;
-    if (!userId) return res.status(401).json({ error: 'unauthorized' });
+    // Read token and verify
+    const token = readTokenFromRequest(req);
+    if (!token) return res.status(401).json({ error: 'unauthorized' });
+    const payload = verifyJwt(token);
+    if (!payload || !payload.userId) return res.status(401).json({ error: 'unauthorized' });
+    const userId = payload.userId;
     const items: Array<{ productId: string; quantity: number }> = Array.isArray(req.body?.items) ? req.body.items : [];
     if (!items.length) return res.json({ ok: true });
     // Ensure cart exists
@@ -6571,3 +6638,35 @@ shop.get('/search/suggest', async (req, res) => {
     res.json({ items: rows.map(r => r.name) })
   } catch { res.status(500).json({ items: [] }) }
 })
+
+// Check if user exists by phone (for login flow UI)
+shop.get('/auth/check-user', async (req: any, res) => {
+  try {
+    const phone = String(req.query.phone || '').trim();
+    if (!phone) return res.json({ exists: false });
+
+    const normalized = phone.replace(/\s+/g, '');
+    const digitsOnly = normalized.replace(/\D/g, '');
+
+    // Legacy internal email check (try both with original and digits only)
+    const emailLegacy1 = `phone+${normalized}@local`;
+    const emailLegacy2 = `phone+${digitsOnly}@local`;
+
+    let user = await db.user.findFirst({
+      where: {
+        OR: [
+          { email: emailLegacy1 },
+          { email: emailLegacy2 },
+          { phone: normalized },
+          { phone: digitsOnly },
+          { phone: `+${digitsOnly}` },
+          { phone: `00${digitsOnly}` }
+        ]
+      }
+    } as any);
+
+    return res.json({ exists: !!user, name: user?.name || null });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message || 'failed' });
+  }
+});
