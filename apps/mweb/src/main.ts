@@ -1,5 +1,6 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
+import { createHead } from '@unhead/vue/client';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { routes as genRoutes } from './routes.generated';
 import App from './App.vue';
@@ -114,7 +115,9 @@ const manualRoutes: RouteRecordRaw[] = [
 const routes = [...manualRoutes, ...genRoutes, { path: '/:pathMatch(.*)*', component: () => import('./pages/NotFound.vue') }];
 
 const app = createApp(App);
+const head = createHead();
 app.use(createPinia());
+app.use(head);
 import { useUser } from './store/user';
 
 const router = createRouter({
@@ -189,4 +192,3 @@ try {
   } catch { }
 } catch { }
 try { initCurrency() } catch { }
-

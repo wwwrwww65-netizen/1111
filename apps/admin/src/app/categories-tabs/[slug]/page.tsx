@@ -1,17 +1,17 @@
 "use client";
 import React from "react";
-import { MediaPicker } from "../../components/MediaPicker";
-import { CategoriesPicker, Mini as CatMini } from "../../components/CategoriesPicker";
+import { MediaPicker } from "../../../components/MediaPicker";
+import { CategoriesPicker, Mini as CatMini } from "../../../components/CategoriesPicker";
 import { useParams } from "next/navigation";
 
-type Grid = { mode: 'explicit'; categories: CatMini[] } | { mode: 'filter'; categoryIds?: string[]; limit?: number; sortBy?: 'name_asc'|'name_desc'|'created_desc' };
+type Grid = { mode: 'explicit'; categories: CatMini[] } | { mode: 'filter'; categoryIds?: string[]; limit?: number; sortBy?: 'name_asc' | 'name_desc' | 'created_desc' };
 type Suggestions = { enabled?: boolean; title?: string; items?: CatMini[] } | CatMini[];
 type SidebarItem = { label: string; href?: string; icon?: string; promoBanner?: any; featured?: CatMini[]; grid?: Grid; suggestions?: Suggestions };
-type PageData = { layout?: { showHeader?: boolean; showSidebar?: boolean }; promoBanner?: any; title?: string; featured?: Mini[]; grid?: Grid; sidebarItems?: SidebarItem[]; suggestions?: Suggestions; seo?: { title?: string; description?: string } };
+type PageData = { layout?: { showHeader?: boolean; showSidebar?: boolean }; promoBanner?: any; title?: string; featured?: CatMini[]; grid?: Grid; sidebarItems?: SidebarItem[]; suggestions?: Suggestions; seo?: { title?: string; description?: string } };
 
 export default function CategoriesTabBuilder(): JSX.Element {
   const params = useParams();
-  const slug = String(params?.slug||"");
+  const slug = String(params?.slug || "");
   const [effectiveSlug, setEffectiveSlug] = React.useState<string>(slug);
   const [toast, setToast] = React.useState("");
   const [pageId, setPageId] = React.useState<string>("");
@@ -35,359 +35,359 @@ export default function CategoriesTabBuilder(): JSX.Element {
   const [mediaPath, setMediaPath] = React.useState<string[]>([]);
   const [catsOpen, setCatsOpen] = React.useState(false);
   const [catsPath, setCatsPath] = React.useState<string[]>([]);
-  const iframeRef = React.useRef<HTMLIFrameElement|null>(null);
+  const iframeRef = React.useRef<HTMLIFrameElement | null>(null);
 
-  const authHeaders = React.useCallback(()=>{
-    if (typeof document === 'undefined') return {} as Record<string,string>;
+  const authHeaders = React.useCallback(() => {
+    if (typeof document === 'undefined') return {} as Record<string, string>;
     const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
     let token = m ? m[1] : '';
-    try { token = decodeURIComponent(token); } catch {}
-    return token ? { Authorization: `Bearer ${token}` } : {} as Record<string,string>;
-  },[]);
+    try { token = decodeURIComponent(token); } catch { }
+    return token ? { Authorization: `Bearer ${token}` } : {} as Record<string, string>;
+  }, []);
 
-  const showToast = (m:string)=>{ setToast(m); setTimeout(()=> setToast("") , 1600); };
+  const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(""), 1600); };
 
-  async function init(){
-    try{
+  async function init() {
+    try {
       // ابحث فقط ضمن تبويبات الفئات لتجنّب الخلط مع تبويبات الرئيسية
-      const r = await fetch(`/api/admin/tabs/pages?device=MOBILE&limit=200&includeCategories=1`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
+      const r = await fetch(`/api/admin/tabs/pages?device=MOBILE&limit=200&includeCategories=1`, { credentials: 'include', cache: 'no-store', headers: { ...authHeaders() } });
       const j = await r.json();
-      let list: Array<any> = Array.isArray(j?.pages)? j.pages: [];
-      let p = list.find((x:any)=> String(x.slug||'')===slug || String(x.label||'')===slug || String(x.slug||'')===`cat-${slug}`);
+      let list: Array<any> = Array.isArray(j?.pages) ? j.pages : [];
+      let p = list.find((x: any) => String(x.slug || '') === slug || String(x.label || '') === slug || String(x.slug || '') === `cat-${slug}`);
 
       // If not found, create it on the fly
-      if (!p){
-        try{
-          const cr = await fetch(`/api/admin/tabs/pages`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ slug, label: slug, device:'MOBILE' }) });
-          if (cr.ok){
+      if (!p) {
+        try {
+          const cr = await fetch(`/api/admin/tabs/pages`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json', ...authHeaders() }, body: JSON.stringify({ slug, label: slug, device: 'MOBILE' }) });
+          if (cr.ok) {
             const cj = await cr.json();
             p = cj?.page || null;
           } else if (cr.status === 409) {
             // Slug محجوز ربما لغير الفئات: أنشئ نسخة بإضافة cat- لتجنّب خلط المحتوى
             const altSlug = slug.startsWith('cat-') ? slug : `cat-${slug}`;
-            const cr2 = await fetch(`/api/admin/tabs/pages`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ slug: altSlug, label: slug, device:'MOBILE' }) });
-            if (cr2.ok){ const cj2 = await cr2.json(); p = cj2?.page || null; setEffectiveSlug(altSlug); }
+            const cr2 = await fetch(`/api/admin/tabs/pages`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json', ...authHeaders() }, body: JSON.stringify({ slug: altSlug, label: slug, device: 'MOBILE' }) });
+            if (cr2.ok) { const cj2 = await cr2.json(); p = cj2?.page || null; setEffectiveSlug(altSlug); }
           }
-        }catch{}
+        } catch { }
       }
 
       if (!p) { showToast('لم يتم العثور على الصفحة'); return; }
       setPageId(p.id);
-      if (p.slug && String(p.slug)!==effectiveSlug) setEffectiveSlug(String(p.slug));
+      if (p.slug && String(p.slug) !== effectiveSlug) setEffectiveSlug(String(p.slug));
       // Load latest page meta (label/slug) to allow editing
-      try{
-        const pr = await fetch(`/api/admin/tabs/pages/${p.id}`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
+      try {
+        const pr = await fetch(`/api/admin/tabs/pages/${p.id}`, { credentials: 'include', cache: 'no-store', headers: { ...authHeaders() } });
         const pj = await pr.json();
         const page = pj?.page || p;
-        setPageMeta({ id: page.id, slug: page.slug, label: page.label||page.slug||'' });
-      }catch{}
+        setPageMeta({ id: page.id, slug: page.slug, label: page.label || page.slug || '' });
+      } catch { }
       // load latest version content
-      try{
-        const r2 = await fetch(`/api/admin/tabs/pages/${p.id}/versions`, { credentials:'include', cache:'no-store', headers: { ...authHeaders() } });
+      try {
+        const r2 = await fetch(`/api/admin/tabs/pages/${p.id}/versions`, { credentials: 'include', cache: 'no-store', headers: { ...authHeaders() } });
         const j2 = await r2.json();
-        const vlist: Array<any> = Array.isArray(j2?.versions)? j2.versions: [];
+        const vlist: Array<any> = Array.isArray(j2?.versions) ? j2.versions : [];
         const v = vlist[0];
         if (v?.content) {
           setJson(JSON.stringify(v.content, null, 2));
-          setLatestVersion(Number(v.version||0));
+          setLatestVersion(Number(v.version || 0));
         }
-      }catch{}
-    }catch{ showToast('تعذر التحميل'); }
+      } catch { }
+    } catch { showToast('تعذر التحميل'); }
   }
-  React.useEffect(()=>{ init(); },[slug]);
+  React.useEffect(() => { init(); }, [slug]);
 
   // Editable page meta (label/slug)
-  const [pageMeta, setPageMeta] = React.useState<{ id?:string; slug:string; label:string }>({ slug, label: slug });
-  async function savePageMeta(){
-    try{
+  const [pageMeta, setPageMeta] = React.useState<{ id?: string; slug: string; label: string }>({ slug, label: slug });
+  async function savePageMeta() {
+    try {
       if (!pageId) return;
-      const normalizedSlug = String(pageMeta.slug||'')
+      const normalizedSlug = String(pageMeta.slug || '')
         .trim()
         .toLowerCase()
-        .replace(/[^a-z0-9_-]+/g,'-')
-        .replace(/^-+|-+$/g,'')
-        .replace(/^(cat-)+/,'cat-'); // امنع cat-cat-
+        .replace(/[^a-z0-9_-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .replace(/^(cat-)+/, 'cat-'); // امنع cat-cat-
       const body = { id: pageId, slug: normalizedSlug, label: pageMeta.label, device: 'MOBILE' };
-      const r = await fetch(`/api/admin/tabs/pages`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify(body) });
-      if (!r.ok){ const t=await r.text().catch(()=> ''); showToast(`فشل حفظ الاسم/Slug${t? ': '+t:''}`); return; }
+      const r = await fetch(`/api/admin/tabs/pages`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) });
+      if (!r.ok) { const t = await r.text().catch(() => ''); showToast(`فشل حفظ الاسم/Slug${t ? ': ' + t : ''}`); return; }
       const j = await r.json();
-      setPageMeta({ id: j?.page?.id, slug: j?.page?.slug, label: j?.page?.label||'' });
+      setPageMeta({ id: j?.page?.id, slug: j?.page?.slug, label: j?.page?.label || '' });
       // إذا تغيّر الslug انتقل إلى المسار الجديد
-      if (j?.page?.slug && j.page.slug !== effectiveSlug){
+      if (j?.page?.slug && j.page.slug !== effectiveSlug) {
         setEffectiveSlug(j.page.slug);
         window.history.replaceState(null, '', `/categories-tabs/${encodeURIComponent(j.page.slug)}`);
       }
       showToast('تم حفظ الاسم/Slug');
-    }catch{ showToast('تعذر الحفظ'); }
+    } catch { showToast('تعذر الحفظ'); }
   }
 
   // keep parsed in sync with JSON
-  React.useEffect(()=>{
+  React.useEffect(() => {
     try { const obj = JSON.parse(json); setParsed(obj); } catch { /* ignore */ }
   }, [json]);
 
   // Live postMessage to preview iframe (wrap single tab content to Categories page config)
-  function toCategoriesPageConfig(obj:any): any {
-    try{
+  function toCategoriesPageConfig(obj: any): any {
+    try {
       const d = (obj && obj.data) ? obj.data : obj;
-      const getArr = (v:any)=> Array.isArray(v)? v : [];
-      const sidebar = getArr(d?.sidebarItems)?.map((s:any)=> ({ label: String(s?.label||''), icon: s?.icon||undefined, href: s?.href||undefined }));
-      const page:any = {
+      const getArr = (v: any) => Array.isArray(v) ? v : [];
+      const sidebar = getArr(d?.sidebarItems)?.map((s: any) => ({ label: String(s?.label || ''), icon: s?.icon || undefined, href: s?.href || undefined }));
+      const page: any = {
         layout: { showHeader: true, showTabs: false, showSidebar: true },
-        promoBanner: d?.promoBanner || { enabled:false, image:'', title:'', href:'' },
+        promoBanner: d?.promoBanner || { enabled: false, image: '', title: '', href: '' },
         sidebar: sidebar,
         featured: getArr(d?.featured),
-        grid: d?.grid || { mode:'filter', limit: 36, sortBy:'name_asc' },
+        grid: d?.grid || { mode: 'filter', limit: 36, sortBy: 'name_asc' },
         suggestions: d?.suggestions || { enabled: true, items: [] },
-        seo: d?.seo || { title:'', description:'' }
+        seo: d?.seo || { title: '', description: '' }
       };
       return page;
-    }catch{ return {}; }
+    } catch { return {}; }
   }
-  React.useEffect(()=>{
-    try{
+  React.useEffect(() => {
+    try {
       const win = iframeRef.current?.contentWindow; if (!win) return;
       const obj = JSON.parse(json);
       const wrapped = toCategoriesPageConfig(obj);
       win.postMessage({ __categories_preview: true, content: wrapped }, '*');
-    }catch{}
+    } catch { }
   }, [json]);
 
-  function setAtPath(path: string[], value: any){
-    try{
+  function setAtPath(path: string[], value: any) {
+    try {
       const obj = JSON.parse(json);
-      let cur:any = obj;
-      for (let i=0;i<path.length-1;i++){ const k = path[i]; if (!(k in cur) || typeof cur[k] !== 'object') cur[k] = {}; cur = cur[k]; }
-      cur[path[path.length-1]] = value;
+      let cur: any = obj;
+      for (let i = 0; i < path.length - 1; i++) { const k = path[i]; if (!(k in cur) || typeof cur[k] !== 'object') cur[k] = {}; cur = cur[k]; }
+      cur[path[path.length - 1]] = value;
       setJson(JSON.stringify(obj, null, 2));
-    }catch{}
+    } catch { }
   }
-  function getAtPath<T=any>(path: string[], fallback: T): T{
-    try{
+  function getAtPath<T = any>(path: string[], fallback: T): T {
+    try {
       const obj = parsed || JSON.parse(json);
-      let cur:any = obj;
-      for (const k of path){ if (cur == null) return fallback; cur = cur[k]; }
-      return (cur==null? fallback: cur) as T;
-    }catch{ return fallback }
+      let cur: any = obj;
+      for (const k of path) { if (cur == null) return fallback; cur = cur[k]; }
+      return (cur == null ? fallback : cur) as T;
+    } catch { return fallback }
   }
-  function ensureArray(path: string[]): any[]{
+  function ensureArray(path: string[]): any[] {
     const arr = getAtPath<any[]>(path, []);
     if (Array.isArray(arr)) return arr;
     setAtPath(path, []);
     return [];
   }
 
-  async function saveDraft(){
+  async function saveDraft() {
     if (!pageId) { showToast('لا توجد صفحة'); return; }
-    let content:any = null;
-    try{ content = JSON.parse(json); }catch{ showToast('JSON غير صالح'); return; }
+    let content: any = null;
+    try { content = JSON.parse(json); } catch { showToast('JSON غير صالح'); return; }
     // Enforce correct content type for categories tabs to be discoverable at /categories
-    try{
+    try {
       if (!content || typeof content !== 'object') content = {};
       if (content.type !== 'categories-v1') content.type = 'categories-v1';
       if (!content.data || typeof content.data !== 'object') content.data = {};
-    }catch{}
+    } catch { }
     setBusy(true);
-    try{
-      const r = await fetch(`/api/admin/tabs/pages/${pageId}/versions`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ title: content?.data?.title||'', content, notes: '' }) });
-      if (!r.ok){ const t=await r.text().catch(()=>""); showToast(`فشل الحفظ${t? ': '+t: ''}`); return; }
-      const j = await r.json(); setLatestVersion(Number(j?.version?.version||j?.version||0));
+    try {
+      const r = await fetch(`/api/admin/tabs/pages/${pageId}/versions`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json', ...authHeaders() }, body: JSON.stringify({ title: content?.data?.title || '', content, notes: '' }) });
+      if (!r.ok) { const t = await r.text().catch(() => ""); showToast(`فشل الحفظ${t ? ': ' + t : ''}`); return; }
+      const j = await r.json(); setLatestVersion(Number(j?.version?.version || j?.version || 0));
       showToast('تم الحفظ');
     } finally { setBusy(false); }
   }
 
-  async function publish(){
+  async function publish() {
     if (!pageId) { showToast('لا توجد صفحة'); return; }
     setBusy(true);
-    try{
+    try {
       // أنشئ نسخة فوراً من المحتوى الحالي ثم انشرها لضمان حفظ آخر التعديلات
-      let content:any = null;
-      try{
+      let content: any = null;
+      try {
         content = JSON.parse(json);
         if (!content || typeof content !== 'object') content = {};
         if (content.type !== 'categories-v1') content.type = 'categories-v1';
         if (!content.data || typeof content.data !== 'object') content.data = {};
-      }catch{ showToast('JSON غير صالح'); return; }
-      const vr = await fetch(`/api/admin/tabs/pages/${pageId}/versions`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ title: content?.data?.title||'', content, notes: '' }) });
-      if (!vr.ok){ const t=await vr.text().catch(()=>""); showToast(`فشل إنشاء نسخة للنشر${t? ': '+t: ''}`); return; }
+      } catch { showToast('JSON غير صالح'); return; }
+      const vr = await fetch(`/api/admin/tabs/pages/${pageId}/versions`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json', ...authHeaders() }, body: JSON.stringify({ title: content?.data?.title || '', content, notes: '' }) });
+      if (!vr.ok) { const t = await vr.text().catch(() => ""); showToast(`فشل إنشاء نسخة للنشر${t ? ': ' + t : ''}`); return; }
       const vj = await vr.json();
-      const version = Number(vj?.version?.version||vj?.version||0) || 1;
-      const r = await fetch(`/api/admin/tabs/pages/${pageId}/publish`, { method:'POST', credentials:'include', headers:{ 'content-type':'application/json', ...authHeaders() }, body: JSON.stringify({ version }) });
-      if (!r.ok){ const t=await r.text().catch(()=>""); showToast(`فشل النشر${t? ': '+t: ''}`); return; }
+      const version = Number(vj?.version?.version || vj?.version || 0) || 1;
+      const r = await fetch(`/api/admin/tabs/pages/${pageId}/publish`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json', ...authHeaders() }, body: JSON.stringify({ version }) });
+      if (!r.ok) { const t = await r.text().catch(() => ""); showToast(`فشل النشر${t ? ': ' + t : ''}`); return; }
       setLatestVersion(version);
       showToast('تم النشر');
     } finally { setBusy(false); }
   }
 
-  async function preview(){
-    let content:any = null;
-    try{ content = JSON.parse(json); }catch{ showToast('JSON غير صالح'); return; }
-    try{
+  async function preview() {
+    let content: any = null;
+    try { content = JSON.parse(json); } catch { showToast('JSON غير صالح'); return; }
+    try {
       const origin = process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'https://m.jeeey.com';
       const payload = encodeURIComponent(JSON.stringify(toCategoriesPageConfig(content)));
       const url = `${origin}/categories?payload=${payload}`;
       window.open(url, '_blank');
-    }catch{ showToast('فشل المعاينة'); }
+    } catch { showToast('فشل المعاينة'); }
   }
 
   return (
-    <main style={{ padding:16 }}>
-      <h1 style={{ margin:'0 0 10px', fontSize:22, fontWeight:700 }}>محرر تبويب الفئات: {pageMeta.label||slug}</h1>
-      {toast && (<div style={{ marginBottom:8, background:'#111827', color:'#e5e7eb', padding:'6px 10px', borderRadius:8 }}>{toast}</div>)}
+    <main style={{ padding: 16 }}>
+      <h1 style={{ margin: '0 0 10px', fontSize: 22, fontWeight: 700 }}>محرر تبويب الفئات: {pageMeta.label || slug}</h1>
+      {toast && (<div style={{ marginBottom: 8, background: '#111827', color: '#e5e7eb', padding: '6px 10px', borderRadius: 8 }}>{toast}</div>)}
 
-      <section style={{ display:'grid', gridTemplateColumns:'1.3fr 0.7fr', gap:12, alignItems:'start' }}>
+      <section style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.7fr', gap: 12, alignItems: 'start' }}>
         {/* Visual Editor */}
-        <div style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:12 }}>
+        <div style={{ background: '#0b0e14', border: '1px solid #1c2333', borderRadius: 12, padding: 12 }}>
           {/* Page meta (label/slug) */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
             <label>الاسم الظاهر
-              <input value={pageMeta.label} onChange={(e)=> setPageMeta(m=> ({ ...m, label: (e.target as HTMLInputElement).value }))} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+              <input value={pageMeta.label} onChange={(e) => setPageMeta(m => ({ ...m, label: (e.target as HTMLInputElement).value }))} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
             </label>
             <label>Slug
-              <input value={pageMeta.slug} onChange={(e)=> setPageMeta(m=> ({ ...m, slug: (e.target as HTMLInputElement).value }))} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0', direction:'ltr' }} />
+              <input value={pageMeta.slug} onChange={(e) => setPageMeta(m => ({ ...m, slug: (e.target as HTMLInputElement).value }))} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0', direction: 'ltr' }} />
             </label>
           </div>
-          <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-            <button onClick={savePageMeta} style={{ padding:'8px 12px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>حفظ الاسم/Slug</button>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <button onClick={savePageMeta} style={{ padding: '8px 12px', background: '#374151', color: '#e5e7eb', borderRadius: 8 }}>حفظ الاسم/Slug</button>
           </div>
 
-          <h3 style={{ marginTop:0 }}>إعدادات الصفحة</h3>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+          <h3 style={{ marginTop: 0 }}>إعدادات الصفحة</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
             <label>عنوان القسم
-              <input value={getAtPath(['data','title'],'')} onChange={(e)=> setAtPath(['data','title'], (e.target as HTMLInputElement).value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+              <input value={getAtPath(['data', 'title'], '')} onChange={(e) => setAtPath(['data', 'title'], (e.target as HTMLInputElement).value)} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
             </label>
-            <div style={{ display:'flex', gap:12, alignItems:'center' }}>
-              <label style={{ display:'flex', gap:6, alignItems:'center' }}>
-                <input type="checkbox" checked={!!getAtPath(['data','layout','showHeader'], true)} onChange={(e)=> setAtPath(['data','layout','showHeader'], (e.target as HTMLInputElement).checked)} />
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input type="checkbox" checked={!!getAtPath(['data', 'layout', 'showHeader'], true)} onChange={(e) => setAtPath(['data', 'layout', 'showHeader'], (e.target as HTMLInputElement).checked)} />
                 إظهار الهيدر
               </label>
-              <label style={{ display:'flex', gap:6, alignItems:'center' }}>
-                <input type="checkbox" checked={!!getAtPath(['data','layout','showSidebar'], true)} onChange={(e)=> setAtPath(['data','layout','showSidebar'], (e.target as HTMLInputElement).checked)} />
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input type="checkbox" checked={!!getAtPath(['data', 'layout', 'showSidebar'], true)} onChange={(e) => setAtPath(['data', 'layout', 'showSidebar'], (e.target as HTMLInputElement).checked)} />
                 إظهار الشريط الجانبي
               </label>
             </div>
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <label>SEO Title
-              <input value={getAtPath(['data','seo','title'],'')} onChange={(e)=> setAtPath(['data','seo','title'], (e.target as HTMLInputElement).value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+              <input value={getAtPath(['data', 'seo', 'title'], '')} onChange={(e) => setAtPath(['data', 'seo', 'title'], (e.target as HTMLInputElement).value)} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
             </label>
             <label>SEO Description
-              <input value={getAtPath(['data','seo','description'],'')} onChange={(e)=> setAtPath(['data','seo','description'], (e.target as HTMLInputElement).value)} style={{ width:'100%', padding:10, borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+              <input value={getAtPath(['data', 'seo', 'description'], '')} onChange={(e) => setAtPath(['data', 'seo', 'description'], (e.target as HTMLInputElement).value)} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
             </label>
           </div>
 
-          <div style={{ borderTop:'1px solid #1c2333', margin:'8px 0 12px' }} />
+          <div style={{ borderTop: '1px solid #1c2333', margin: '8px 0 12px' }} />
 
-          <h3 style={{ margin:'0 0 8px' }}>عناصر الشريط الجانبي</h3>
-          <div style={{ display:'grid', gap:10 }}>
-            {ensureArray(['data','sidebarItems']).map((it:any, idx:number)=> (
-              <div key={idx} style={{ padding:10, border:'1px solid #1c2333', borderRadius:10, background:'#0f1320' }}>
-                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                  <strong style={{ color:'#e2e8f0' }}>عنصر #{idx+1}</strong>
-                  <div style={{ display:'flex', gap:6 }}>
-                    <button disabled={idx===0} onClick={()=>{
-                      const list = [...ensureArray(['data','sidebarItems'])]; if (idx>0){ const t=list[idx-1]; list[idx-1]=list[idx]; list[idx]=t; setAtPath(['data','sidebarItems'], list); }
-                    }} style={{ padding:'6px 10px', background: idx===0? '#374151':'#111827', color:'#e5e7eb', borderRadius:8 }}>↑</button>
-                    <button disabled={idx===ensureArray(['data','sidebarItems']).length-1} onClick={()=>{
-                      const list = [...ensureArray(['data','sidebarItems'])]; if (idx<list.length-1){ const t=list[idx+1]; list[idx+1]=list[idx]; list[idx]=t; setAtPath(['data','sidebarItems'], list); }
-                    }} style={{ padding:'6px 10px', background: idx===ensureArray(['data','sidebarItems']).length-1? '#374151':'#111827', color:'#e5e7eb', borderRadius:8 }}>↓</button>
+          <h3 style={{ margin: '0 0 8px' }}>عناصر الشريط الجانبي</h3>
+          <div style={{ display: 'grid', gap: 10 }}>
+            {ensureArray(['data', 'sidebarItems']).map((it: any, idx: number) => (
+              <div key={idx} style={{ padding: 10, border: '1px solid #1c2333', borderRadius: 10, background: '#0f1320' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <strong style={{ color: '#e2e8f0' }}>عنصر #{idx + 1}</strong>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button disabled={idx === 0} onClick={() => {
+                      const list = [...ensureArray(['data', 'sidebarItems'])]; if (idx > 0) { const t = list[idx - 1]; list[idx - 1] = list[idx]; list[idx] = t; setAtPath(['data', 'sidebarItems'], list); }
+                    }} style={{ padding: '6px 10px', background: idx === 0 ? '#374151' : '#111827', color: '#e5e7eb', borderRadius: 8 }}>↑</button>
+                    <button disabled={idx === ensureArray(['data', 'sidebarItems']).length - 1} onClick={() => {
+                      const list = [...ensureArray(['data', 'sidebarItems'])]; if (idx < list.length - 1) { const t = list[idx + 1]; list[idx + 1] = list[idx]; list[idx] = t; setAtPath(['data', 'sidebarItems'], list); }
+                    }} style={{ padding: '6px 10px', background: idx === ensureArray(['data', 'sidebarItems']).length - 1 ? '#374151' : '#111827', color: '#e5e7eb', borderRadius: 8 }}>↓</button>
                   </div>
-                  <button onClick={()=>{
-                    const list = [...ensureArray(['data','sidebarItems'])]; list.splice(idx,1); setAtPath(['data','sidebarItems'], list);
-                  }} style={{ marginInlineStart:'auto', padding:'6px 10px', background:'#7c2d12', color:'#fff', borderRadius:8 }}>حذف</button>
+                  <button onClick={() => {
+                    const list = [...ensureArray(['data', 'sidebarItems'])]; list.splice(idx, 1); setAtPath(['data', 'sidebarItems'], list);
+                  }} style={{ marginInlineStart: 'auto', padding: '6px 10px', background: '#7c2d12', color: '#fff', borderRadius: 8 }}>حذف</button>
                 </div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 8 }}>
                   <label>الاسم
-                    <input value={String(it?.label||'')} onChange={(e)=>{
-                      const list = [...ensureArray(['data','sidebarItems'])]; list[idx] = { ...(list[idx]||{}), label: (e.target as HTMLInputElement).value }; setAtPath(['data','sidebarItems'], list);
-                    }} style={{ width:'100%', padding:10, borderRadius:10, background:'#0b1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                    <input value={String(it?.label || '')} onChange={(e) => {
+                      const list = [...ensureArray(['data', 'sidebarItems'])]; list[idx] = { ...(list[idx] || {}), label: (e.target as HTMLInputElement).value }; setAtPath(['data', 'sidebarItems'], list);
+                    }} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0b1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
                   </label>
                   <label>رابط اختياري
-                    <input value={String(it?.href||'')} onChange={(e)=>{
-                      const list = [...ensureArray(['data','sidebarItems'])]; list[idx] = { ...(list[idx]||{}), href: (e.target as HTMLInputElement).value }; setAtPath(['data','sidebarItems'], list);
-                    }} style={{ width:'100%', padding:10, borderRadius:10, background:'#0b1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                    <input value={String(it?.href || '')} onChange={(e) => {
+                      const list = [...ensureArray(['data', 'sidebarItems'])]; list[idx] = { ...(list[idx] || {}), href: (e.target as HTMLInputElement).value }; setAtPath(['data', 'sidebarItems'], list);
+                    }} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0b1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
                   </label>
                 </div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 8 }}>
                   <div>
-                    <div style={{ color:'#94a3b8', marginBottom:6 }}>بنر</div>
-                    <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                      <button onClick={()=>{ setMediaPath(['data','sidebarItems', String(idx), 'promoBanner','image']); setMediaOpen(true); }} style={{ padding:'6px 10px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>اختيار صورة</button>
-                      <label style={{ display:'flex', gap:6, alignItems:'center' }}>
-                        <input type="checkbox" checked={!!it?.promoBanner?.enabled} onChange={(e)=>{
-                          const list = [...ensureArray(['data','sidebarItems'])]; const en = (e.target as HTMLInputElement).checked; list[idx] = { ...(list[idx]||{}), promoBanner: { ...(list[idx]?.promoBanner||{}), enabled: en } }; setAtPath(['data','sidebarItems'], list);
+                    <div style={{ color: '#94a3b8', marginBottom: 6 }}>بنر</div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button onClick={() => { setMediaPath(['data', 'sidebarItems', String(idx), 'promoBanner', 'image']); setMediaOpen(true); }} style={{ padding: '6px 10px', background: '#374151', color: '#e5e7eb', borderRadius: 8 }}>اختيار صورة</button>
+                      <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <input type="checkbox" checked={!!it?.promoBanner?.enabled} onChange={(e) => {
+                          const list = [...ensureArray(['data', 'sidebarItems'])]; const en = (e.target as HTMLInputElement).checked; list[idx] = { ...(list[idx] || {}), promoBanner: { ...(list[idx]?.promoBanner || {}), enabled: en } }; setAtPath(['data', 'sidebarItems'], list);
                         }} /> تفعيل
                       </label>
                     </div>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 8 }}>
                       <label>عنوان البنر
-                        <input value={String(it?.promoBanner?.title||'')} onChange={(e)=>{
-                          const list = [...ensureArray(['data','sidebarItems'])];
-                          list[idx] = { ...(list[idx]||{}), promoBanner: { ...(list[idx]?.promoBanner||{}), title: (e.target as HTMLInputElement).value } };
-                          setAtPath(['data','sidebarItems'], list);
-                        }} style={{ width:'100%', padding:10, borderRadius:10, background:'#0b1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                        <input value={String(it?.promoBanner?.title || '')} onChange={(e) => {
+                          const list = [...ensureArray(['data', 'sidebarItems'])];
+                          list[idx] = { ...(list[idx] || {}), promoBanner: { ...(list[idx]?.promoBanner || {}), title: (e.target as HTMLInputElement).value } };
+                          setAtPath(['data', 'sidebarItems'], list);
+                        }} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0b1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
                       </label>
                       <label>رابط البنر
-                        <input value={String(it?.promoBanner?.href||'')} onChange={(e)=>{
-                          const list = [...ensureArray(['data','sidebarItems'])];
-                          list[idx] = { ...(list[idx]||{}), promoBanner: { ...(list[idx]?.promoBanner||{}), href: (e.target as HTMLInputElement).value } };
-                          setAtPath(['data','sidebarItems'], list);
-                        }} style={{ width:'100%', padding:10, borderRadius:10, background:'#0b1320', border:'1px solid #1c2333', color:'#e2e8f0', direction:'ltr' }} />
+                        <input value={String(it?.promoBanner?.href || '')} onChange={(e) => {
+                          const list = [...ensureArray(['data', 'sidebarItems'])];
+                          list[idx] = { ...(list[idx] || {}), promoBanner: { ...(list[idx]?.promoBanner || {}), href: (e.target as HTMLInputElement).value } };
+                          setAtPath(['data', 'sidebarItems'], list);
+                        }} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0b1320', border: '1px solid #1c2333', color: '#e2e8f0', direction: 'ltr' }} />
                       </label>
                     </div>
                   </div>
                   <div>
-                    <div style={{ color:'#94a3b8', marginBottom:6 }}>Featured</div>
-                    <button onClick={()=>{ setCatsPath(['data','sidebarItems', String(idx), 'featured']); setCatsOpen(true); }} style={{ padding:'6px 10px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>اختيار فئات</button>
-                    {Array.isArray(it?.featured) && it.featured.length>0 && (
-                      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px,1fr))', gap:8, marginTop:8 }}>
-                        {it.featured.map((c:any, fi:number)=> (
-                          <div key={String(c?.id||fi)} style={{ display:'flex', gap:8, alignItems:'center', background:'#0f1320', border:'1px solid #1c2333', borderRadius:8, padding:8 }}>
-                            {c?.image? <img src={c.image} alt={c?.name||''} style={{ width:40, height:40, objectFit:'cover', borderRadius:6 }} /> : <div style={{ width:40, height:40, background:'#111827', borderRadius:6 }} />}
-                            <div style={{ display:'grid' }}>
-                              <div style={{ fontWeight:600, color:'#e2e8f0' }}>{c?.name||c?.id||'—'}</div>
-                              <div style={{ color:'#94a3b8', fontSize:12, direction:'ltr', textAlign:'start' }}>{String(c?.id||'')}</div>
+                    <div style={{ color: '#94a3b8', marginBottom: 6 }}>Featured</div>
+                    <button onClick={() => { setCatsPath(['data', 'sidebarItems', String(idx), 'featured']); setCatsOpen(true); }} style={{ padding: '6px 10px', background: '#111827', color: '#e5e7eb', borderRadius: 8 }}>اختيار فئات</button>
+                    {Array.isArray(it?.featured) && it.featured.length > 0 && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px,1fr))', gap: 8, marginTop: 8 }}>
+                        {it.featured.map((c: any, fi: number) => (
+                          <div key={String(c?.id || fi)} style={{ display: 'flex', gap: 8, alignItems: 'center', background: '#0f1320', border: '1px solid #1c2333', borderRadius: 8, padding: 8 }}>
+                            {c?.image ? <img src={c.image} alt={c?.name || ''} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} /> : <div style={{ width: 40, height: 40, background: '#111827', borderRadius: 6 }} />}
+                            <div style={{ display: 'grid' }}>
+                              <div style={{ fontWeight: 600, color: '#e2e8f0' }}>{c?.name || c?.id || '—'}</div>
+                              <div style={{ color: '#94a3b8', fontSize: 12, direction: 'ltr', textAlign: 'start' }}>{String(c?.id || '')}</div>
                             </div>
-                            <button onClick={()=>{
-                              const list = Array.isArray(it?.featured)? [...it.featured]: [];
-                              list.splice(fi,1);
-                              const all = [...ensureArray(['data','sidebarItems'])]; all[idx] = { ...(all[idx]||{}), featured: list }; setAtPath(['data','sidebarItems'], all);
-                            }} style={{ marginInlineStart:'auto', padding:'4px 8px', background:'#7c2d12', color:'#fff', borderRadius:6 }}>إزالة</button>
+                            <button onClick={() => {
+                              const list = Array.isArray(it?.featured) ? [...it.featured] : [];
+                              list.splice(fi, 1);
+                              const all = [...ensureArray(['data', 'sidebarItems'])]; all[idx] = { ...(all[idx] || {}), featured: list }; setAtPath(['data', 'sidebarItems'], all);
+                            }} style={{ marginInlineStart: 'auto', padding: '4px 8px', background: '#7c2d12', color: '#fff', borderRadius: 6 }}>إزالة</button>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
                 </div>
-                <div style={{ marginTop:8 }}>
-                  <div style={{ color:'#94a3b8', marginBottom:6 }}>Grid</div>
-                  <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                    <label style={{ display:'flex', gap:6, alignItems:'center' }}>
-                      <input type="radio" name={`grid-${idx}`} checked={(it?.grid?.mode||'filter')==='explicit'} onChange={(e)=>{ if(!(e.target as HTMLInputElement).checked) return; const list=[...ensureArray(['data','sidebarItems'])]; list[idx] = { ...(list[idx]||{}), grid: { mode:'explicit', categories: Array.isArray(it?.grid?.categories)? it.grid.categories: [] } }; setAtPath(['data','sidebarItems'], list); }} /> explicit
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ color: '#94a3b8', marginBottom: 6 }}>Grid</div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input type="radio" name={`grid-${idx}`} checked={(it?.grid?.mode || 'filter') === 'explicit'} onChange={(e) => { if (!(e.target as HTMLInputElement).checked) return; const list = [...ensureArray(['data', 'sidebarItems'])]; list[idx] = { ...(list[idx] || {}), grid: { mode: 'explicit', categories: Array.isArray(it?.grid?.categories) ? it.grid.categories : [] } }; setAtPath(['data', 'sidebarItems'], list); }} /> explicit
                     </label>
-                    <label style={{ display:'flex', gap:6, alignItems:'center' }}>
-                      <input type="radio" name={`grid-${idx}`} checked={(it?.grid?.mode||'filter')==='filter'} onChange={(e)=>{ if(!(e.target as HTMLInputElement).checked) return; const list=[...ensureArray(['data','sidebarItems'])]; list[idx] = { ...(list[idx]||{}), grid: { mode:'filter', categoryIds: [], limit: 36, sortBy:'name_asc' } }; setAtPath(['data','sidebarItems'], list); }} /> filter
+                    <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input type="radio" name={`grid-${idx}`} checked={(it?.grid?.mode || 'filter') === 'filter'} onChange={(e) => { if (!(e.target as HTMLInputElement).checked) return; const list = [...ensureArray(['data', 'sidebarItems'])]; list[idx] = { ...(list[idx] || {}), grid: { mode: 'filter', categoryIds: [], limit: 36, sortBy: 'name_asc' } }; setAtPath(['data', 'sidebarItems'], list); }} /> filter
                     </label>
-                    {(it?.grid?.mode||'filter')==='explicit' ? (
-                      <div style={{ display:'grid', gap:8, width:'100%' }}>
+                    {(it?.grid?.mode || 'filter') === 'explicit' ? (
+                      <div style={{ display: 'grid', gap: 8, width: '100%' }}>
                         <div>
-                          <button onClick={()=>{ setCatsPath(['data','sidebarItems', String(idx), 'grid','categories']); setCatsOpen(true); }} style={{ padding:'6px 10px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>اختيار فئات للشبكة</button>
+                          <button onClick={() => { setCatsPath(['data', 'sidebarItems', String(idx), 'grid', 'categories']); setCatsOpen(true); }} style={{ padding: '6px 10px', background: '#374151', color: '#e5e7eb', borderRadius: 8 }}>اختيار فئات للشبكة</button>
                         </div>
-                        {Array.isArray(it?.grid?.categories) && it.grid.categories.length>0 && (
-                          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px,1fr))', gap:8 }}>
-                            {it.grid.categories.map((c:any, gi:number)=> (
-                              <div key={String(c?.id||gi)} style={{ display:'flex', gap:8, alignItems:'center', background:'#0f1320', border:'1px solid #1c2333', borderRadius:8, padding:8 }}>
-                                {c?.image? <img src={c.image} alt={c?.name||''} style={{ width:40, height:40, objectFit:'cover', borderRadius:6 }} /> : <div style={{ width:40, height:40, background:'#111827', borderRadius:6 }} />}
-                                <div style={{ display:'grid' }}>
-                                  <div style={{ fontWeight:600, color:'#e2e8f0' }}>{c?.name||c?.id||'—'}</div>
-                                  <div style={{ color:'#94a3b8', fontSize:12, direction:'ltr', textAlign:'start' }}>{String(c?.id||'')}</div>
+                        {Array.isArray(it?.grid?.categories) && it.grid.categories.length > 0 && (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px,1fr))', gap: 8 }}>
+                            {it.grid.categories.map((c: any, gi: number) => (
+                              <div key={String(c?.id || gi)} style={{ display: 'flex', gap: 8, alignItems: 'center', background: '#0f1320', border: '1px solid #1c2333', borderRadius: 8, padding: 8 }}>
+                                {c?.image ? <img src={c.image} alt={c?.name || ''} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} /> : <div style={{ width: 40, height: 40, background: '#111827', borderRadius: 6 }} />}
+                                <div style={{ display: 'grid' }}>
+                                  <div style={{ fontWeight: 600, color: '#e2e8f0' }}>{c?.name || c?.id || '—'}</div>
+                                  <div style={{ color: '#94a3b8', fontSize: 12, direction: 'ltr', textAlign: 'start' }}>{String(c?.id || '')}</div>
                                 </div>
-                                <button onClick={()=>{
-                                  const list = Array.isArray(it?.grid?.categories)? [...it.grid.categories]: [];
-                                  list.splice(gi,1);
-                                  const all = [...ensureArray(['data','sidebarItems'])]; all[idx] = { ...(all[idx]||{}), grid: { ...(all[idx]?.grid||{ mode:'explicit', categories: [] }), categories: list, mode:'explicit' } }; setAtPath(['data','sidebarItems'], all);
-                                }} style={{ marginInlineStart:'auto', padding:'4px 8px', background:'#7c2d12', color:'#fff', borderRadius:6 }}>إزالة</button>
+                                <button onClick={() => {
+                                  const list = Array.isArray(it?.grid?.categories) ? [...it.grid.categories] : [];
+                                  list.splice(gi, 1);
+                                  const all = [...ensureArray(['data', 'sidebarItems'])]; all[idx] = { ...(all[idx] || {}), grid: { ...(all[idx]?.grid || { mode: 'explicit', categories: [] }), categories: list, mode: 'explicit' } }; setAtPath(['data', 'sidebarItems'], all);
+                                }} style={{ marginInlineStart: 'auto', padding: '4px 8px', background: '#7c2d12', color: '#fff', borderRadius: 6 }}>إزالة</button>
                               </div>
                             ))}
                           </div>
@@ -395,64 +395,75 @@ export default function CategoriesTabBuilder(): JSX.Element {
                       </div>
                     ) : (
                       <>
-                        <input placeholder="IDs مفصولة بفاصلة" value={Array.isArray(it?.grid?.categoryIds)? it.grid.categoryIds.join(','): ''} onChange={(e)=>{
-                          const list=[...ensureArray(['data','sidebarItems'])]; const ids=String((e.target as HTMLInputElement).value||'').split(',').map(s=>s.trim()).filter(Boolean); list[idx] = { ...(list[idx]||{}), grid: { ...(list[idx]?.grid||{ mode:'filter' }), mode:'filter', categoryIds: ids } }; setAtPath(['data','sidebarItems'], list);
-                        }} style={{ padding:8, borderRadius:8, background:'#0b1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
-                        <input type="number" placeholder="limit" value={Number(it?.grid?.limit||36)} onChange={(e)=>{
-                          const list=[...ensureArray(['data','sidebarItems'])]; const v=Number((e.target as HTMLInputElement).value||36); list[idx] = { ...(list[idx]||{}), grid: { ...(list[idx]?.grid||{ mode:'filter' }), mode:'filter', limit: v } }; setAtPath(['data','sidebarItems'], list);
-                        }} style={{ width:100, padding:8, borderRadius:8, background:'#0b1320', border:'1px solid #1c2333', color:'#e2e8f0' }} />
+                        <input placeholder="IDs مفصولة بفاصلة" value={Array.isArray(it?.grid?.categoryIds) ? it.grid.categoryIds.join(',') : ''} onChange={(e) => {
+                          const list = [...ensureArray(['data', 'sidebarItems'])]; const ids = String((e.target as HTMLInputElement).value || '').split(',').map(s => s.trim()).filter(Boolean); list[idx] = { ...(list[idx] || {}), grid: { ...(list[idx]?.grid || { mode: 'filter' }), mode: 'filter', categoryIds: ids } }; setAtPath(['data', 'sidebarItems'], list);
+                        }} style={{ padding: 8, borderRadius: 8, background: '#0b1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
+                        <input type="number" placeholder="limit" value={Number(it?.grid?.limit || 36)} onChange={(e) => {
+                          const list = [...ensureArray(['data', 'sidebarItems'])]; const v = Number((e.target as HTMLInputElement).value || 36); list[idx] = { ...(list[idx] || {}), grid: { ...(list[idx]?.grid || { mode: 'filter' }), mode: 'filter', limit: v } }; setAtPath(['data', 'sidebarItems'], list);
+                        }} style={{ width: 100, padding: 8, borderRadius: 8, background: '#0b1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
                       </>
                     )}
                   </div>
                 </div>
-                <div style={{ marginTop:8 }}>
-                  <div style={{ color:'#94a3b8', marginBottom:6 }}>اقتراحات</div>
-                  <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-                    <label style={{ display:'flex', gap:6, alignItems:'center' }}>
-                      <input type="checkbox" checked={(it?.suggestions?.enabled??true)!==false} onChange={(e)=>{
-                        const list=[...ensureArray(['data','sidebarItems'])]; const en=(e.target as HTMLInputElement).checked; const sg=it?.suggestions && !Array.isArray(it.suggestions)? it.suggestions: { items: [] }; list[idx] = { ...(list[idx]||{}), suggestions: { ...(sg||{}), enabled: en } }; setAtPath(['data','sidebarItems'], list);
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ color: '#94a3b8', marginBottom: 6 }}>اقتراحات</div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input type="checkbox" checked={(it?.suggestions?.enabled ?? true) !== false} onChange={(e) => {
+                        const list = [...ensureArray(['data', 'sidebarItems'])]; const en = (e.target as HTMLInputElement).checked; const sg = it?.suggestions && !Array.isArray(it.suggestions) ? it.suggestions : { items: [] }; list[idx] = { ...(list[idx] || {}), suggestions: { ...(sg || {}), enabled: en } }; setAtPath(['data', 'sidebarItems'], list);
                       }} /> تفعيل
                     </label>
-                    <input placeholder="عنوان" value={String((it?.suggestions && !Array.isArray(it.suggestions)? it.suggestions.title: '')||'')} onChange={(e)=>{
-                      const list=[...ensureArray(['data','sidebarItems'])]; const sg=it?.suggestions && !Array.isArray(it.suggestions)? it.suggestions: { enabled:true, items: [] }; sg.title = (e.target as HTMLInputElement).value; list[idx] = { ...(list[idx]||{}), suggestions: sg }; setAtPath(['data','sidebarItems'], list);
-                    }} style={{ padding:8, borderRadius:8, background:'#0b1320', border:'1px solid #1c2333', color:'#e2e8f0', minWidth:240 }} />
-                    <button onClick={()=>{ setCatsPath(['data','sidebarItems', String(idx), 'suggestions','items']); setCatsOpen(true); }} style={{ padding:'6px 10px', background:'#374151', color:'#e5e7eb', borderRadius:8 }}>اختيار عناصر</button>
+                    <input placeholder="عنوان" value={String((it?.suggestions && !Array.isArray(it.suggestions) ? it.suggestions.title : '') || '')} onChange={(e) => {
+                      const list = [...ensureArray(['data', 'sidebarItems'])]; const sg = it?.suggestions && !Array.isArray(it.suggestions) ? it.suggestions : { enabled: true, items: [] }; sg.title = (e.target as HTMLInputElement).value; list[idx] = { ...(list[idx] || {}), suggestions: sg }; setAtPath(['data', 'sidebarItems'], list);
+                    }} style={{ padding: 8, borderRadius: 8, background: '#0b1320', border: '1px solid #1c2333', color: '#e2e8f0', minWidth: 240 }} />
+                    <button onClick={() => { setCatsPath(['data', 'sidebarItems', String(idx), 'suggestions', 'items']); setCatsOpen(true); }} style={{ padding: '6px 10px', background: '#374151', color: '#e5e7eb', borderRadius: 8 }}>اختيار عناصر</button>
                   </div>
                 </div>
               </div>
             ))}
-            <button onClick={()=>{ const list=[...ensureArray(['data','sidebarItems']), { label:'', href:'', promoBanner:{ enabled:false }, featured:[], grid:{ mode:'filter', limit:36, sortBy:'name_asc' }, suggestions:{ enabled:true, items:[] } }]; setAtPath(['data','sidebarItems'], list); }} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>+ إضافة عنصر</button>
+            <button onClick={() => { const list = [...ensureArray(['data', 'sidebarItems']), { label: '', href: '', promoBanner: { enabled: false }, featured: [], grid: { mode: 'filter', limit: 36, sortBy: 'name_asc' }, suggestions: { enabled: true, items: [] } }]; setAtPath(['data', 'sidebarItems'], list); }} style={{ padding: '8px 12px', background: '#111827', color: '#e5e7eb', borderRadius: 8 }}>+ إضافة عنصر</button>
           </div>
-          <div style={{ marginTop:12 }}>
-            <div style={{ color:'#94a3b8', marginBottom:6 }}>معاينة مباشرة</div>
-            <div style={{ border:'1px solid #1c2333', borderRadius:10, overflow:'hidden' }}>
-              <iframe ref={iframeRef} src={`${process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'https://m.jeeey.com'}/categories`} style={{ width:'100%', height:700, background:'#fff' }} />
+          <div style={{ marginTop: 12 }}>
+            <div style={{ color: '#94a3b8', marginBottom: 6 }}>معاينة مباشرة</div>
+            <div style={{ border: '1px solid #1c2333', borderRadius: 10, overflow: 'hidden' }}>
+              <iframe ref={iframeRef} src={`${process.env.NEXT_PUBLIC_MWEB_ORIGIN || 'https://m.jeeey.com'}/categories`} style={{ width: '100%', height: 700, background: '#fff' }} />
             </div>
           </div>
         </div>
 
         {/* JSON + Actions */}
-        <div style={{ background:'#0b0e14', border:'1px solid #1c2333', borderRadius:12, padding:12 }}>
-          <div style={{ display:'flex', gap:8, marginBottom:8 }}>
-            <button onClick={saveDraft} disabled={busy} style={{ padding:'8px 12px', background: busy? '#6b7280':'#374151', color:'#e5e7eb', borderRadius:8 }}>{busy? 'جارٍ الحفظ…':'حفظ مسودة'}</button>
-            <button onClick={preview} style={{ padding:'8px 12px', background:'#111827', color:'#e5e7eb', borderRadius:8 }}>معاينة</button>
-            <button onClick={publish} disabled={busy} style={{ padding:'8px 12px', background: busy? '#6b7280':'#800020', color:'#fff', borderRadius:8 }}>{busy? 'جارٍ النشر…':'نشر'}</button>
+        <div style={{ background: '#0b0e14', border: '1px solid #1c2333', borderRadius: 12, padding: 12 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <button onClick={saveDraft} disabled={busy} style={{ padding: '8px 12px', background: busy ? '#6b7280' : '#374151', color: '#e5e7eb', borderRadius: 8 }}>{busy ? 'جارٍ الحفظ…' : 'حفظ مسودة'}</button>
+            <button onClick={preview} style={{ padding: '8px 12px', background: '#111827', color: '#e5e7eb', borderRadius: 8 }}>معاينة</button>
+            <button onClick={publish} disabled={busy} style={{ padding: '8px 12px', background: busy ? '#6b7280' : '#800020', color: '#fff', borderRadius: 8 }}>{busy ? 'جارٍ النشر…' : 'نشر'}</button>
           </div>
-          <div style={{ color:'#94a3b8', fontSize:12, marginBottom:6 }}>هيكل JSON (type = categories-v1)</div>
-          <textarea value={json} onChange={(e)=> setJson((e.target as HTMLTextAreaElement).value)} rows={26} style={{ width:'100%', borderRadius:10, background:'#0f1320', border:'1px solid #1c2333', color:'#e2e8f0', padding:10, fontFamily:'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }} />
+          <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 6 }}>هيكل JSON (type = categories-v1)</div>
+          <textarea value={json} onChange={(e) => setJson((e.target as HTMLTextAreaElement).value)} rows={26} style={{ width: '100%', borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0', padding: 10, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }} />
         </div>
       </section>
 
       {/* Pickers */}
-      {catsOpen && (<CategoriesPicker open={catsOpen} onClose={()=>{ setCatsOpen(false); setCatsPath([]); }} onSelectMany={(items: CatMini[])=>{
-        if (!catsPath.length) return;
-        // If at grid.categories -> array of Mini; if suggestions.items -> Mini[]; if featured -> Mini[]
-        setAtPath(catsPath, items);
-      }} />)}
-      {mediaOpen && (<MediaPicker apiBase="" value={''} onChange={(url)=>{
-        if (!mediaPath.length) return;
-        setAtPath(mediaPath, url);
-      }} onClose={()=>{ setMediaOpen(false); setMediaPath([]); }} />)}
+      {catsOpen && (<CategoriesPicker
+        open={catsOpen}
+        initial={getAtPath(catsPath, [])}
+        onClose={() => { setCatsOpen(false); setCatsPath([]); }}
+        onSelectMany={(items: CatMini[]) => {
+          if (!catsPath.length) return;
+          // If at grid.categories -> array of Mini; if suggestions.items -> Mini[]; if featured -> Mini[]
+          // User requested "Correct ID" + "Slug".
+          // We remove 'parentId' to keep the JSON clean, as it's only needed for the Picker UI.
+          const cleanItems = items.map(({ parentId, ...rest }) => rest);
+          setAtPath(catsPath, cleanItems);
+        }} />)}
+      {mediaOpen && (<MediaPicker
+        open={mediaOpen}
+        onSelect={(url) => {
+          if (!mediaPath.length) return;
+          setAtPath(mediaPath, url);
+        }}
+        onClose={() => { setMediaOpen(false); setMediaPath([]); }}
+      />)}
     </main>
   );
 }

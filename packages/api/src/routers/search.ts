@@ -380,7 +380,7 @@ export const searchRouter = router({
     .query(async () => {
       const [categories, priceRanges, brands] = await Promise.all([
         db.category.findMany({
-          select: { id: true, name: true, _count: { select: { products: true } } },
+          select: { id: true, name: true, slug: true, image: true, _count: { select: { products: true } } },
           orderBy: { name: 'asc' },
         }),
         db.product.aggregate({

@@ -120,5 +120,3 @@ onMounted(async ()=>{
 .simple-row-inner{display:flex;gap:var(--gap)}
 .simple-item{flex:0 0 calc((100% - (var(--visible) - 1) * var(--gap)) / var(--visible))}
 </style>
-
-

@@ -24,14 +24,14 @@ export default function CategoriesPage(): JSX.Element {
         <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4">
           {categories.map((c: any) => (
             <li key={c.id} className="group rounded-lg overflow-hidden border bg-white">
-              <a href={`/search?categoryId=${c.id}`} className="block">
+              <a href={`/c/${c.slug || c.id}`} className="block">
                 <div className="relative w-full aspect-[3/4] bg-gray-100">
                   {/* Use plain img to avoid next/image optimizer when running standalone */}
                   <img src={c.image || "/images/placeholder-category.jpg"} alt={c.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform" />
                 </div>
                 <div className="p-2.5 flex items-center justify-between text-sm">
                   <span className="font-medium truncate text-gray-900">{c.name}</span>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#800020" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-0 group-hover:opacity-100 transition"><path d="M9 18l6-6-6-6"/></svg>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#800020" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-0 group-hover:opacity-100 transition"><path d="M9 18l6-6-6-6" /></svg>
                 </div>
               </a>
             </li>

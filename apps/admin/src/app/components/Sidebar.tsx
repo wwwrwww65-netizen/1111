@@ -176,6 +176,12 @@ const groups: Array<{ title?: string; items: NavItem[] }> = [
     ],
   },
   {
+    title: 'الأداء / البنية / تحسين الموقع',
+    items: [
+      { href: '/seo/engine', label: 'SEO – محركات البحث' },
+    ],
+  },
+  {
     title: 'الإعدادات',
     items: [
       { href: '/settings', label: 'الإعدادات' },

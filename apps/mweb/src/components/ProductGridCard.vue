@@ -303,4 +303,3 @@ function add(){ if (id.value){ emit('add', id.value); return } cart.add({ id: id
 .no-scrollbar::-webkit-scrollbar { display: none; }
 </style>
 
-

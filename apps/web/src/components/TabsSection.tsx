@@ -51,7 +51,7 @@ export function TabsSection({ newArrivals, bestSellers, recommended }: TabsSecti
               rating: 0,
               reviewCount: 0,
             }}
-            onViewDetails={(id) => (window.location.href = `/products/${id}`)}
+            onViewDetails={(id) => (window.location.href = `/p/${id}`)}
           />
         ))}
       </div>
