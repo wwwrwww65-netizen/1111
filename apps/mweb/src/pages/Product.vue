@@ -1769,7 +1769,7 @@ const hasWish = ref(false)
 const pdpMeta = ref<{ badges?: Array<{ title:string; subtitle?:string; bgColor?:string }>; bestRank?: number|null; fitPercent?: number|null; fitText?: string|null; model?: { size?: string; height?: number; bust?: number; waist?: number; hips?: number }|null; shippingDestinationOverride?: string|null; sellerBlurb?: string|null; clubBanner?: { enabled:boolean; amount:number; discountType:'percent'|'fixed'; discountValue:number; text:string; joinUrl?:string; style?: { theme?: string; rounded?: boolean }; placement?: { pdp?: { enabled:boolean; position?: string } } }|null }>({ badges: [] })
 async function loadPdpMeta(pid?: string){
   try{
-    const p = String(pid || id.value)
+    const p = String(pid || id.value || route.params.id || route.params.slug)
     const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/meta`)
     const meta = (j && j.meta) ? j.meta : j
     if (meta && typeof meta==='object') {
@@ -1815,7 +1815,7 @@ const sellerFollowText = computed(()=>{
 })
 async function loadSeller(pid?: string){
   try{ 
-    const p = String(pid || id.value); 
+    const p = String(pid || id.value || route.params.id || route.params.slug); 
     const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/seller`); 
     const v = j?.vendor || null
     if (v && v.meta) {
@@ -2347,7 +2347,7 @@ async function loadProductData(pid?: string) {
 const attrsLoaded = ref(false)
 async function loadNormalizedVariants(pid?: string){
   // 1) Fetch normalized variants list
-  const p = String(pid || route.query.id || id.value)
+  const p = String(pid || route.query.id || route.params.id || route.params.slug || id.value)
   // Optimization: if product already has attributes/variants loaded, use them
   let list: any[] = []
   let pd: any = product.value || null
@@ -2620,7 +2620,7 @@ async function fetchRecommendations(pid?: string){
       return
     }
     // Default: similar by current product's category, then recent
-    const p = String(pid || id.value)
+    const p = String(pid || id.value || route.params.id || route.params.slug)
     const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(p)}`, { signal }).catch(()=>null)
     let list: any[] = Array.isArray(sim?.items) ? sim!.items : []
     if (!list.length){

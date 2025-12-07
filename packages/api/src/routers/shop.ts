@@ -2034,7 +2034,7 @@ shop.get('/product/:id', async (req, res) => {
     setPublicCache(res, 10, 60);
     const idParam = String(req.params.id);
     const p = await db.product.findFirst({
-      where: { OR: [{ id: idParam }, { seo: { slug: idParam } }] },
+      where: { OR: [{ id: idParam }, { seo: { slug: { equals: idParam, mode: 'insensitive' } } }] },
       include: {
         category: { select: { id: true, name: true, slug: true } },
         reviews: true,
