@@ -38,6 +38,9 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
+      - name: Enable pg_trgm extension
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d app -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
       - name: Prepare database (db push)
         run: pnpm --filter @repo/db db:push
       - name: Seed minimal data
