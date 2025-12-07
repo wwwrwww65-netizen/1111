@@ -695,7 +695,9 @@ export default function AdminProductCreate(): JSX.Element {
     // Remove common marketing noise phrases (AR/EN)
     const noise = [
       'لايفوتك', 'العرض محدود', 'جديد اليوم', 'حاجة فخمة', 'شغل خارجي', 'تميز', 'تخفيض', 'خصم', 'عرض', 'افضل', 'الأفضل', 'حصري', 'مجاني', 'شحن مجاني',
-      'free', 'sale', 'offer', 'best', 'amazing', 'awesome', 'premium', 'original', 'new', '🔥', '👇', '💎', '🤩', '👌'
+      'free', 'sale', 'offer', 'best', 'amazing', 'awesome', 'premium', 'original', 'new', '🔥', '👇', '💎', '🤩', '👌',
+      // Table headers commonly pasted
+      'البند', 'القيمة'
     ];
     for (const w of noise) s = s.replace(new RegExp(w, 'gi'), ' ');
     // Normalize whitespace and punctuation
@@ -2123,35 +2125,47 @@ export default function AdminProductCreate(): JSX.Element {
   React.useEffect(() => {
     // 4. Social Media (OG/Twitter) from SEO Data
     if (!seoTitle && !seoDescription) return;
-    const isEmpty = (str: string) => !str || str === '{}';
 
     // Prioritize primaryImageUrl (from selected color card) over generic images list
+    // Fallback to first image if primary not set.
     const firstImage = primaryImageUrl || (images || '').split(',')[0] || '';
 
-    // OG Tags
-    if (isEmpty(ogTagsStr)) {
-      const newOg = {
-        title: seoTitle || name,
-        description: (seoDescription || cleanText(description || '')).slice(0, 300),
-        image: firstImage,
-      };
-      if (newOg.title || newOg.description || newOg.image) {
-        setOgTagsStr(JSON.stringify(newOg, null, 2));
-      }
-    }
+    // Helper to safely parse/update
+    const updateJson = (currentStr: string, setter: (s: string) => void, type: 'og' | 'twitter') => {
+      let obj: any = {};
+      try { obj = JSON.parse(currentStr || '{}'); } catch { }
 
-    // Twitter
-    if (isEmpty(twitterCardStr)) {
-      const newTw = {
-        card: 'summary_large_image',
-        title: seoTitle || name,
-        description: (seoDescription || cleanText(description || '')).slice(0, 200),
-        image: firstImage,
-      };
-      if (newTw.title || newTw.description || newTw.image) {
-        setTwitterCardStr(JSON.stringify(newTw, null, 2));
+      let changed = false;
+
+      // Sync Title/Desc if missing
+      const targetTitle = seoTitle || name;
+      if (!obj.title && targetTitle) { obj.title = targetTitle; changed = true; }
+
+      const targetDesc = (seoDescription || cleanText(description || '')).slice(0, type === 'og' ? 300 : 200);
+      if (!obj.description && targetDesc) { obj.description = targetDesc; changed = true; }
+
+      // Sync Image:
+      // If primaryImageUrl is explicitly explicitly set, FORCE update.
+      // Or if obj.image is missing, fill it.
+      // Or if current image is just the "old" first image and we have a "new" different first image (e.g. reordering), update it.
+      // User Request: "Priority is Primary Color... if not, first image".
+      // We will simpler logic: If we have a computed `firstImage`, ensure the tag matches it, 
+      // UNLESS the user presumably typed something custom? Hard to know. 
+      // Given the requirement, we'll enforce the sync if `firstImage` is valid.
+      if (firstImage && obj.image !== firstImage) {
+        obj.image = firstImage;
+        changed = true;
       }
-    }
+
+      // Defaults for Twitter
+      if (type === 'twitter' && !obj.card) { obj.card = 'summary_large_image'; changed = true; }
+
+      if (changed) setter(JSON.stringify(obj, null, 2));
+    };
+
+    updateJson(ogTagsStr, setOgTagsStr, 'og');
+    updateJson(twitterCardStr, setTwitterCardStr, 'twitter');
+
   }, [seoTitle, seoDescription, name, description, ogTagsStr, twitterCardStr, images, primaryImageUrl]);
   // removed fileUrls dependency to avoid complexity, relying on main 'images' string string for auto-fill base.
 
