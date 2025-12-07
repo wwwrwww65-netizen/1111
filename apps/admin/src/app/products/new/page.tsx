@@ -2091,6 +2091,70 @@ export default function AdminProductCreate(): JSX.Element {
     } catch { }
   }
 
+  // --- Auto-fill SEO Fields Logic (Inserted Safely) ---
+  React.useEffect(() => {
+    // 1. Slug from SKU
+    if (!slug && sku) {
+      const newSlug = makeSeoName(sku, '');
+      if (newSlug) setSlug(newSlug);
+    }
+  }, [sku, slug]);
+
+  React.useEffect(() => {
+    // 2. SEO Title from Name
+    if (!seoTitle && name) {
+      setSeoTitle(name);
+    }
+  }, [name, seoTitle]);
+
+  React.useEffect(() => {
+    // 3. SEO Description from Description (using simple strip as helper might not be in scope here or above?)
+    // Note: cleanText is defined LATER in the file (helper function), so we should use a local cleaner or move cleanText up. 
+    // Wait, typical helper functions are hoisted if they are function declarations. Let's check.
+    // Yes, 'function cleanText' is hoisted. But 'makeSeoName' is likely a helper too.
+    if (!seoDescription && description) {
+      const clean = cleanText(description);
+      if (clean) {
+        setSeoDescription(clean.slice(0, 160));
+      }
+    }
+  }, [description, seoDescription]);
+
+  React.useEffect(() => {
+    // 4. Social Media (OG/Twitter) from SEO Data
+    if (!seoTitle && !seoDescription) return;
+    const isEmpty = (str: string) => !str || str === '{}';
+
+    // Prioritize primaryImageUrl (from selected color card) over generic images list
+    const firstImage = primaryImageUrl || (images || '').split(',')[0] || '';
+
+    // OG Tags
+    if (isEmpty(ogTagsStr)) {
+      const newOg = {
+        title: seoTitle || name,
+        description: (seoDescription || cleanText(description || '')).slice(0, 300),
+        image: firstImage,
+      };
+      if (newOg.title || newOg.description || newOg.image) {
+        setOgTagsStr(JSON.stringify(newOg, null, 2));
+      }
+    }
+
+    // Twitter
+    if (isEmpty(twitterCardStr)) {
+      const newTw = {
+        card: 'summary_large_image',
+        title: seoTitle || name,
+        description: (seoDescription || cleanText(description || '')).slice(0, 200),
+        image: firstImage,
+      };
+      if (newTw.title || newTw.description || newTw.image) {
+        setTwitterCardStr(JSON.stringify(newTw, null, 2));
+      }
+    }
+  }, [seoTitle, seoDescription, name, description, ogTagsStr, twitterCardStr, images, primaryImageUrl]);
+  // removed fileUrls dependency to avoid complexity, relying on main 'images' string string for auto-fill base.
+
   async function fileToBase64(file: File): Promise<string> {
     // Compress to WebP with max dimension for optimal upload; fallback to original if failure
     try {
