@@ -306,6 +306,8 @@ jobs:
             set -ex
             PATH_ON_HOST=${{ github.event.inputs.path || '/var/www/ecom' }}
             mkdir -p "$PATH_ON_HOST"
+            # Clean packages/db to remove stale debug files before extracting new code
+            rm -rf "$PATH_ON_HOST/packages/db" || true
             tar -xzf "$PATH_ON_HOST/app.tar.gz" -C "$PATH_ON_HOST"
             cd "$PATH_ON_HOST"
             export ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
