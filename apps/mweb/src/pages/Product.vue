@@ -1201,7 +1201,55 @@ const brand = ref<string>('')
 const categoryName = ref<string>('')
 const categoryId = ref<string>('')
 const allCategoryIds = ref<string[]>([])
+
+// --- SEO Injection ---
+// --- SEO Injection ---
+// useHead is already imported at the top
+
+useHead({
+  title: computed(() => title.value ? `${title.value} | Jeeey` : 'Jeeey Shop'),
+  meta: [
+    { name: 'description', content: computed(() => (product.value?.description || '').replace(/<[^>]+>/g, '').slice(0, 160)) },
+    { property: 'og:title', content: computed(() => title.value) },
+    { property: 'og:description', content: computed(() => (product.value?.description || '').replace(/<[^>]+>/g, '').slice(0, 160)) },
+    { property: 'og:image', content: computed(() => images.value?.[0] || '') },
+    { property: 'og:type', content: 'product' },
+    { property: 'og:price:amount', content: computed(() => price.value) },
+    { property: 'og:price:currency', content: computed(() => getCurrency()) },
+    { name: 'twitter:card', content: 'summary_large_image' },
+  ],
+  script: [
+    {
+      type: 'application/ld+json',
+      innerHTML: computed(() => {
+         const schema = {
+           "@context": "https://schema.org/",
+           "@type": "Product",
+           "name": title.value,
+           "image": images.value,
+           "description": (product.value?.description || '').replace(/<[^>]+>/g, ''),
+           "sku": product.value?.sku,
+           "brand": {
+             "@type": "Brand",
+             "name": brand.value || "Jeeey"
+           },
+           "offers": {
+             "@type": "Offer",
+             "url": typeof window !== 'undefined' ? window.location.href : '',
+             "priceCurrency": getCurrency(),
+             "price": price.value,
+             "availability": "https://schema.org/InStock"
+           }
+         };
+         return JSON.stringify(schema);
+      })
+    }
+  ]
+})
+// --- End SEO Injection ---
+
 const safeDescription = computed(()=>{
+
   try{
     const html = String(product.value?.description||'')
     return html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi,'')

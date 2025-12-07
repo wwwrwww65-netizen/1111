@@ -163,6 +163,7 @@ type Cat = {
   categoryType?: string
   subcategories?: Cat[]
   parent?: string
+  slug?: string
 }
 
 type SidebarItem = {
@@ -242,8 +243,10 @@ const router = useRouter()
 function go(path: string) { router.push(path) }
 
 function resolveLink(id: string) {
-    const hasChildren = cats.value.some(c => String(c.parent) === String(id));
-    return hasChildren ? `/categories/${encodeURIComponent(id)}` : `/c/${encodeURIComponent(id)}`;
+    const cat = cats.value.find(c => c.id === id || c.slug === id)
+    const target = cat?.slug || id
+    const hasChildren = cats.value.some(c => String(c.parent) === String(cat?.id || id));
+    return hasChildren ? `/categories/${encodeURIComponent(target)}` : `/c/${encodeURIComponent(target)}`;
 }
 
 // Enhanced Sidebar with icons (from config or fallback)
@@ -539,7 +542,8 @@ onMounted(async () => {
     const badges: Record<string,string> = {}
     try{ for (const b of (catConfig.value?.badges||[])) { if (b?.categoryId && b?.text) badges[b.categoryId]=b.text } }catch{}
     cats.value = data.categories.map((c: any) => ({ 
-      id: c.slug || c.id, 
+      id: c.id, 
+      slug: c.slug,
       name: c.name, 
       image: c.image || `https://picsum.photos/seed/${encodeURIComponent(c.slug || c.id)}/200/200`,
       categoryType: c.categoryType,

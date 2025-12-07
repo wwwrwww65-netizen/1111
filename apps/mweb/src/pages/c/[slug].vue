@@ -384,7 +384,7 @@ const { items } = storeToRefs(cart);
 // Categories State
 const allCategories = ref<Array<{ id:string; slug?:string|null; name:string; parentId?:string|null; image?:string|null }>>([])
 const currentCategory = ref<{ id:string; slug?:string|null; name:string; parentId?:string|null; image?:string|null }|null>(null)
-const categories = ref<Array<{ id:string; label:string; img:string }>>([])
+const categories = ref<Array<{ id:string; slug?:string|null; label:string; img:string }>>([])
 const childCategoryIds = ref<string[]>([])
 
 // Products State
@@ -606,9 +606,9 @@ function togglePriceSort() {
   void loadProducts()
 }
 
-function onCategoryClick(c: {id:string;label:string;img:string}) {
+function onCategoryClick(c: {id:string; slug?:string|null; label:string;img:string}) {
   if (!c?.id) return
-  router.push({ path: `/c/${encodeURIComponent(c.id)}` })
+  router.push({ path: `/c/${encodeURIComponent(c.slug || c.id)}` })
 }
 
 // Filters
@@ -763,6 +763,7 @@ async function loadCategories(){
     
     categories.value = uiCategories.map(c=> ({
       id: c.id,
+      slug: c.slug,
       label: c.name,
       img: safeImg(c.image)
     }))

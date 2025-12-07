@@ -53,13 +53,18 @@ const router = useRouter()
 const showPrice = computed(()=> !!props.cfg?.showPrice)
 const title = computed(()=> props.cfg?.title || '')
 const count = computed(()=> (props.device ?? 'MOBILE') === 'MOBILE' ? 6 : 10)
-const items = ref<Array<{ id:string; name:string; image:string; price:number; priceText:string }>>([])
+const items = ref<Array<{ id:string; name:string; slug:string; image:string; price:number; priceText:string }>>([])
 const loading = ref(true)
 function goMore(){
   const sort = String(props.cfg?.filter?.sortBy||'new')
   try{ router.push(`/products?sort=${encodeURIComponent(sort)}`) }catch{}
 }
-function open(p: { id?: string }){ const id = String(p?.id||''); if (id) router.push(`/p?id=${encodeURIComponent(id)}`) }
+function open(p: { id?: string; slug?: string }){
+    const slug = String(p?.slug||'');
+    if (slug) { router.push(`/p/${encodeURIComponent(slug)}`); return }
+    const id = String(p?.id||'');
+    if (id) router.push(`/p?id=${encodeURIComponent(id)}`)
+}
 
 onMounted(async ()=>{
   try{ await initCurrency() }catch{}
@@ -72,6 +77,7 @@ onMounted(async ()=>{
         return {
           id: String(p.id||''),
           name: String(p.name||p.title||''),
+          slug: String(p.slug||''),
           image: p.image || (Array.isArray(p.images)&&p.images[0]) || '/images/placeholder-product.jpg',
           price: priceNum,
           priceText: fmtPrice(priceNum)
@@ -94,6 +100,7 @@ onMounted(async ()=>{
         return {
           id: String(p.id||''),
           name: String(p.name||''),
+          slug: String(p.slug||p.seo?.slug||''),
           image: (Array.isArray(p.images)&&p.images[0]) || '/images/placeholder-product.jpg',
           price: priceNum,
           priceText: fmtPrice(priceNum)

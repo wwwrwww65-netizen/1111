@@ -47,6 +47,29 @@ export async function generateMetadata(
   };
 }
 
-export default function Page({ params }: Props) {
-  return <ProductDetailClient id={params.id} />;
+
+export default async function Page({ params }: Props) {
+  const seo = await getProductSeo(params.id);
+
+  let jsonLd = null;
+  if (seo && seo.schema) {
+    jsonLd = seo.schema;
+  } else if (seo) {
+    // Fallback JSON-LD generation if schema is missing from DB but we have product info
+    // Note: seo object might override or be minimal, so this is best effort.
+    // Ideally backend returns the specific schema.
+  }
+
+  return (
+    <>
+      {/* JSON-LD for SEO Rich Snippets */}
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
+      <ProductDetailClient id={params.id} />
+    </>
+  );
 }

@@ -85,6 +85,7 @@ import { buildThumbUrl as thumb } from '@/lib/media'
 type P = {
   id: string
   title: string
+  slug?: string
   image?: string
   images?: string[]
   overlayBannerSrc?: string
@@ -148,7 +149,8 @@ const gallery = computed(()=> {
   const single = String(props.product?.image||'').trim()
   return [single && !single.startsWith('blob:') ? single : '/images/placeholder-product.jpg']
 })
-const href = computed(()=> `/p?id=${encodeURIComponent(id.value)}`)
+const slug = computed(()=> props.product?.slug || '')
+const href = computed(()=> slug.value ? `/p/${encodeURIComponent(slug.value)}` : `/p?id=${encodeURIComponent(id.value)}`)
 const imgLoaded = ref(false)
 function onImgLoad(){ imgLoaded.value = true }
 // نسبة placeholder ديناميكية حسب أول صورة
@@ -261,7 +263,7 @@ function open(ev?: Event){
         productData: props.product // Pass full product data
       })
     }catch{}
-    router.push(`/p?id=${encodeURIComponent(id.value)}`)
+    router.push(slug.value ? `/p/${encodeURIComponent(slug.value)}` : `/p?id=${encodeURIComponent(id.value)}`)
   }
   try{
     // عيّن اسم الانتقال على الصورة الأكثر ظهوراً لضمان تطابق الاسم مع الهيرو في صفحة المنتج

@@ -43,9 +43,23 @@ export async function generateMetadata(
     };
 }
 
+
 export default async function Page({ params }: Props) {
     const cat = await getCategory(params.slug);
     if (!cat) return <div className="p-8 text-center">Category not found</div>;
 
-    return <CategoryClientPage category={cat} />;
+    const jsonLd = cat.seo?.schema ? cat.seo.schema : null;
+
+    return (
+        <>
+            {jsonLd && (
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+                />
+            )}
+            <CategoryClientPage category={cat} />
+        </>
+    );
 }
+

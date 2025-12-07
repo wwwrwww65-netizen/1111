@@ -78,6 +78,7 @@ const manualRoutes: RouteRecordRaw[] = [
   { path: '/orders', component: () => import('./pages/Orders.vue') },
   { path: '/order/:id', component: () => import('./pages/OrderDetail.vue') },
   { path: '/checkout', component: () => import('./pages/Checkout.vue') },
+  { path: '/p/:slug', component: () => import('./pages/Product.vue') },
   { path: '/p', component: () => import('./pages/Product.vue') },
   { path: '/search/result', component: () => import('./pages/search/result.vue') },
   { path: '/categories/:slug', component: () => import('./pages/categories/[slug].vue') },

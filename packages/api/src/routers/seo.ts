@@ -174,6 +174,8 @@ seoRouter.post('/analyze', async (req, res) => {
     issues.push('لم يتم تحديد كلمة مفتاحية');
     score -= 10;
   }
+
+  res.json({ ok: true, score, issues });
 });
 
 export default seoRouter;

@@ -92,7 +92,7 @@ import BottomNav from '@/components/BottomNav.vue'
 import { Bell, ShoppingCart, Search } from 'lucide-vue-next'
 
 type Cat = { id: string; name: string; image: string; badge?: string; parentId?: string; slug?: string }
-type Mini = { id: string; name: string; image?: string; badge?: string }
+type Mini = { id: string; name: string; image?: string; badge?: string; slug?: string }
 type GridExplicit = { mode: 'explicit'; categories: Mini[] }
 type GridFilter = { mode: 'filter'; categoryIds?: string[]; limit?: number; sortBy?: 'name_asc'|'name_desc'|'created_desc' }
 type Grid = GridExplicit | GridFilter
@@ -107,8 +107,8 @@ function go(path: string){ router.push(path) }
 const slug = computed(()=> String(route.params.slug||''))
 
 function resolveLink(id: string) {
-    const parent = cats.value.find(c => String(c.id) === String(id));
-    const target = parent?.slug || id;
+    const cat = cats.value.find(c => String(c.id) === String(id));
+    const target = cat?.slug || id;
     const hasChildren = cats.value.some(c => String(c.parentId) === String(id));
     return hasChildren ? `/categories/${encodeURIComponent(target)}` : `/c/${encodeURIComponent(target)}`;
 }
@@ -250,7 +250,7 @@ onMounted(async()=>{
 
   // Load categories
   try{
-    const dataCats = await apiGet<any>('/api/categories?limit=200')
+    const dataCats = await apiGet<any>('/api/categories?limit=1000')
     if (dataCats && Array.isArray(dataCats.categories)){
       cats.value = dataCats.categories.map((c:any)=> ({ 
         id: String(c.id), // Keep explicit UUID 
