@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { resolveApiBase } from "../app/lib/apiBase";
 
 export type Mini = { id: string; slug?: string; name: string; image?: string; parentId?: string };
 
@@ -13,7 +14,7 @@ export function CategoriesPicker({ open, onClose, onSelectMany, initial }: { ope
     if (!open) return; (async () => {
       try {
         setBusy(true);
-        const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000';
+        const API_BASE = resolveApiBase();
         const r = await fetch(`${API_BASE}/api/categories?limit=1000`, { credentials: 'omit' });
         const j = await r.json();
         const list: Array<any> = Array.isArray(j?.categories) ? j.categories : [];
