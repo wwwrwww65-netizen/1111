@@ -72,6 +72,7 @@ jobs:
 
       - name: Prisma generate/push (ephemeral DB)
         run: |
+          PGPASSWORD=password psql -h localhost -U user -d ecom_db -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
           pnpm --filter @repo/db db:generate
           pnpm --filter @repo/db db:push
 

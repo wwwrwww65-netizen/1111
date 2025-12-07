@@ -207,8 +207,8 @@ importers:
         specifier: 3.12.5
         version: 3.12.5
       libphonenumber-js:
-        specifier: ^1.12.30
-        version: 1.12.30
+        specifier: ^1.12.31
+        version: 1.12.31
       lucide-vue-next:
         specifier: ^0.544.0
         version: 0.544.0(vue@3.5.13)
@@ -11198,8 +11198,8 @@ packages:
       prelude-ls: 1.2.1
       type-check: 0.4.0
 
-  /libphonenumber-js@1.12.30:
-    resolution: {integrity: sha512-KxH7uIJFD6+cR6nhdh+wY6prFiH26A3W/W1gTMXnng2PXSwVfi5MhYkdq3Z2Y7vhBVa1/5VJgpNtI76UM2njGA==}
+  /libphonenumber-js@1.12.31:
+    resolution: {integrity: sha512-Z3IhgVgrqO1S5xPYM3K5XwbkDasU67/Vys4heW+lfSBALcUZjeIIzI8zCLifY+OCzSq+fpDdywMDa7z+4srJPQ==}
     dev: false
 
   /lighthouse-logger@1.4.2:
