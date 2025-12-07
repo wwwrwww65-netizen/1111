@@ -16,6 +16,7 @@
   "dependencies": {
     "@unhead/vue": "^2.0.19",
     "gsap": "3.12.5",
+    "libphonenumber-js": "^1.12.31",
     "lucide-vue-next": "^0.544.0",
     "pinia": "2.2.4",
     "swiper": "^11.1.10",
