@@ -5616,8 +5616,9 @@ shop.post('/wishlist/toggle', requireAuth, async (req: any, res) => {
       await db.wishlistItem.create({ data: { userId, productId } });
       return res.json({ added: true });
     }
-  } catch {
-    res.status(500).json({ error: 'failed' });
+  } catch (e: any) {
+    console.error('Wishlist toggle error:', e);
+    res.status(500).json({ error: 'failed', message: e?.message || '', code: e?.code || '' });
   }
 });
 
