@@ -877,7 +877,15 @@ shop.get('/product/:id/meta', async (req: any, res) => {
 shop.get('/product/:id/seller', async (req: any, res) => {
   try {
     const id = String(req.params.id);
-    const p = await db.product.findUnique({ where: { id }, select: { vendor: { select: { id: true, name: true, storeName: true, storeNumber: true, updatedAt: true } } } } as any);
+    // Support both ID and slug lookup
+    let p = await db.product.findUnique({ where: { id }, select: { vendor: { select: { id: true, name: true, storeName: true, storeNumber: true, updatedAt: true } } } } as any);
+    if (!p) {
+      // Try to find by slug
+      const bySeo = await db.productSeo.findUnique({ where: { slug: id }, select: { productId: true } })
+      if (bySeo?.productId) {
+        p = await db.product.findUnique({ where: { id: bySeo.productId }, select: { vendor: { select: { id: true, name: true, storeName: true, storeNumber: true, updatedAt: true } } } } as any);
+      }
+    }
     const v = (p as any)?.vendor || null;
     if (!v) return res.json({ vendor: null });
     // Merge public-facing vendor meta if present
@@ -2339,10 +2347,20 @@ async function computeCartPoints(userId: string, cartItems: any[], subtotal: num
 shop.get('/product/:id/variants', async (req, res) => {
   try {
     const id = String(req.params.id)
-    const p = await db.product.findUnique({ where: { id }, select: { id: true, images: true } })
+    // Support both ID and slug lookup
+    let p = await db.product.findUnique({ where: { id }, select: { id: true, images: true } })
+    if (!p) {
+      // Try to find by slug
+      const bySeo = await db.productSeo.findUnique({ where: { slug: id }, select: { productId: true } })
+      if (bySeo?.productId) {
+        p = await db.product.findUnique({ where: { id: bySeo.productId }, select: { id: true, images: true } })
+      }
+    }
     if (!p) return res.status(404).json({ error: 'not_found' })
+    // Use p.id (actual product ID) instead of id (which could be slug)
+    const productId = p.id
     const rows = await db.productVariant.findMany({
-      where: { productId: id },
+      where: { productId },
       select: { id: true, name: true, value: true, price: true, stockQuantity: true, sku: true },
       orderBy: { createdAt: 'asc' }
     } as any)
@@ -2350,14 +2368,14 @@ shop.get('/product/:id/variants', async (req, res) => {
     let itemsBase = rows || []
     if (!itemsBase.length) {
       try {
-        const pFull = await db.product.findUnique({ where: { id }, select: { tags: true, price: true } })
+        const pFull = await db.product.findUnique({ where: { id: productId }, select: { tags: true, price: true } })
         const tags = (pFull?.tags || []).map((t: any) => String(t || ''))
         const sizes = Array.from(new Set(tags.filter(t => /^(?:size:|مقاس:)/i.test(t)).map(t => t.split(':').slice(1).join(':').trim()).filter(Boolean)))
         const colors = Array.from(new Set(tags.filter(t => /^(?:color:|لون:)/i.test(t)).map(t => t.split(':').slice(1).join(':').trim()).filter(Boolean)))
         const gen: any[] = []
         for (const s of (sizes.length ? sizes : [''])) for (const c of (colors.length ? colors : [''])) {
           const name = [s ? `المقاس: ${s}` : '', c ? `اللون: ${c}` : ''].filter(Boolean).join(' • ')
-          gen.push({ id: `${id}:${s}:${c}`, name, value: name, price: pFull?.price || 0, stockQuantity: 0, sku: null })
+          gen.push({ id: `${productId}:${s}:${c}`, name, value: name, price: pFull?.price || 0, stockQuantity: 0, sku: null })
         }
         itemsBase = gen
       } catch { }
