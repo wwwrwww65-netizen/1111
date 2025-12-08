@@ -147,7 +147,7 @@ seoRouter.post('/analyze', async (req, res) => {
     score -= 5;
   }
   if (focusKeyword) {
-    const keywords = focusKeyword.split(',').map((k: string) => k.trim()).filter(Boolean);
+    const keywords = focusKeyword.split(/[,،]/).map((k: string) => k.trim()).filter(Boolean);
     const primaryKeyword = keywords[0];
 
     if (primaryKeyword) {

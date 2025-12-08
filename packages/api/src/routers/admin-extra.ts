@@ -31,7 +31,8 @@ r.get('/categories/tree', async (_req, res) => {
 
 r.post('/categories', async (req, res) => {
   try {
-    const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations } = req.body || {};
+    const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, canonicalUrl, metaRobots, hiddenContent, ogTags, schema } = req.body || {};
+    console.log('[DEBUG] POST /categories body:', JSON.stringify(req.body, null, 2));
     const created = await db.category.create({
       data: {
         name,
@@ -43,6 +44,15 @@ r.post('/categories', async (req, res) => {
         seoDescription: seoDescription || null,
         seoKeywords: Array.isArray(seoKeywords) ? seoKeywords : [],
         translations: translations || undefined,
+        seo: {
+          create: {
+            canonicalUrl: canonicalUrl || null,
+            metaRobots: metaRobots || 'index, follow',
+            hiddenContent: hiddenContent || null,
+            ogTags: ogTags || undefined,
+            schema: schema || undefined
+          }
+        }
       }
     });
     res.json({ category: created });
@@ -52,7 +62,8 @@ r.post('/categories', async (req, res) => {
 r.patch('/categories/:id', async (req, res) => {
   try {
     const id = String(req.params.id);
-    const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations } = req.body || {};
+    const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, canonicalUrl, metaRobots, hiddenContent, ogTags, schema } = req.body || {};
+    console.log('[DEBUG] PATCH /categories body:', JSON.stringify(req.body, null, 2));
     const updated = await db.category.update({
       where: { id }, data: {
         name,
@@ -64,6 +75,24 @@ r.patch('/categories/:id', async (req, res) => {
         seoDescription: seoDescription ?? undefined,
         seoKeywords: Array.isArray(seoKeywords) ? seoKeywords : undefined,
         translations: translations ?? undefined,
+        seo: {
+          upsert: {
+            create: {
+              canonicalUrl: canonicalUrl || null,
+              metaRobots: metaRobots || 'index, follow',
+              hiddenContent: hiddenContent || null,
+              ogTags: ogTags || undefined,
+              schema: schema || undefined
+            },
+            update: {
+              canonicalUrl: canonicalUrl ?? undefined,
+              metaRobots: metaRobots ?? undefined,
+              hiddenContent: hiddenContent ?? undefined,
+              ogTags: ogTags ?? undefined,
+              schema: schema ?? undefined
+            }
+          }
+        }
       }
     });
     res.json({ category: updated });

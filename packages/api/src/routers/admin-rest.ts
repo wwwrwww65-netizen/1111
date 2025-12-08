@@ -11389,186 +11389,96 @@ adminRest.post('/categories', async (req, res) => {
         if (exists && exists.length) return res.status(409).json({ error: 'slug_exists' });
       } catch { }
     }
-    // Ensure legacy/prod-mirrored schemas are relaxed/compatible before insert
-    await ensureCategorySeoOnce();
-    // Use raw insert to avoid Prisma selecting non-existent columns on RETURNING
-    const id = (typeof (global as any).crypto?.randomUUID === 'function')
-      ? (global as any).crypto.randomUUID()
-      : require('crypto').randomUUID();
-    const rows: Array<{ id: string; name: string }> = await db.$queryRawUnsafe(
-      'INSERT INTO "Category" ("id","name","updatedAt") VALUES ($1,$2,NOW()) RETURNING id, name',
-      id, name
-    );
-    // Apply optional fields provided in the payload
-    try {
-      const sets: string[] = []; const vals: any[] = []; let idx = 1;
-      const push = (col: string, val: any) => { sets.push(`"${col}"=$${++idx}`); vals.push(val); };
-      if (typeof slug === 'string' && slug.trim()) push('slug', String(slug).trim());
-      if (typeof description === 'string') push('description', description);
-      if (typeof image === 'string') push('image', image);
-      if (typeof parentId === 'string' || parentId === null) push('parentId', parentId || null);
-      if (typeof seoTitle === 'string') push('seoTitle', seoTitle);
-      if (typeof seoDescription === 'string') push('seoDescription', seoDescription);
-      if (Array.isArray(seoKeywords)) push('seoKeywords', seoKeywords);
-      if (translations && typeof translations === 'object') push('translations', translations);
-      if (typeof canonicalUrl === 'string') push('canonicalUrl', canonicalUrl);
-      if (typeof metaRobots === 'string') push('metaRobots', metaRobots);
-      if (typeof hiddenContent === 'string') push('hiddenContent', hiddenContent);
-      if (ogTags) push('ogTags', JSON.stringify(ogTags));
-      if (schema) push('schema', JSON.stringify(schema));
-      if (sets.length) {
-        await db.$executeRawUnsafe(`UPDATE "Category" SET ${sets.join(', ')}, "updatedAt"=NOW() WHERE id=$1`, id, ...vals);
+
+    const c = await db.category.create({
+      data: {
+        name,
+        description: description || null,
+        image: image || null,
+        parentId: parentId || null,
+        slug: slug || null,
+        seoTitle: seoTitle || null,
+        seoDescription: seoDescription || null,
+        seoKeywords: Array.isArray(seoKeywords) ? seoKeywords : [],
+        translations: translations || undefined,
+        seo: {
+          create: {
+            canonicalUrl: canonicalUrl || null,
+            metaRobots: metaRobots || 'index, follow',
+            hiddenContent: hiddenContent || null,
+            ogTags: ogTags || undefined,
+            schema: schema || undefined
+          }
+        }
       }
-      // Fallback meta for missing columns
-      const cols = await getCategoryColumnFlags();
-      const metaPatch: Record<string, any> = {};
-      if (!cols.slug && typeof slug === 'string') metaPatch.slug = String(slug).trim();
-      if (!cols.description && typeof description === 'string') metaPatch.description = description;
-      if (!cols.image && typeof image === 'string') metaPatch.image = image;
-      if (!cols.parentid && (typeof parentId === 'string' || parentId === null)) metaPatch.parentId = parentId || null;
-      if (!cols.seotitle && typeof seoTitle === 'string') metaPatch.seoTitle = seoTitle;
-      if (!cols.seodescription && typeof seoDescription === 'string') metaPatch.seoDescription = seoDescription;
-      if (!cols.seokeywords && Array.isArray(seoKeywords)) metaPatch.seoKeywords = seoKeywords;
-      if (!cols.translations && translations && typeof translations === 'object') metaPatch.translations = translations;
-      if (Object.keys(metaPatch).length) await upsertCategoryMeta(id, metaPatch);
-    } catch { }
-    const c = rows[0];
+    });
+
     await audit(req, 'categories', 'create', { id: c.id });
     return res.json({ category: c });
   } catch (e: any) {
-    const msg = String(e?.message || '');
-    if (/column\s+\"?seoTitle\"?\s+does not exist/i.test(msg) || /P20/.test(e?.code || '')) {
-      try {
-        const { name, slug, description, image, parentId, seoTitle, seoDescription, seoKeywords, translations } = req.body || {};
-        const id = (typeof (global as any).crypto?.randomUUID === 'function')
-          ? (global as any).crypto.randomUUID()
-          : require('crypto').randomUUID();
-        const rows: Array<{ id: string; name: string }> = await db.$queryRawUnsafe(
-          'INSERT INTO "Category" ("id","name","updatedAt") VALUES ($1,$2,NOW()) RETURNING id, name',
-          id, name
-        );
-        // Best-effort update for optional fields even in fallback path
-        try {
-          const sets: string[] = []; const vals: any[] = []; let idx = 1;
-          const push = (col: string, val: any) => { sets.push(`"${col}"=$${++idx}`); vals.push(val); };
-          if (typeof slug === 'string' && slug.trim()) push('slug', String(slug).trim());
-          if (typeof description === 'string') push('description', description);
-          if (typeof image === 'string') push('image', image);
-          if (typeof parentId === 'string' || parentId === null) push('parentId', parentId || null);
-          if (typeof seoTitle === 'string') push('seoTitle', seoTitle);
-          if (typeof seoDescription === 'string') push('seoDescription', seoDescription);
-          if (Array.isArray(seoKeywords)) push('seoKeywords', seoKeywords);
-          if (translations && typeof translations === 'object') push('translations', translations);
-          if (sets.length) {
-            await db.$executeRawUnsafe(`UPDATE "Category" SET ${sets.join(', ')}, "updatedAt"=NOW() WHERE id=$1`, id, ...vals);
-          }
-        } catch { }
-        const c = rows[0];
-        await audit(req, 'categories', 'create', { id: c.id });
-        return res.json({ category: c });
-      } catch (e2: any) {
-        return res.status(500).json({ error: e2?.message || 'category_create_failed' });
-      }
-    }
     console.error('Category creation error:', e);
-
-    // Check for database connection issues
-    if (msg.includes('ECONNREFUSED') || msg.includes('ENOTFOUND') || msg.includes('timeout')) {
-      return res.status(502).json({ error: 'Database connection failed. Please try again later.' });
-    }
-
     return res.status(500).json({ error: e?.message || 'category_create_failed' });
   }
 });
-adminRest.patch('/categories/:id', async (req, res) => {
+
+const categoryUpdateHandler = async (req: any, res: any) => {
   const { id } = req.params;
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.update'))) { await audit(req, 'categories', 'forbidden_update', { path: req.path, id }); return res.status(403).json({ error: 'forbidden' }); }
-    await ensureCategorySeo();
+
     // Fetch old slug for redirect
     const oldCat = await db.category.findUnique({ where: { id }, select: { slug: true } });
     const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder, canonicalUrl, metaRobots, hiddenContent, ogTags, schema } = req.body || {};
+
     if (slug && typeof slug === 'string') {
       try {
         const exists: any[] = await db.$queryRawUnsafe('SELECT 1 FROM "Category" WHERE LOWER("slug") = LOWER($1) AND id<>$2 LIMIT 1', String(slug), String(id));
         if (exists && exists.length) return res.status(409).json({ error: 'slug_exists' });
       } catch { }
     }
-    const cols = await getCategoryColumnFlags();
-    const data: any = {};
-    if (name) data.name = name;
-    if (description !== undefined && cols.description) data.description = description;
-    if (image !== undefined && cols.image) data.image = image;
-    if (parentId !== undefined && cols.parentid) data.parentId = parentId;
-    if (slug !== undefined && cols.slug) data.slug = slug;
-    if (seoTitle !== undefined && cols.seotitle) data.seoTitle = seoTitle;
-    if (seoDescription !== undefined && cols.seodescription) data.seoDescription = seoDescription;
-    if (seoKeywords !== undefined && cols.seokeywords) data.seoKeywords = Array.isArray(seoKeywords) ? seoKeywords : undefined;
-    if (translations !== undefined && cols.translations) data.translations = translations;
-    if (typeof sortOrder === 'number' && cols.sortorder) data.sortOrder = sortOrder;
-    const c = await db.category.update({ where: { id }, data, select: { id: true, name: true } as any });
-    // Fallback meta update for missing columns
-    const metaPatch: Record<string, any> = {};
-    if (!cols.description && description !== undefined) metaPatch.description = description;
-    if (!cols.image && image !== undefined) metaPatch.image = image;
-    if (!cols.parentid && parentId !== undefined) metaPatch.parentId = parentId;
-    if (!cols.slug && slug !== undefined) metaPatch.slug = slug;
-    if (!cols.seotitle && seoTitle !== undefined) metaPatch.seoTitle = seoTitle;
-    if (!cols.seodescription && seoDescription !== undefined) metaPatch.seoDescription = seoDescription;
-    if (!cols.seokeywords && seoKeywords !== undefined) metaPatch.seoKeywords = Array.isArray(seoKeywords) ? seoKeywords : undefined;
-    if (!cols.translations && translations !== undefined) metaPatch.translations = translations;
-    if (typeof sortOrder === 'number' && !cols.sortorder) metaPatch.sortOrder = sortOrder;
-    if (typeof canonicalUrl === 'string') metaPatch.canonicalUrl = canonicalUrl;
-    if (typeof metaRobots === 'string') metaPatch.metaRobots = metaRobots;
-    if (typeof hiddenContent === 'string') metaPatch.hiddenContent = hiddenContent;
-    if (ogTags) metaPatch.ogTags = ogTags;
-    if (schema) metaPatch.schema = schema;
-    if (Object.keys(metaPatch).length) await upsertCategoryMeta(id, metaPatch);
 
-    // Create Redirect if slug changed
-    if (slug && oldCat?.slug && slug !== oldCat.slug) {
-      try {
-        await db.redirect.create({
-          data: {
-            from: `/category/${oldCat.slug}`,
-            to: `/category/${slug}`,
-            code: 301,
-            isActive: true
+    const updated = await db.category.update({
+      where: { id },
+      data: {
+        name,
+        description: description ?? undefined,
+        image: image ?? undefined,
+        parentId: parentId === null ? null : parentId ?? undefined,
+        slug: slug ?? undefined,
+        seoTitle: seoTitle ?? undefined,
+        seoDescription: seoDescription ?? undefined,
+        seoKeywords: Array.isArray(seoKeywords) ? seoKeywords : undefined,
+        translations: translations ?? undefined,
+        sortOrder: typeof sortOrder === 'number' ? sortOrder : undefined,
+        seo: {
+          upsert: {
+            create: {
+              canonicalUrl: canonicalUrl || null,
+              metaRobots: metaRobots || 'index, follow',
+              hiddenContent: hiddenContent || null,
+              ogTags: ogTags || undefined,
+              schema: schema || undefined
+            },
+            update: {
+              canonicalUrl: canonicalUrl ?? undefined,
+              metaRobots: metaRobots ?? undefined,
+              hiddenContent: hiddenContent ?? undefined,
+              ogTags: ogTags ?? undefined,
+              schema: schema ?? undefined
+            }
           }
-        });
-      } catch (e) { console.error('Redirect creation failed', e); }
-    }
+        }
+      }
+    });
 
     await audit(req, 'categories', 'update', { id });
-    return res.json({ category: c });
+    return res.json({ category: updated });
   } catch (e: any) {
-    const msg = String(e?.message || '');
-    if (/column\s+\"?seoTitle\"?\s+does not exist/i.test(msg) || /P20/.test(e?.code || '')) {
-      try {
-        await ensureCategorySeoOnce();
-        const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder } = req.body || {};
-        const cols = await getCategoryColumnFlags();
-        const data: any = {};
-        if (name) data.name = name;
-        if (description !== undefined && cols.description) data.description = description;
-        if (image !== undefined && cols.image) data.image = image;
-        if (parentId !== undefined && cols.parentid) data.parentId = parentId;
-        if (slug !== undefined && cols.slug) data.slug = slug;
-        if (seoTitle !== undefined && cols.seotitle) data.seoTitle = seoTitle;
-        if (seoDescription !== undefined && cols.seodescription) data.seoDescription = seoDescription;
-        if (seoKeywords !== undefined && cols.seokeywords) data.seoKeywords = Array.isArray(seoKeywords) ? seoKeywords : undefined;
-        if (translations !== undefined && cols.translations) data.translations = translations;
-        if (typeof sortOrder === 'number' && cols.sortorder) data.sortOrder = sortOrder;
-        const c = await db.category.update({ where: { id }, data, select: { id: true, name: true } as any });
-        await audit(req, 'categories', 'update', { id });
-        return res.json({ category: c });
-      } catch (e2: any) {
-        return res.status(500).json({ error: e2?.message || 'category_update_failed' });
-      }
-    }
     return res.status(500).json({ error: e?.message || 'category_update_failed' });
   }
-});
+};
+adminRest.patch('/categories/:id', categoryUpdateHandler);
+adminRest.put('/categories/:id', categoryUpdateHandler);
 adminRest.delete('/categories/:id', async (req, res) => {
   const { id } = req.params;
   const u = (req as any).user; if (!(await can(u.userId, 'categories.delete'))) { await audit(req, 'categories', 'forbidden_delete', { path: req.path, id }); return res.status(403).json({ error: 'forbidden' }); }
@@ -11709,7 +11619,7 @@ adminRest.get('/users/:id/audit-logs', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message || 'user_audit_list_failed' }); }
 });
 
-export default adminRest;
+
 adminRest.get('/pos/:id', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'inventory.read'))) return res.status(403).json({ error: 'forbidden' });
@@ -12395,3 +12305,5 @@ adminRest.delete('/seo/pages/:id', async (req, res) => {
     return res.status(500).json({ ok: false, error: e.message || 'seo_page_delete_failed' });
   }
 });
+
+export default adminRest;

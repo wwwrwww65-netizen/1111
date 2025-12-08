@@ -68,6 +68,52 @@ export default function CategoriesPage(): JSX.Element {
     })();
   }, [apiBase]);
 
+
+
+  const [seoDirty, setSeoDirty] = React.useState({ title: false, desc: false });
+
+  // Auto-fill SEO fields (Add Form)
+  React.useEffect(() => {
+    // 1. Title
+    if (!seoDirty.title && name) {
+      setSeoTitle(name);
+    }
+    // 2. Description (Plain text per user)
+    if (!seoDirty.desc && description) {
+      setSeoDescription(description.trim().slice(0, 165));
+    }
+    // 3. Social Media (always sync if "pristine" - simplistically using same dirty flags for now or just always update if empty matching? 
+    // User wants continued updates. Let's use the same dirty flags for social title/desc as they mirror the main SEO ones usually.
+    // For simplicity, we'll keep social media syncing logic similar to before but slightly more aggressive: 
+    // If main name changes, update social title if it matches old name OR if it's empty. 
+    // Actually, simpler: just overwrite if !seoDirty.title implies we are in "auto mode".
+
+    // However, the previous logic "only if empty" was specifically requested to avoid overwrites. 
+    // But the new request is "keep updating until I touch it". 
+    // So if !seoDirty.title, we should probably update Social Title too.
+
+    const currentOg = (() => { try { return ogTagsStr ? JSON.parse(ogTagsStr) : {} } catch { return {} } })();
+    const currentTw = (() => { try { return twitterCardStr ? JSON.parse(twitterCardStr) : {} } catch { return {} } })();
+
+    let ogChanged = false;
+    let twChanged = false;
+
+    // OG
+    if (!seoDirty.title && name) { currentOg.title = name; ogChanged = true; }
+    if (!seoDirty.desc && description) { currentOg.description = description.trim().slice(0, 165); ogChanged = true; }
+    if (!currentOg.image && image) { currentOg.image = image; ogChanged = true; }
+
+    // Twitter
+    if (!seoDirty.title && name) { currentTw.title = name; twChanged = true; }
+    if (!seoDirty.desc && description) { currentTw.description = description.trim().slice(0, 165); twChanged = true; }
+    if (!currentTw.image && image) { currentTw.image = image; twChanged = true; }
+
+    if (ogChanged) setOgTagsStr(JSON.stringify(currentOg, null, 2));
+    if (twChanged) setTwitterCardStr(JSON.stringify(currentTw, null, 2));
+
+  }, [name, description, image, seoDirty]);
+
+
   async function fileToBase64(file: File): Promise<string> {
     return await new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -132,13 +178,14 @@ export default function CategoriesPage(): JSX.Element {
         twitterCard: (() => { try { return twitterCardStr ? JSON.parse(twitterCardStr) : undefined } catch { return undefined } })(),
         schema: (() => { try { return schemaStr ? JSON.parse(schemaStr) : undefined } catch { return undefined } })()
       };
+
       const res = await fetch(`/api/admin/categories`, { method: 'POST', headers: { 'content-type': 'application/json', ...authHeaders() }, credentials: 'include', cache: 'no-store', body: JSON.stringify(payload) });
       if (!res.ok) {
         const t = await res.text().catch(() => '');
         showToast(`فشل الإضافة${t ? ': ' + t : ''}`);
         return;
       }
-      setName(""); setDescription(""); setImage(""); setImageFile(null); setParentId(""); setSlug(""); setSeoTitle(""); setSeoDescription(""); setSeoKeywords(""); setCanonicalUrl(""); setMetaRobots(""); setHiddenContent(""); setTrNameAr(""); setTrDescAr(""); setTrNameEn(""); setTrDescEn(""); setOgTagsStr(""); setSchemaStr("");
+      setName(""); setDescription(""); setImage(""); setImageFile(null); setParentId(""); setSlug(""); setSeoTitle(""); setSeoDescription(""); setSeoKeywords(""); setCanonicalUrl(""); setMetaRobots(""); setHiddenContent(""); setTrNameAr(""); setTrDescAr(""); setTrNameEn(""); setTrDescEn(""); setOgTagsStr(""); setSchemaStr(""); setSeoDirty({ title: false, desc: false });
       await Promise.all([loadList(), loadTree()]);
       showToast('تمت الإضافة');
     } catch (e: any) {
@@ -430,8 +477,8 @@ export default function CategoriesPage(): JSX.Element {
                 }}
                 onChange={(changes) => {
                   if (changes.slug !== undefined) setSlug(changes.slug);
-                  if (changes.titleSeo !== undefined) setSeoTitle(changes.titleSeo);
-                  if (changes.metaDescription !== undefined) setSeoDescription(changes.metaDescription);
+                  if (changes.titleSeo !== undefined) { setSeoTitle(changes.titleSeo); setSeoDirty(prev => ({ ...prev, title: true })); }
+                  if (changes.metaDescription !== undefined) { setSeoDescription(changes.metaDescription); setSeoDirty(prev => ({ ...prev, desc: true })); }
                   if (changes.focusKeyword !== undefined) setSeoKeywords(changes.focusKeyword);
                   if (changes.canonicalUrl !== undefined) setCanonicalUrl(changes.canonicalUrl);
                   if (changes.metaRobots !== undefined) setMetaRobots(changes.metaRobots);
@@ -525,6 +572,47 @@ export default function CategoriesPage(): JSX.Element {
 }
 
 function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows, setMediaOpen, setMediaFor, setEditFile, showToast }: { open: boolean; loading: boolean; saving: boolean; edit: any; setEdit: (u: any) => void; onClose: () => void; onSave: () => void; rows: any[]; setMediaOpen: (v: boolean) => void; setMediaFor: (v: 'add' | 'edit' | null) => void; setEditFile: (f: File | null) => void; showToast: (m: string) => void }): JSX.Element | null {
+  const [dirty, setDirty] = React.useState({ title: false, desc: false });
+  // Reset dirty flags when modal opens with new item
+  React.useEffect(() => {
+    setDirty({ title: false, desc: false });
+  }, [edit?.id]);
+
+  // Auto-fill SEO Hook for Edit Modal
+  React.useEffect(() => {
+    if (!edit) return;
+    const { name, description, image, seoTitle, seoDescription, ogTagsStr, twitterCardStr } = edit;
+
+    let changes: any = {};
+    let hasChanges = false;
+
+    // 1. Title
+    if (!dirty.title && name) { changes.seoTitle = name; hasChanges = true; }
+    // 2. Description
+    if (!dirty.desc && description) { changes.seoDescription = description.trim().slice(0, 165); hasChanges = true; }
+
+    // 3. Social Media
+    const currentOg = (() => { try { return ogTagsStr ? JSON.parse(ogTagsStr) : {} } catch { return {} } })();
+    const currentTw = (() => { try { return twitterCardStr ? JSON.parse(twitterCardStr) : {} } catch { return {} } })();
+    let ogChanged = false;
+    let twChanged = false;
+
+    if (!dirty.title && name) { currentOg.title = name; ogChanged = true; }
+    if (!dirty.desc && description) { currentOg.description = description.trim().slice(0, 165); ogChanged = true; }
+    if (!currentOg.image && image) { currentOg.image = image; ogChanged = true; }
+
+    if (!dirty.title && name) { currentTw.title = name; twChanged = true; }
+    if (!dirty.desc && description) { currentTw.description = description.trim().slice(0, 165); twChanged = true; }
+    if (!currentTw.image && image) { currentTw.image = image; twChanged = true; }
+
+    if (ogChanged) { changes.ogTagsStr = JSON.stringify(currentOg, null, 2); hasChanges = true; }
+    if (twChanged) { changes.twitterCardStr = JSON.stringify(currentTw, null, 2); hasChanges = true; }
+
+    if (hasChanges) {
+      setEdit((prev: any) => ({ ...prev, ...changes }));
+    }
+  }, [edit?.name, edit?.description, edit?.image, dirty]); // Added dirty to dependencies
+
   if (!open) return null;
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
@@ -540,6 +628,7 @@ function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows
             <label>الاسم
               <input value={edit?.name || ''} onChange={(e) => setEdit((c: any) => ({ ...c, name: (e.target as HTMLInputElement).value }))} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
             </label>
+
             <label>الوصف
               <textarea value={edit?.description || ''} onChange={(e) => setEdit((c: any) => ({ ...c, description: (e.target as HTMLTextAreaElement).value }))} rows={3} style={{ width: '100%', padding: 10, borderRadius: 10, background: '#0f1320', border: '1px solid #1c2333', color: '#e2e8f0' }} />
             </label>
@@ -570,8 +659,8 @@ function EditModal({ open, loading, saving, edit, setEdit, onClose, onSave, rows
                   setEdit((prev: any) => {
                     const next = { ...prev };
                     if (changes.slug !== undefined) next.slug = changes.slug;
-                    if (changes.titleSeo !== undefined) next.seoTitle = changes.titleSeo;
-                    if (changes.metaDescription !== undefined) next.seoDescription = changes.metaDescription;
+                    if (changes.titleSeo !== undefined) { next.seoTitle = changes.titleSeo; setDirty(prev => ({ ...prev, title: true })); }
+                    if (changes.metaDescription !== undefined) { next.seoDescription = changes.metaDescription; setDirty(prev => ({ ...prev, desc: true })); }
                     if (changes.focusKeyword !== undefined) next.seoKeywords = changes.focusKeyword; // String
                     if (changes.canonicalUrl !== undefined) next.canonicalUrl = changes.canonicalUrl;
                     if (changes.metaRobots !== undefined) next.metaRobots = changes.metaRobots;
