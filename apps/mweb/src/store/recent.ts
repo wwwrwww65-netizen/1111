@@ -16,6 +16,7 @@ export type RecentItem = {
     couponPrice?: number;
     overlayBannerSrc?: string;
     overlayBannerAlt?: string;
+    slug?: string;
 }
 
 function load(): RecentItem[] {

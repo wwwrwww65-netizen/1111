@@ -16,6 +16,7 @@ export type WishItem = {
   couponPrice?: number;
   overlayBannerSrc?: string;
   overlayBannerAlt?: string;
+  slug?: string;
 }
 
 function load(): WishItem[] {

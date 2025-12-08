@@ -669,7 +669,8 @@
                 basePrice: (p as any).priceText || (p as any).basePrice,
                 soldPlus: (p as any).soldPlus,
                 couponPrice: (p as any).afterCoupon,
-                isTrending: (p as any).isTrending === true
+                isTrending: (p as any).isTrending === true,
+                slug: p.slug
               }"
               :ratio="(p as any)._ratio || defaultRatio"
               :priority="ci<6"
@@ -695,7 +696,8 @@
                 basePrice: (p as any).priceText || (p as any).basePrice,
                 soldPlus: (p as any).soldPlus,
                 couponPrice: (p as any).afterCoupon,
-                isTrending: (p as any).isTrending === true
+                isTrending: (p as any).isTrending === true,
+                slug: p.slug
               }"
               :ratio="(p as any)._ratio || defaultRatio"
               :priority="ci<6"
@@ -704,7 +706,8 @@
           </div>
         </div>
       </div>
-      <div v-if="isLoadingRecommended && hasMoreRecommended" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 pb-2">
+      <!-- Skeleton for initial load or load more -->
+      <div v-if="isLoadingRecommended && (hasMoreRecommended || recommendedProducts.length === 0)" class="product-grid grid grid-cols-2 gap-x-[5px] gap-y-0 pb-2">
         <!-- يسار -->
         <div>
           <div v-for="i in recSkLeft" :key="'sk-rec-l-'+i" class="mb-[6px]">
@@ -1592,6 +1595,10 @@ async function loadMoreRecommended() {
   try{
     const offset = recommendedProducts.value.length
     const productId = product.value?.id || id.value
+    // Don't make API call if we don't have a valid product ID (could be slug)
+    if (!product.value?.id) {
+      return
+    }
     let list: any[] = []
     // If active tab is a category, paginate that category; else use similar/new fallback
     const tab = recTabs.value.find(t=> t.key===activeRecTab.value)
