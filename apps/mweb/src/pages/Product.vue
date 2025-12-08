@@ -1816,7 +1816,8 @@ const sellerFollowText = computed(()=>{
 })
 async function loadSeller(pid?: string){
   try{ 
-    const p = String(pid || id.value || route.params.id || route.params.slug); 
+    const productId = product.value?.id || id.value
+    const p = String(pid || productId || route.params.id || route.params.slug); 
     const j = await apiGet<any>(`/api/product/${encodeURIComponent(p)}/seller`); 
     const v = j?.vendor || null
     if (v && v.meta) {
@@ -2076,7 +2077,8 @@ useHead({
 
 async function injectHeadMeta() {
   try {
-    const p = String(id.value)
+    const productId = product.value?.id || id.value
+    const p = String(productId)
     const res = await apiGet<any>(`/api/seo/meta?type=product&id=${encodeURIComponent(p)}`)
     if (res) seoData.value = res
   } catch (e) { console.error('SEO Fetch Fail', e) }
@@ -2327,7 +2329,8 @@ async function loadProductData(pid?: string) {
   
   // Load reviews
   try{
-    const list = await apiGet<any>(`/api/reviews?productId=${encodeURIComponent(id.value)}`)
+    const productId = product.value?.id || id.value
+    const list = await apiGet<any>(`/api/reviews?productId=${encodeURIComponent(productId)}`)
     if (list && Array.isArray(list.items)){
       reviews.value = list.items
       const sum = list.items.reduce((s:any,r:any)=>s+(r.stars||0),0)
@@ -2348,7 +2351,9 @@ async function loadProductData(pid?: string) {
 const attrsLoaded = ref(false)
 async function loadNormalizedVariants(pid?: string){
   // 1) Fetch normalized variants list
-  const p = String(pid || route.query.id || route.params.id || route.params.slug || id.value)
+  // Use product.value.id (actual ID) instead of route params (which could be slug)
+  const productId = product.value?.id || route.query.id || route.params.id || route.params.slug || id.value
+  const p = String(pid || productId)
   // Optimization: if product already has attributes/variants loaded, use them
   let list: any[] = []
   let pd: any = product.value || null
