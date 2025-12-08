@@ -199,7 +199,8 @@
                       categoryId: (p as any).categoryId,
                       categoryIds: Array.isArray((p as any).categoryIds) ? (p as any).categoryIds : undefined,
                       overlayBannerSrc: p.overlayBannerSrc,
-                      overlayBannerAlt: p.overlayBannerAlt
+                      overlayBannerAlt: p.overlayBannerAlt,
+                      slug: (p as any).slug
                     }"
                     :ratio="(p as any)._ratio || defaultRatio"
                     @add="openSuggestOptions"
@@ -225,7 +226,8 @@
                       categoryId: (p as any).categoryId,
                       categoryIds: Array.isArray((p as any).categoryIds) ? (p as any).categoryIds : undefined,
                       overlayBannerSrc: p.overlayBannerSrc,
-                      overlayBannerAlt: p.overlayBannerAlt
+                      overlayBannerAlt: p.overlayBannerAlt,
+                      slug: (p as any).slug
                     }"
                     :ratio="(p as any)._ratio || defaultRatio"
                     @add="openSuggestOptions"
@@ -265,7 +267,8 @@
                       categoryId: (p as any).categoryId,
                       categoryIds: Array.isArray((p as any).categoryIds) ? (p as any).categoryIds : undefined,
                       overlayBannerSrc: p.overlayBannerSrc,
-                      overlayBannerAlt: p.overlayBannerAlt
+                      overlayBannerAlt: p.overlayBannerAlt,
+                      slug: (p as any).slug
                     }"
                     :ratio="(p as any)._ratio || defaultRatio"
                     @add="openSuggestOptions"
@@ -291,7 +294,8 @@
                       categoryId: (p as any).categoryId,
                       categoryIds: Array.isArray((p as any).categoryIds) ? (p as any).categoryIds : undefined,
                       overlayBannerSrc: p.overlayBannerSrc,
-                      overlayBannerAlt: p.overlayBannerAlt
+                      overlayBannerAlt: p.overlayBannerAlt,
+                      slug: (p as any).slug
                     }"
                     :ratio="(p as any)._ratio || defaultRatio"
                     @add="openSuggestOptions"

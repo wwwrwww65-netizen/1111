@@ -99,7 +99,7 @@ import { markTrending } from '@/lib/trending'
 
 defineOptions({ name: 'MasonryForYouBlock' })
 
-type GridP = { id: string; title: string; image?: string; images?: string[]; overlayBannerSrc?: string; overlayBannerAlt?: string; brand?: string; discountPercent?: number; bestRank?: number; bestRankCategory?: string; basePrice?: string; soldPlus?: string; couponPrice?: string; isTrending?: boolean; _ratio?: number; categoryId?: string; categoryIds?: string[] }
+type GridP = { id: string; title: string; slug?: string; image?: string; images?: string[]; overlayBannerSrc?: string; overlayBannerAlt?: string; brand?: string; discountPercent?: number; bestRank?: number; bestRankCategory?: string; basePrice?: string; soldPlus?: string; couponPrice?: string; isTrending?: boolean; _ratio?: number; categoryId?: string; categoryIds?: string[] }
 type Cfg = { columns?: number; products?: any[]; items?: any[] }
 const props = defineProps<{ cfg?: Cfg; device?: 'MOBILE'|'DESKTOP' }>()
 const fallbackCount = computed(()=> 10)
@@ -136,6 +136,7 @@ function toGridP(p:any, i:number): GridP{
   return {
     id: String(p.id || p.title || i),
     title: String(p.title || p.name || ''),
+    slug: String(p.slug || ''),
     image: p.image || (Array.isArray(p.images)? p.images[0] : undefined),
     images: Array.isArray(p.images)? p.images : undefined,
     overlayBannerSrc: p.overlayBannerSrc,

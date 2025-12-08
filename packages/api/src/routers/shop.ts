@@ -153,6 +153,7 @@ shop.get('/auth/wishlist', async (req: any, res) => {
         product: {
           select: {
             id: true, name: true, price: true, images: true,
+            seo: { select: { slug: true } },
             colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
           }
         }
@@ -194,7 +195,8 @@ shop.get('/auth/wishlist', async (req: any, res) => {
         img,
         images,
         colorThumbs,
-        colors
+        colors,
+        slug: (p as any).seo?.slug || null
       };
     });
 
@@ -1852,6 +1854,7 @@ shop.get('/products', async (req, res) => {
         where: { isActive: true, id: { in: ids } },
         select: {
           id: true, name: true, price: true, images: true,
+          seo: { select: { slug: true } },
           colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
         },
       });
@@ -1930,6 +1933,7 @@ shop.get('/products', async (req, res) => {
           where: finalWhere,
           select: {
             id: true, name: true, price: true, images: true, categoryId: true,
+            seo: { select: { slug: true } },
             colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
           },
           orderBy,
@@ -1943,6 +1947,7 @@ shop.get('/products', async (req, res) => {
           where,
           select: {
             id: true, name: true, price: true, images: true, categoryId: true,
+            seo: { select: { slug: true } },
             colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
           },
           orderBy,
@@ -1955,6 +1960,7 @@ shop.get('/products', async (req, res) => {
     // Post-process items to prioritize hero image and populate colorThumbs
     items.forEach((it: any) => {
       // Map categoryIds from categoryLinks + categoryId
+      (it as any).slug = (it as any).seo?.slug || null;
       it.categoryIds = Array.from(new Set([
         it.categoryId,
       ].filter(Boolean)));
@@ -2510,6 +2516,7 @@ shop.get('/recommendations/similar/:productId', async (req, res) => {
       where: { categoryId: p.categoryId, isActive: true, NOT: { id: productId } },
       select: {
         id: true, name: true, price: true, images: true, brand: true, categoryId: true,
+        seo: { select: { slug: true } },
         colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
       },
       orderBy: { updatedAt: 'desc' },
@@ -3742,6 +3749,7 @@ shop.get('/catalog/:slug', async (req, res) => {
       where,
       select: {
         id: true, name: true, price: true, images: true, brand: true, tags: true, categoryId: true,
+        seo: { select: { slug: true } },
 
       },
       orderBy,
@@ -4029,7 +4037,7 @@ shop.get('/cart/auth', requireAuth, async (req: any, res) => {
   const userId = req.user.userId;
   const cart = await db.cart.findUnique({
     where: { userId },
-    include: { items: { include: { product: { select: { id: true, name: true, price: true, images: true } } } } },
+    include: { items: { include: { product: { select: { id: true, name: true, price: true, images: true, seo: { select: { slug: true } } } } } } },
   });
   const subtotal = (cart?.items ?? []).reduce((s, it) => s + it.quantity * (it.product?.price || 0), 0);
   res.json({ cart, subtotal });
@@ -4787,7 +4795,7 @@ shop.get('/cart', async (req: any, res) => {
       const productIds = Array.from(new Set(cart.items.map((it: any) => it.productId)));
       const prods = await db.product.findMany({
         where: { id: { in: productIds } },
-        select: { id: true, name: true, price: true, images: true, categoryId: true }
+        select: { id: true, name: true, price: true, images: true, categoryId: true, seo: { select: { slug: true } } }
       });
       const byId = new Map(prods.map((p: any) => {
         p.categoryIds = Array.from(new Set([
@@ -4804,7 +4812,7 @@ shop.get('/cart', async (req: any, res) => {
     const productIds = Array.from(new Set((rows || []).map(r => String(r.productId))));
     const prods = productIds.length ? await db.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, name: true, price: true, images: true, categoryId: true }
+      select: { id: true, name: true, price: true, images: true, categoryId: true, seo: { select: { slug: true } } }
     }) : [];
     const byId = new Map(prods.map((p: any) => {
       p.categoryIds = Array.from(new Set([
@@ -5432,14 +5440,14 @@ shop.get('/cart', async (req: any, res) => {
     if (userId) {
       // Merge any existing guest cart (by header/cookie session) into user cart on first fetch after login
       try { await mergeGuestIntoUserIfPresent(req, res, String(userId)); } catch { }
-      const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: { select: { id: true, name: true, price: true, images: true } } } } } });
+      const cart = await db.cart.findUnique({ where: { userId }, include: { items: { include: { product: { select: { id: true, name: true, price: true, images: true, seo: { select: { slug: true } } } } } } } });
       if (!cart) return res.json({ cart: { items: [] } });
       return res.json({ cart });
     }
     // Guest cart
     const cookies = parseCookies(req);
     const sid = (req.headers['x-session-id'] as string | undefined) || cookies['guest_session'] || cookies['guest_sid'];
-    const g = sid ? await db.guestCart.findUnique({ where: { sessionId: sid }, include: { items: { include: { product: { select: { id: true, name: true, price: true, images: true } } } } } }) : null;
+    const g = sid ? await db.guestCart.findUnique({ where: { sessionId: sid }, include: { items: { include: { product: { select: { id: true, name: true, price: true, images: true, seo: { select: { slug: true } } } } } } } }) : null;
     if (!g) return res.json({ cart: { items: [] } });
     return res.json({ cart: { id: g.id, items: g.items } });
   } catch { return res.status(500).json({ error: 'failed' }); }
@@ -5611,8 +5619,8 @@ shop.post('/cart/clear', async (req: any, res) => {
 shop.get('/wishlist', requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.userId;
-    const items = await db.wishlistItem.findMany({ where: { userId }, include: { product: { select: { id: true, name: true, price: true, images: true } } } });
-    res.json(items.map(w => ({ id: w.productId, title: w.product?.name || '', price: Number(w.product?.price || 0), img: w.product?.images?.[0] })));
+    const items = await db.wishlistItem.findMany({ where: { userId }, include: { product: { select: { id: true, name: true, price: true, images: true, seo: { select: { slug: true } } } } } });
+    res.json(items.map(w => ({ id: w.productId, title: w.product?.name || '', price: Number(w.product?.price || 0), img: w.product?.images?.[0], slug: (w.product as any)?.seo?.slug || null })));
   } catch {
     res.status(500).json({ error: 'failed' });
   }

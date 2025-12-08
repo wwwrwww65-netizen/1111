@@ -252,7 +252,8 @@
                 basePrice: p.basePrice,
                 soldPlus: p.soldPlus,
                 couponPrice: p.couponPrice,
-                isTrending: (p as any).isTrending === true
+                isTrending: (p as any).isTrending === true,
+                slug: p.slug
               }"
               :ratio="p._ratio || defaultRatio"
               :priority="ci<4"
@@ -278,7 +279,8 @@
                 basePrice: p.basePrice,
                 soldPlus: p.soldPlus,
                 couponPrice: p.couponPrice,
-                isTrending: (p as any).isTrending === true
+                isTrending: (p as any).isTrending === true,
+                slug: p.slug
               }"
               :ratio="p._ratio || defaultRatio"
               :priority="ci<4"
@@ -677,6 +679,7 @@ async function loadProducts(limit: number = 10){
     const mappedRaw = items.map((it:any)=> ({
       id: String(it.id),
       title: String(it.name||''),
+      slug: it.slug,
       image: Array.isArray(it.images)&&it.images[0]? it.images[0] : '/images/placeholder-product.jpg',
       images: Array.isArray(it.images)? it.images : [],
       basePrice: Number(it.price||0).toFixed(2),
@@ -740,6 +743,7 @@ async function loadMoreProducts() {
     const sliceRaw = items.map((it:any)=> ({
         id: String(it.id),
         title: String(it.name||''),
+        slug: it.slug,
         image: Array.isArray(it.images)&&it.images[0]? it.images[0] : '/images/placeholder-product.jpg',
         images: Array.isArray(it.images)? it.images : [],
         basePrice: Number(it.price||0).toFixed(2),
