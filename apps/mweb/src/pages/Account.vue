@@ -200,7 +200,7 @@
                       categoryIds: Array.isArray((p as any).categoryIds) ? (p as any).categoryIds : undefined,
                       overlayBannerSrc: p.overlayBannerSrc,
                       overlayBannerAlt: p.overlayBannerAlt,
-                      slug: (() => { console.log('Wishlist product:', p.id, 'slug:', (p as any).slug); return (p as any).slug })()
+                      slug: (p as any).slug
                     }"
                     :ratio="(p as any)._ratio || defaultRatio"
                     @add="openSuggestOptions"

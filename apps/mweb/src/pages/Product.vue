@@ -2221,7 +2221,8 @@ async function loadProductData(pid?: string) {
           title: d.name,
           price: Number(d.price),
           img: imgs[0] || '',
-          brand: d.brand
+          brand: d.brand,
+          slug: (d as any).seo?.slug || (d as any).slug || undefined
         })
       }catch{}
       try{
