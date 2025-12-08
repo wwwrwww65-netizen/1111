@@ -1800,7 +1800,9 @@ async function loadWishlist(){
 }
 async function toggleWish(){
   try{
-    const r = await apiPost<any>('/api/wishlist/toggle', { productId: id.value })
+    const productId = product.value?.id || id.value
+    if (!productId) return
+    const r = await apiPost<any>('/api/wishlist/toggle', { productId })
     if (r && (r.added || r.removed)) hasWish.value = !!r.added
     else hasWish.value = !hasWish.value
   }catch{ hasWish.value = !hasWish.value }
