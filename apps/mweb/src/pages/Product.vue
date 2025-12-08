@@ -1591,6 +1591,7 @@ async function loadMoreRecommended() {
   isLoadingRecommended.value = true
   try{
     const offset = recommendedProducts.value.length
+    const productId = product.value?.id || id.value
     let list: any[] = []
     // If active tab is a category, paginate that category; else use similar/new fallback
     const tab = recTabs.value.find(t=> t.key===activeRecTab.value)
@@ -1602,7 +1603,7 @@ async function loadMoreRecommended() {
       list = Array.isArray(j?.items)? j.items : []
     } else {
       // Prefer similar; if backend supports offset/limit they'll be used, else we slice locally
-      const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(id.value)}?limit=10&offset=${offset}`).catch(()=>null)
+      const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(productId)}?limit=10&offset=${offset}`).catch(()=>null)
       list = Array.isArray(sim?.items) ? sim!.items : []
       if (!list.length){
         const ex = Array.from(new Set(recommendedProducts.value.map(p=> String(p.id)))).slice(0,200)
@@ -1620,7 +1621,7 @@ async function loadMoreRecommended() {
     const mapped = list
       .map((it:any)=> toRecItem(it))
       // exclude current product id to avoid "reload same page" effect
-      .filter((p:any)=> String(p.id) !== String(id.value))
+      .filter((p:any)=> String(p.id) !== String(productId))
       .filter((p:any)=> !existing.has(String(p.id)))
     if (mapped.length){
       await Promise.all(mapped.map(p=> probeRatioPromise(p)))
@@ -2620,7 +2621,9 @@ async function fetchRecommendations(pid?: string){
       return
     }
     // Default: similar by current product's category, then recent
-    const p = String(pid || id.value || route.params.id || route.params.slug)
+    // Use product.value.id (actual ID) instead of id.value (which could be slug from route)
+    const productId = product.value?.id || id.value
+    const p = String(pid || productId || route.params.id || route.params.slug)
     const sim = await apiGet<any>(`/api/recommendations/similar/${encodeURIComponent(p)}`, { signal }).catch(()=>null)
     let list: any[] = Array.isArray(sim?.items) ? sim!.items : []
     if (!list.length){
@@ -2638,7 +2641,7 @@ async function fetchRecommendations(pid?: string){
     const mapped = list
       .map((it:any)=> toRecItem(it))
       // exclude current product id to avoid "reload same page" effect
-      .filter((p:any)=> String(p.id) !== String(id.value))
+      .filter((p:any)=> String(p.id) !== String(productId))
       .filter((p:any)=> !existing.has(String(p.id)))
     if (mapped.length){
       await Promise.all(mapped.map(p=> probeRatioPromise(p)))
