@@ -579,6 +579,31 @@ app.use(
   })
 );
 
+// Serve Frontend Static Files (BFF Pattern)
+// This allows the API to serve the SPA + SSR for specific routes
+const mwebDist = path.resolve(process.cwd(), '../../apps/mweb/dist');
+const mwebIndex = path.resolve(mwebDist, 'index.html');
+
+// 1. Static Assets (js, css, images) - check if dist exists
+if (require('fs').existsSync(mwebDist)) {
+  app.use(express.static(mwebDist, { index: false })); // index:false to let SSR handle / and others
+}
+
+// 2. SPA Fallback for non-API routes (and non-SSR routes)
+// Note: publicSeoRouter (SSR) is already mounted at '/' via line 423, so /p/:slug is handled there.
+// Everything else that isn't /api/* or a static file should return index.html
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/trpc') || req.path.startsWith('/uploads') || req.path.startsWith('/webhooks')) {
+    return next();
+  }
+  if (require('fs').existsSync(mwebIndex)) {
+    res.sendFile(mwebIndex);
+  } else {
+    // Fallback if built frontend not found (e.g. dev mode without build)
+    next();
+  }
+});
+
 export const expressApp = app;
 const port = Number(process.env.PORT || 4000);
 // Health for local reverse-proxy sanity check
