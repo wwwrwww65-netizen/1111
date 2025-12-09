@@ -1363,17 +1363,17 @@ function isOptionsComplete(): boolean {
 }
 function openOptionsModal(){ optionsModalOpen.value = true }
 function closeOptionsModal(){ optionsModalOpen.value = false }
-async function onConfirmOptions(){
+async function onConfirmOptions(imgOverride?: string){
   if (!isOptionsComplete()) {
     try { requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value = false, 2000) } catch {}
     return
   }
   optionsModalOpen.value = false
-  await addToCartInternal()
+  await addToCartInternal(imgOverride)
 }
-function onOptionsModalSave(payload: { color: string; size: string }){
+function onOptionsModalSave(payload: { color: string; size: string; img?: string }){
   try{
-    const { color, size: picked } = payload || { color:'', size:'' }
+    const { color, size: picked, img } = payload || { color:'', size:'' }
     if (color){
       const idx = colorVariants.value.findIndex(c=> String(c?.name||'').trim() === String(color).trim())
       if (idx>=0) colorIdx.value = idx
@@ -1388,8 +1388,8 @@ function onOptionsModalSave(payload: { color: string; size: string }){
         size.value = String(picked)
       }
     }
-  }catch{}
-  onConfirmOptions()
+    onConfirmOptions(img)
+  }catch{ onConfirmOptions() }
 }
 function onPickGroupValue(label: string, val: string){ selectedGroupValues.value = { ...selectedGroupValues.value, [label]: val } }
 const variantByKey = ref<Record<string, { id:string; price?:number; stock?:number }>>({})
@@ -1767,7 +1767,7 @@ async function addToCart(){
   }
   await addToCartInternal()
 }
-async function addToCartInternal(){
+async function addToCartInternal(imgOverride?: string){
   const chosenSize = sizeGroups.value.length ? Object.entries(selectedGroupValues.value).map(([label,val])=> `${label}:${val}`).join('|') : size.value
   
   // FIX: Use the loaded product ID if available to avoid sending slug
@@ -1778,7 +1778,7 @@ async function addToCartInternal(){
     id: realId, 
     title: title.value, 
     price: Number(price.value)||0, 
-    img: activeImg.value, 
+    img: imgOverride || activeImg.value, 
     variantColor: currentColorName.value || undefined, 
     variantSize: chosenSize || undefined 
   }, 1)
@@ -2926,12 +2926,13 @@ async function openRecOptions(pid: string){
     recModalSize.value = ''
   }catch{ recModalProduct.value = { id: pid, title:'', price:0, images: [], colors: [], sizes: [], sizeGroups: [] } }
 }
-function onRecModalSave(payload: { color: string; size: string }){
+function onRecModalSave(payload: { color: string; size: string; img?: string }){
   try{
     const color = payload?.color || ''
     const size = payload?.size || ''
+    const img = payload?.img || (recModalProduct.value?.images?.[0]||'')
     if (!recModalProduct.value) return
-    cart.add({ id: recModalProduct.value.id, title: recModalProduct.value.title, price: Number(recModalProduct.value.price||0), img: (recModalProduct.value.images?.[0]||''), variantColor: color||undefined, variantSize: size||undefined }, 1)
+    cart.add({ id: recModalProduct.value.id, title: recModalProduct.value.title, price: Number(recModalProduct.value.price||0), img, variantColor: color||undefined, variantSize: size||undefined }, 1)
     try{ showToast() }catch{}
   }finally{ recOptionsOpen.value = false }
 }
