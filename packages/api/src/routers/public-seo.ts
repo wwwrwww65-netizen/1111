@@ -340,14 +340,16 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
         const slug = req.params.slug;
         const meta = await resolveSeoData({ slug, type: forcedType, url: req.originalUrl || req.url });
 
-        // Read HTML - Robust Path Resolution
+        let html = ''; // Initialize empty string
+
+        // 1. Try reading static file efficiently first (preferred)
         const candidates = [
-            path.resolve(process.cwd(), '../../apps/mweb/dist/index.html'), // Local / Monorepo
+            path.resolve(process.cwd(), '../../apps/mweb/dist/index.html'),
             path.resolve(process.cwd(), '../mweb/dist/index.html'),
             path.resolve(process.cwd(), 'public/index.html'),
-            '/var/www/mweb/dist/index.html', // Common Prod
+            '/var/www/mweb/dist/index.html',
             '/var/www/html/dist/index.html',
-            '/app/apps/mweb/dist/index.html' // Docker
+            '/app/apps/mweb/dist/index.html'
         ];
 
         let htmlPath = '';
@@ -358,36 +360,36 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
             }
         }
 
-        if (!htmlPath) {
-            console.error('SSR Error: index.html not found in candidates:', candidates);
-            // Fallback: Generate valid minimal HTML with SEO tags so sharing works even if app shell is missing
-            if (meta) {
-                const { titleSeo, metaDescription, ogTags, twitterCard } = meta;
-                const img = ogTags?.image || twitterCard?.image || '';
-                const desc = ogTags?.description || metaDescription || '';
-                const title = ogTags?.title || titleSeo || 'Jeeey';
-
-                const fallbackHtml = `<!doctype html>
-<html><head>
-<meta charset="utf-8"><title>${title}</title>
-<meta name="description" content="${desc}">
-<meta property="og:title" content="${title}">
-<meta property="og:description" content="${desc}">
-<meta property="og:image" content="${img}">
-<meta property="twitter:card" content="summary_large_image">
-</head><body>
-<script>window.location.href = '/'; // Client redirect to home if shell missing
-</script></body></html>`;
-                res.setHeader('Content-Type', 'text/html');
-                return res.send(fallbackHtml);
+        if (htmlPath) {
+            html = fs.readFileSync(htmlPath, 'utf-8');
+        } else {
+            console.log('SSR: index.html not found on disk, attempting fetch from upstream...');
+            try {
+                // Fetch from localhost:3000 (standard web port)
+                const fetch = (await import('node-fetch')).default;
+                const upstreamRes = await fetch(`http://127.0.0.1:3000${req.originalUrl || req.url}`);
+                if (upstreamRes.ok) {
+                    html = await upstreamRes.text();
+                } else {
+                    // Try root as fallback
+                    const rootRes = await fetch('http://127.0.0.1:3000/');
+                    if (rootRes.ok) {
+                        html = await rootRes.text();
+                    }
+                }
+            } catch (err) {
+                console.error('SSR Upstream Error:', err);
             }
-            return res.status(404).send('Not found');
         }
 
-        let html = fs.readFileSync(htmlPath, 'utf-8');
+        // 3. Absolute Fail-safe: Minimal page BUT preserves URL content if possible (client-side render)
+        if (!html) {
+            // Still serve a basic shell so at least Client-Side Routing takes over
+            html = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><div id="app"></div><script src="/index.js"></script></body></html>';
+        }
 
         if (meta) {
-            // Inject SEO Meta
+            // Inject SEO Meta ...
             const { titleSeo, metaDescription, ogTags, twitterCard } = meta;
             // Replacements
             html = html.replace(/<title>.*?<\/title>/, `<title>${titleSeo || 'Jeeey'}</title>`);
