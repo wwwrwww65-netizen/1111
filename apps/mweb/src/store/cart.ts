@@ -40,24 +40,6 @@ export const useCart = defineStore('cart', {
       // When force=true, always hydrate from server (used after login/merge)
       if (!force && this.items.length > 0) { this.loaded = true; return }
 
-      // FIX: Push local items to server before fetching authoritative state
-      // This ensures attributes (color/size) are preserved during guest->user transition
-      if (force && this.items.length > 0) {
-        try {
-          await Promise.all(this.items.map(item =>
-            apiPost('/api/cart/add', {
-              productId: item.id,
-              quantity: item.qty,
-              attributes: {
-                color: item.variantColor,
-                size: item.variantSize,
-                colorImageUrl: item.img
-              }
-            }).catch(() => { })
-          ))
-        } catch { }
-      }
-
       const data = await apiGet<any>('/api/cart')
       if (data && data.cart) {
         this.items = (data.cart.items || []).map((ci: any) => {
@@ -72,6 +54,31 @@ export const useCart = defineStore('cart', {
       }
       this.loaded = true
     },
+    async mergeLocalToUser() {
+      // PROPER MERGE: Push local guest items (with variant details) to server.
+      // Call this ONLY once after login success.
+      if (this.items.length === 0) return
+      if ((this as any).merging) return // Prevent double-submit
+        ; (this as any).merging = true
+      try {
+        await Promise.all(this.items.map(item =>
+          apiPost('/api/cart/add', {
+            productId: item.id,
+            quantity: item.qty,
+            attributes: {
+              color: item.variantColor,
+              size: item.variantSize,
+              colorImageUrl: item.img
+            }
+          }).catch(() => { })
+        ))
+        // Clear local items to prevent re-merging if this action is called again before syncFromServer
+        this.items = []
+      } catch { }
+      finally { (this as any).merging = false }
+    },
+
+
     async add(item: Omit<CartItem, 'qty' | 'uid'>, qty = 1) {
       const uid = this.computeUid(item.id, item.variantColor, item.variantSize)
       const ex = this.items.find(i => i.uid === uid)

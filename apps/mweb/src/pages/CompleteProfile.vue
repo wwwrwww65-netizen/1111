@@ -88,6 +88,15 @@ async function onSubmit(){
         }
       }catch{}
       const ret = String(route.query.return||'/account')
+      
+      try {
+        const { useCart } = await import('@/store/cart')
+        const cart = useCart()
+        await cart.mergeLocalToUser()
+        await cart.syncFromServer(true)
+        cart.saveLocal()
+      } catch { }
+
       router.push(ret)
     } else {
       const msg = String((r && (r.error||r.message)) || '')

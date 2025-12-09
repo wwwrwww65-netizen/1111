@@ -1571,7 +1571,7 @@ shop.post('/auth/otp/verify', async (req: any, res) => {
         }
       }
     } catch { }
-    try { await mergeGuestIntoUserIfPresent(req, res, String(user.id)); } catch { }
+    // try { await mergeGuestIntoUserIfPresent(req, res, String(user.id)); } catch { }
     return res.json({ ok: true, token, newUser: !existed });
   } catch (e: any) { return res.status(500).json({ ok: false, error: e.message || 'otp_verify_failed' }); }
 });
@@ -1599,7 +1599,7 @@ shop.post('/auth/phone/login', async (req: any, res) => {
     try { res.clearCookie('auth_token', { domain: cookieDomain, path: '/' }); const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain; if (root) res.clearCookie('auth_token', { domain: `api.${root}`, path: '/' }); } catch { }
     try { res.cookie('shop_auth_token', token, { httpOnly: true, domain: isLocalHost ? undefined : cookieDomain, sameSite: isProd && !isLocalHost ? 'none' : 'lax', secure: isProd && !isLocalHost, maxAge: 3600 * 24 * 30 * 1000, path: '/' } as any); } catch { }
     try { const root = cookieDomain.startsWith('.') ? cookieDomain.slice(1) : cookieDomain; if (root && !isLocalHost) { res.cookie('shop_auth_token', token, { httpOnly: true, domain: `api.${root}`, sameSite: isProd ? 'none' : 'lax', secure: isProd, maxAge: 3600 * 24 * 30 * 1000, path: '/' }); } } catch { }
-    try { await mergeGuestIntoUserIfPresent(req, res, String(user.id)); } catch { }
+    // try { await mergeGuestIntoUserIfPresent(req, res, String(user.id)); } catch { }
     const { password: _, ...userWithoutPassword } = user;
     return res.json({ ok: true, token, user: userWithoutPassword });
   } catch (e: any) { return res.status(500).json({ ok: false, error: e.message || 'login_failed' }); }
@@ -3172,6 +3172,9 @@ shop.post('/analytics/link', async (req: any, res) => {
       await db.$executeRawUnsafe(`UPDATE "Event" SET "userId" = $1 WHERE COALESCE("anonymousId", properties->>'anonymousId') = $2 AND ("userId" IS NULL OR "userId" <> $1)`, String(userId), String(anonymousId));
     }
     // Merge guest cart (by session header/cookies) into user cart to keep continuity
+    // Merge guest cart merge logic DISABLED (Frontend handles it with variants now)
+    // The previous logic below ignored attributes/variants and caused duplicates.
+    /*
     try {
       // Construct a faux request carrying same headers to reuse getOrCreateGuestCartId
       const proxyReq: any = { headers: req.headers, cookies: req.cookies };
@@ -3196,6 +3199,7 @@ shop.post('/analytics/link', async (req: any, res) => {
         try { await db.$executeRawUnsafe('DELETE FROM "GuestCart" WHERE id=$1', guestCartId) } catch { }
       }
     } catch { }
+    */
 
     return res.json({ ok: true, sessionsUpdated });
   } catch (e: any) { return res.status(500).json({ ok: false, error: e?.message || 'link_failed' }); }
@@ -4755,6 +4759,10 @@ async function getOrCreateGuestCartId(req: any, res: any): Promise<{ sessionId: 
 
 // Merge guest cart into the authenticated user's cart if a guest session exists
 async function mergeGuestIntoUserIfPresent(req: any, res: any, userId: string): Promise<void> {
+  // DISABLED: Frontend now handles merge (mergeLocalToUser) to support variants correctly.
+  // This backend logic was causing duplicates and quantity doubling.
+  return;
+  /*
   try {
     const cookies = parseCookies(req);
     const sid = (req.headers['x-session-id'] as string | undefined) || cookies['guest_session'] || cookies['guest_sid'];
@@ -4790,6 +4798,7 @@ async function mergeGuestIntoUserIfPresent(req: any, res: any, userId: string): 
     try { await db.guestCart.delete({ where: { id: guest.id } } as any); } catch { }
     try { await db.cart.update({ where: { id: cartId }, data: { updatedAt: new Date() } } as any); } catch { }
   } catch { }
+  */
 }
 
 shop.get('/cart', async (req: any, res) => {

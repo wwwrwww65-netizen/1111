@@ -134,12 +134,13 @@ export const authRouter = router({
       const token = createToken({ userId: user.id, email: user.email, role: user.role });
       setAuthCookies(ctx.res as any, token);
 
-      // Merge guest cart into user cart if a guest session cookie exists (first-login sync)
+      // Merge guest cart into user cart DISABLED (Frontend handles it with variants now)
+      /*
       try {
         const req: any = ctx.req as any;
         const res: any = ctx.res as any;
         const raw = String(req.headers?.cookie || '');
-        const cookies: Record<string, string> = raw.split(';').reduce((acc: any, p: string) => {
+        const cookies: Record<string, string> = raw.split('').reduce((acc: any, p: string) => {
           const [k, ...rest] = p.split('=');
           if (!k) return acc;
           acc[k.trim()] = decodeURIComponent((rest.join('=') || '').trim());
@@ -204,6 +205,7 @@ export const authRouter = router({
           }
         } catch { }
       } catch { }
+      */
 
       const { password: _, ...userWithoutPassword } = user;
       return { user: userWithoutPassword, token };

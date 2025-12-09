@@ -406,8 +406,9 @@ async function onSubmit(){
         try{
           const { useCart } = await import('@/store/cart')
           const cart = useCart()
-          const items = Array.isArray(cart.items) ? cart.items.map(i=>({ productId: i.id, quantity: i.qty })) : []
-          if (items.length) await apiPost('/api/cart/merge', { items })
+          // Explicitly push local items (Guest Cart) to the authenticated server cart ONCE
+          await cart.mergeLocalToUser()
+          
           // Force hydration from server so cart persists across devices and after login
           await cart.syncFromServer(true)
           cart.saveLocal()

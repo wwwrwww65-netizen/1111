@@ -162,6 +162,15 @@ async function submit() {
     }
 
     // Success
+    try {
+      // Safety net: Ensure any pending guest items are merged before redirecting
+      const { useCart } = await import('@/store/cart')
+      const cart = useCart()
+      await cart.mergeLocalToUser()
+      await cart.syncFromServer(true)
+      cart.saveLocal()
+    } catch { }
+
     router.replace('/account')
   } catch (e: any) {
     console.error(e)

@@ -202,8 +202,9 @@ const login = async () => {
         try {
           const { useCart } = await import('@/store/cart')
           const cart = useCart()
-          const items = Array.isArray(cart.items) ? cart.items.map(i => ({ productId: i.id, quantity: i.qty })) : []
-          if (items.length) await apiPost('/api/cart/merge', { items })
+          // Explicitly push local items (Guest Cart) to the authenticated server cart ONCE
+          await cart.mergeLocalToUser()
+          
           await cart.syncFromServer(true)
           cart.saveLocal()
         } catch {}

@@ -199,11 +199,13 @@ async function logout() {
     clearCookie('auth_token')
   } catch {}
   try { localStorage.removeItem('shop_token') } catch {}
+  try { localStorage.removeItem('cart_v1') } catch {} // Clear local cart
   try { sessionStorage.removeItem('__linked_v1') } catch {}
   // Force a fresh analytics session for the next user
   try { localStorage.removeItem('sid_v1') } catch {}
-  // Redirect to login
-  router.push('/login')
+
+  // Use window.location.replace to force a full reload and clear in-memory Pinia state
+  window.location.replace('/login')
 }
 </script>
 
