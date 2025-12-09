@@ -5,6 +5,7 @@ export type CartItem = {
   uid: string; // unique per product + variant selection
   id: string; // productId
   title: string;
+  slug?: string;
   price: number;
   img?: string;
   qty: number;
@@ -49,7 +50,9 @@ export const useCart = defineStore('cart', {
           const size = attr.size || undefined
           const img = attr.colorImageUrl || (ci.product?.images?.[0] || undefined)
           const uid = this.computeUid(id, color, size)
-          return { uid, id, title: ci.product?.name || ci.productId, price: Number(ci.product?.price || 0), img, qty: ci.quantity, variantColor: color, variantSize: size }
+          // Extract slug from product.seo.slug if available
+          const slug = ci.product?.seo?.slug || ci?.product?.slug || undefined
+          return { uid, id, title: ci.product?.name || ci.productId, slug, price: Number(ci.product?.price || 0), img, qty: ci.quantity, variantColor: color, variantSize: size }
         })
       }
       this.loaded = true

@@ -1000,9 +1000,23 @@ async function loadMoreSuggested(){
 }
 
 function goLogin(){ router.push({ path:'/login', query: { return: '/cart' } }) }
-function openProduct(p:any){ const id = typeof p==='string'? p : (p?.id||''); if (id) router.push(`/p?id=${encodeURIComponent(String(id))}`) }
+
+function openProduct(p:any){ 
+  const id = typeof p==='string'? p : (p?.id||'')
+  if (!id) return
+  // Try to find the item in local items to see if we have a slug
+  const item = items.value.find(i => i.id === id)
+  const slug = item?.slug || (p?.slug)
+  
+  if (slug) {
+     router.push(`/p/${encodeURIComponent(slug)}`)
+  } else {
+     router.push(`/p?id=${encodeURIComponent(String(id))}`)
+  }
+}
+
 function addSugToCart(p:any){
-  cart.add({ id: String(p.id), title: String(p.title), price: Number(p.price||0), img: String(p.image||'') }, 1)
+  cart.add({ id: String(p.id), title: String(p.title), slug: p.slug, price: Number(p.price||0), img: String(p.image||'') }, 1)
 }
 
 // Open options modal from suggested grid cards
@@ -1021,7 +1035,7 @@ async function openSuggestOptions(id: string){
       const hasSizes = (new Set(sizesArr.map((s:string)=> s.trim().toLowerCase()))).size > 1 || (!!variantsHasSize && (sizesArr.length>1))
       if (!hasColors && !hasSizes){
         const p = suggested.value.find(x=> String(x.id)===String(id))
-        if (p){ cart.add({ id: String(p.id), title: String(p.title), price: Number(p.price||0), img: String(p.image||'') }, 1); showToast('تمت الإضافة إلى السلة') }
+        if (p){ cart.add({ id: String(p.id), title: String(p.title), slug: p.slug, price: Number(p.price||0), img: String(p.image||'') }, 1); showToast('تمت الإضافة إلى السلة') }
         return
       }
     }

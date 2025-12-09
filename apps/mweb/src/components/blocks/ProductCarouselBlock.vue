@@ -55,14 +55,32 @@ const title = computed(()=> props.cfg?.title || '')
 const count = computed(()=> (props.device ?? 'MOBILE') === 'MOBILE' ? 6 : 10)
 const items = ref<Array<{ id:string; name:string; slug:string; image:string; price:number; priceText:string }>>([])
 const loading = ref(true)
+import { setPrefetchPayload } from '@/lib/nav'
+
 function goMore(){
   const sort = String(props.cfg?.filter?.sortBy||'new')
   try{ router.push(`/products?sort=${encodeURIComponent(sort)}`) }catch{}
 }
-function open(p: { id?: string; slug?: string }){
+function open(p: { id?: string; slug?: string; name?: string; image?: string; price?: number }){
     const slug = String(p?.slug||'');
-    if (slug) { router.push(`/p/${encodeURIComponent(slug)}`); return }
     const id = String(p?.id||'');
+    const key = slug || id
+    if (!key) return
+    
+    try {
+      setPrefetchPayload(key, {
+        imgUrl: p.image || '',
+        productData: {
+          id: id,
+          title: p.name,
+          slug: slug,
+          image: p.image,
+          price: p.price
+        }
+      })
+    } catch {}
+
+    if (slug) { router.push(`/p/${encodeURIComponent(slug)}`); return }
     if (id) router.push(`/p?id=${encodeURIComponent(id)}`)
 }
 
