@@ -124,6 +124,7 @@ export const applySecurityMiddleware = (app: Express) => {
         workerSrc: ["'self'", "blob:"],
         frameSrc: ["'self'", "https:"],
         objectSrc: ["'none'"],
+        formAction: ["'self'", "https:"],
         upgradeInsecureRequests: [],
       },
     },
