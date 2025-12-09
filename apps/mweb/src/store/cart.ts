@@ -39,6 +39,25 @@ export const useCart = defineStore('cart', {
     async syncFromServer(force = false) {
       // When force=true, always hydrate from server (used after login/merge)
       if (!force && this.items.length > 0) { this.loaded = true; return }
+
+      // FIX: Push local items to server before fetching authoritative state
+      // This ensures attributes (color/size) are preserved during guest->user transition
+      if (force && this.items.length > 0) {
+        try {
+          await Promise.all(this.items.map(item =>
+            apiPost('/api/cart/add', {
+              productId: item.id,
+              quantity: item.qty,
+              attributes: {
+                color: item.variantColor,
+                size: item.variantSize,
+                colorImageUrl: item.img
+              }
+            }).catch(() => { })
+          ))
+        } catch { }
+      }
+
       const data = await apiGet<any>('/api/cart')
       if (data && data.cart) {
         this.items = (data.cart.items || []).map((ci: any) => {

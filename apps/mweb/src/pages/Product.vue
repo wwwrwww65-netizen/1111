@@ -1768,13 +1768,31 @@ async function addToCart(){
 }
 async function addToCartInternal(){
   const chosenSize = sizeGroups.value.length ? Object.entries(selectedGroupValues.value).map(([label,val])=> `${label}:${val}`).join('|') : size.value
+  
+  // FIX: Use the loaded product ID if available to avoid sending slug
+  const realId = product.value?.id || id.value
+
   // cart.add handles the API call internally
-  cart.add({ id: id.value, title: title.value, price: Number(price.value)||0, img: activeImg.value, variantColor: currentColorName.value || undefined, variantSize: chosenSize || undefined }, 1)
+  cart.add({ 
+    id: realId, 
+    title: title.value, 
+    price: Number(price.value)||0, 
+    img: activeImg.value, 
+    variantColor: currentColorName.value || undefined, 
+    variantSize: chosenSize || undefined 
+  }, 1)
   showToast()
 }
-const hasWish = ref(false)
+
+// FIX: Wishlist should use store state (works for guests via localStorage)
+const hasWish = computed(() => {
+  const pid = product.value?.id || id.value
+  return wishlist.has(pid)
+})
+
 // PDP Meta (badges, bestRank, fit, model, shipping destination override)
 const pdpMeta = ref<{ badges?: Array<{ title:string; subtitle?:string; bgColor?:string }>; bestRank?: number|null; fitPercent?: number|null; fitText?: string|null; model?: { size?: string; height?: number; bust?: number; waist?: number; hips?: number }|null; shippingDestinationOverride?: string|null; sellerBlurb?: string|null; clubBanner?: { enabled:boolean; amount:number; discountType:'percent'|'fixed'; discountValue:number; text:string; joinUrl?:string; style?: { theme?: string; rounded?: boolean }; placement?: { pdp?: { enabled:boolean; position?: string } } }|null }>({ badges: [] })
+
 async function loadPdpMeta(pid?: string){
   try{
     const p = String(pid || id.value || route.params.id || route.params.slug)
@@ -1790,22 +1808,22 @@ async function loadPdpMeta(pid?: string){
   }catch{}
 }
 async function loadWishlist(){
-  try{
-    if (!isAuthenticated()) { hasWish.value = false; return }
-    const j = await apiGet<any>('/api/wishlist')
-    const items: any[] = Array.isArray(j) ? j : Array.isArray(j?.items) ? j!.items : []
-    const found = items.find((w:any)=> String(w.id||w.productId||'') === String(id.value))
-    hasWish.value = !!found
-  }catch{ hasWish.value = false }
+  // Delegate to store sync if needed (store usually syncs on app init)
+  // We can force a verify here if user just logged in, but store.sync() is idempotent-ish
+  await wishlist.sync()
 }
-async function toggleWish(){
-  try{
-    const productId = product.value?.id || id.value
-    if (!productId) return
-    const r = await apiPost<any>('/api/wishlist/toggle', { productId })
-    if (r && (r.added || r.removed)) hasWish.value = !!r.added
-    else hasWish.value = !hasWish.value
-  }catch{ hasWish.value = !hasWish.value }
+function toggleWish(){
+  const pid = product.value?.id || id.value
+  if (!pid) return
+
+  // Construct item for store
+  wishlist.toggle({
+    id: pid,
+    title: title.value,
+    price: Number(price.value)||0,
+    img: activeImg.value || images.value[0] || '',
+    slug: product.value?.slug || (route.params.slug as string)
+  })
 }
 
 // Seller info
@@ -2274,7 +2292,7 @@ async function loadProductData(pid?: string) {
       brand.value = String(d?.brand||'')
       
       // Sizes from API if available (accept only real size tokens)
-  const s = Array.isArray(d.sizes) ? (d.sizes as any[]).filter((x:any)=> typeof x==='string' && looksSizeToken(String(x).trim()) && !isColorWord(String(x).trim())) : []
+      const s = Array.isArray(d.sizes) ? (d.sizes as any[]).filter((x:any)=> typeof x==='string' && looksSizeToken(String(x).trim()) && !isColorWord(String(x).trim())) : []
       if (s.length) {
         sizeOptions.value = s as string[]
       } else {
@@ -2293,14 +2311,11 @@ async function loadProductData(pid?: string) {
       isLoadingVariants.value = !!hasVars
 
       try { 
-
         await loadNormalizedVariants(p) 
-
       } catch {}
       isLoadingVariants.value = false
 
       // Fire dependent loads (non-blocking)
-
       buildRecTabsFromCategory().catch(()=>{})
       if (!restoredRec.value) fetchRecommendations().catch(()=>{})
       fetchSizeGuide().catch(()=>{})
@@ -2308,8 +2323,11 @@ async function loadProductData(pid?: string) {
       injectProductJsonLd()
       injectHeadMeta()
       hydrateCouponsForPdp().catch(()=>{})
+    } else {
+      // If result not OK (e.g. 404), ensure we stop loading
+      isLoadingPdp.value = false
     }
-  }catch{}
+  }catch{ isLoadingPdp.value = false }
   // Fallback (local preview/dev): synthesize minimal product and variants so UI renders swatches/sizes without API
   try{
     const host = typeof window !== 'undefined' ? window.location.hostname : ''

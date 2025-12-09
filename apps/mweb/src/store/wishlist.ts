@@ -39,12 +39,27 @@ export const useWishlist = defineStore('wishlist', {
       if (!isAuthenticated()) return
 
       try {
+        // 1. Fetch current server state
         const data = await apiGet<WishItem[]>('/api/auth/wishlist')
-        if (Array.isArray(data)) {
-          this.items = data
-          this.loaded = true
-          save(this.items)
+        const serverList = Array.isArray(data) ? data : []
+        const serverIds = new Set(serverList.map(i => i.id))
+
+        // 2. Identify local items NOT in server list (Guest items that need to be merged)
+        const localOnly = this.items.filter(local => !serverIds.has(local.id))
+
+        // 3. Push missing items to server
+        // "toggle" removes if present, adds if missing. Since we verified they are missing, this adds them.
+        if (localOnly.length > 0) {
+          await Promise.all(localOnly.map(item =>
+            apiPost('/api/auth/wishlist/toggle', { productId: item.id }).catch(() => { })
+          ))
         }
+
+        // 4. Update state to Union (Server + Newly Pushed Local Items)
+        // We preserve server items + guarantee our local items are included
+        this.items = [...serverList, ...localOnly]
+        this.loaded = true
+        save(this.items)
       } catch (e) { console.error('Wishlist sync failed', e) }
     },
     add(item: WishItem) {

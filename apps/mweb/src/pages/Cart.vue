@@ -257,7 +257,7 @@
               <div v-for="(p,ci) in suggestedLeft" :key="'sug-l-'+ci" class="mb-[6px]">
                 <ProductGridCard 
                   :class="'border-t-0 border-b-0 border-l-0'"
-                  :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice, slug: p.slug, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges)&& (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
+                  :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges)&& (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
                   :ratio="(p as any)._ratio || defaultRatio"
                   @add="openSuggestOptions"
                 />
@@ -268,7 +268,7 @@
               <div v-for="(p,ci) in suggestedRight" :key="'sug-r-'+ci" class="mb-[6px]">
                 <ProductGridCard 
                   :class="'border-t-0 border-b-0 border-l-0'"
-                  :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice, slug: p.slug, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges)&& (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
+                  :product="{ id: p.id, title: p.title, images: (p.imagesNormalized&&p.imagesNormalized.length?p.imagesNormalized:[p.image]), brand: p.brand, discountPercent: p.discountPercent, bestRank: p.bestRank, bestRankCategory: p.bestRankCategory, basePrice: p.price.toFixed(2), soldPlus: p.soldPlus, couponPrice: p.couponPrice, isTrending: (p as any).isTrending===true || (Array.isArray((p as any).badges)&& (p as any).badges.some((b:any)=> /trending|trend|ترند/i.test(String(b?.key||b?.title||'')))) }"
                   :ratio="(p as any)._ratio || defaultRatio"
                   @add="openSuggestOptions"
                 />
@@ -901,7 +901,6 @@ onMounted(async () => {
     const mapped = items.map((x:any)=> ({
       id: x.id,
       title: x.name,
-      slug: x.slug,
       image: (normalizeList(x.images)[0]||'/images/placeholder-product.jpg'),
       images: normalizeList(x.images),
       imagesNormalized: normalizeList(x.images),
@@ -977,7 +976,6 @@ async function loadMoreSuggested(){
     const mapped = items.map((x:any)=> ({
       id: x.id,
       title: x.name,
-      slug: x.slug,
       image: (normalizeList(x.images)[0]||'/images/placeholder-product.jpg'),
       images: normalizeList(x.images),
       imagesNormalized: normalizeList(x.images),
@@ -1002,16 +1000,7 @@ async function loadMoreSuggested(){
 }
 
 function goLogin(){ router.push({ path:'/login', query: { return: '/cart' } }) }
-function openProduct(p:any){ 
-  const id = typeof p==='string'? p : (p?.id||'')
-  if (!id) return
-  // Try to find slug from cart items or suggested items
-  const item = items.value.find(i=> i.id===id) || suggested.value.find(s=> s.id===id)
-  const slug = (typeof p==='object' && p.slug) || item?.slug
-  
-  if (slug) router.push(`/p/${slug}`)
-  else router.push(`/p?id=${encodeURIComponent(String(id))}`) 
-}
+function openProduct(p:any){ const id = typeof p==='string'? p : (p?.id||''); if (id) router.push(`/p?id=${encodeURIComponent(String(id))}`) }
 function addSugToCart(p:any){
   cart.add({ id: String(p.id), title: String(p.title), price: Number(p.price||0), img: String(p.image||'') }, 1)
 }

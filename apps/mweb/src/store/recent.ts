@@ -45,14 +45,16 @@ export const useRecent = defineStore('recent', {
                 const sid = localStorage.getItem('sid_v1') || ''
                 const res = await apiGet<{ items: RecentItem[] }>(`/api/products/recent?sessionId=${sid}`)
                 if (res && Array.isArray(res.items) && res.items.length > 0) {
-                    // Merge: Keep local items at the top (they might be newer than server sync), add server items
-                    const currentIds = new Set(this.items.map(i => i.id))
-                    const newItems = res.items.filter(i => !currentIds.has(i.id))
+                    // Merge: Keep local items (guest context) and append server items (user context)
+                    // We prioritize local items as "most recent" for the current session perception
+                    const serverItems = res.items
+                    const serverIds = new Set(serverItems.map(i => i.id))
 
-                    // If we have local items, we trust them as "most recent" for this session
-                    // But if server returns a list, it might be from a previous session
-                    // Let's append server items to the end of local items
-                    this.items = [...this.items, ...newItems]
+                    // Identify items we have locally that are NOT in the server response
+                    const localOnly = this.items.filter(i => !serverIds.has(i.id))
+
+                    // Union: Local items first (to keep them visible/recent) + Server items
+                    this.items = [...localOnly, ...serverItems]
 
                     if (this.items.length > 20) this.items = this.items.slice(0, 20)
                     save(this.items)
