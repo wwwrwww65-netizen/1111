@@ -2470,7 +2470,7 @@ shop.get('/recommendations/recent', async (_req, res) => {
     const itemsRaw = await db.product.findMany({
       where: { isActive: true },
       select: {
-        id: true, name: true, price: true, images: true, brand: true, categoryId: true,
+        id: true, name: true, price: true, images: true, brand: true, categoryId: true, seo: { select: { slug: true } },
         colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
       },
       orderBy: { updatedAt: 'desc' },
@@ -2478,6 +2478,8 @@ shop.get('/recommendations/recent', async (_req, res) => {
     });
 
     const items = itemsRaw.map((it: any) => {
+      // flatten slug
+      (it as any).slug = it.seo?.slug || it.slug || undefined;
       // Map categoryIds
       it.categoryIds = Array.from(new Set([
         it.categoryId,

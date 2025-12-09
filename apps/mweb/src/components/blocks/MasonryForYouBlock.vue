@@ -47,13 +47,13 @@
         <!-- يسار -->
         <div>
           <div v-for="(p,ci) in leftProducts" :key="'fy-l-'+(p.id||ci)" class="mb-[6px]">
-            <ProductGridCard :class="'border-t-0 border-b-0 border-l-0'" :product="p" :ratio="(p as any)._ratio || defaultRatio" :priority="ci<6" @add="openSuggestOptions" />
+            <ProductGridCard :class="'border-t-0 border-b-0 border-l-0'" :product="{...p, slug: p.slug}" :ratio="(p as any)._ratio || defaultRatio" :priority="ci<6" @add="openSuggestOptions" />
           </div>
         </div>
         <!-- يمين -->
         <div>
           <div v-for="(p,ci) in rightProducts" :key="'fy-r-'+(p.id||ci)" class="mb-[6px]">
-            <ProductGridCard :class="'border-t-0 border-b-0 border-l-0'" :product="p" :ratio="(p as any)._ratio || defaultRatio" :priority="ci<6" @add="openSuggestOptions" />
+            <ProductGridCard :class="'border-t-0 border-b-0 border-l-0'" :product="{...p, slug: p.slug}" :ratio="(p as any)._ratio || defaultRatio" :priority="ci<6" @add="openSuggestOptions" />
           </div>
         </div>
       </div>
