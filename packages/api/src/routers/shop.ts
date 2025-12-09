@@ -1858,7 +1858,7 @@ shop.get('/products', async (req, res) => {
       const rows = await db.product.findMany({
         where: { isActive: true, id: { in: ids } },
         select: {
-          id: true, name: true, price: true, images: true,
+          id: true, name: true, price: true, images: true, categoryId: true,
           seo: { select: { slug: true } },
           colors: { select: { name: true, primaryImageUrl: true, isPrimary: true, images: { select: { url: true }, orderBy: { order: 'asc' } } }, orderBy: { order: 'asc' } }
         },
