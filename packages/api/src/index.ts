@@ -591,8 +591,24 @@ if (require('fs').existsSync(mwebDist)) {
 
 // 2. SPA Fallback for non-API routes (and non-SSR routes)
 // Note: publicSeoRouter (SSR) is already mounted at '/' via line 423, so /p/:slug is handled there.
+// However, express might match '*' before specific routes if not careful.
+// Explicitly handle known SSR paths here to ensure they hit the router
+// actually they are handled by publicSeoRouter because it is app.use('/', publicSeoRouter) above.
+// BUT app.use is middleware. The handlers in publicSeoRouter are .get().
+// If they are not matched, it falls through to here. That is correct.
+// Wait, app.use('/', publicSeoRouter) is at line 423.
+// publicSeoRouter defines .get('/p/:slug').
+// So it should take precedence.
+
 // Everything else that isn't /api/* or a static file should return index.html
 app.get('*', (req, res, next) => {
+  // If request matches known SSR pattern but wasn't caught (e.g. query param mismatch? no),
+  // actually publicSeoRouter handles /p/:slug. 
+  // If I access /p/123, publicSeoRouter should catch it.
+  // If it didn't, maybe express order matters? 
+  // publicSeoRouter is mounted at line 423. content above is at line 434+. 
+  // So publicSeoRouter IS before this wildcard.
+
   if (req.path.startsWith('/api') || req.path.startsWith('/trpc') || req.path.startsWith('/uploads') || req.path.startsWith('/webhooks')) {
     return next();
   }
