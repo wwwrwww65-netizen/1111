@@ -340,11 +340,50 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
         const slug = req.params.slug;
         const meta = await resolveSeoData({ slug, type: forcedType, url: req.originalUrl || req.url });
 
-        // Read HTML
-        const isDist = fs.existsSync(path.resolve(process.cwd(), '../../apps/mweb/dist/index.html'));
-        const htmlPath = path.resolve(process.cwd(), isDist ? '../../apps/mweb/dist/index.html' : '../../apps/mweb/index.html');
+        // Read HTML - Robust Path Resolution
+        const candidates = [
+            path.resolve(process.cwd(), '../../apps/mweb/dist/index.html'), // Local / Monorepo
+            path.resolve(process.cwd(), '../mweb/dist/index.html'),
+            path.resolve(process.cwd(), 'public/index.html'),
+            '/var/www/mweb/dist/index.html', // Common Prod
+            '/var/www/html/dist/index.html',
+            '/app/apps/mweb/dist/index.html' // Docker
+        ];
 
-        if (!fs.existsSync(htmlPath)) return res.status(404).send('Not found');
+        let htmlPath = '';
+        for (const c of candidates) {
+            if (fs.existsSync(c)) {
+                htmlPath = c;
+                break;
+            }
+        }
+
+        if (!htmlPath) {
+            console.error('SSR Error: index.html not found in candidates:', candidates);
+            // Fallback: Generate valid minimal HTML with SEO tags so sharing works even if app shell is missing
+            if (meta) {
+                const { titleSeo, metaDescription, ogTags, twitterCard } = meta;
+                const img = ogTags?.image || twitterCard?.image || '';
+                const desc = ogTags?.description || metaDescription || '';
+                const title = ogTags?.title || titleSeo || 'Jeeey';
+
+                const fallbackHtml = `<!doctype html>
+<html><head>
+<meta charset="utf-8"><title>${title}</title>
+<meta name="description" content="${desc}">
+<meta property="og:title" content="${title}">
+<meta property="og:description" content="${desc}">
+<meta property="og:image" content="${img}">
+<meta property="twitter:card" content="summary_large_image">
+</head><body>
+<script>window.location.href = '/'; // Client redirect to home if shell missing
+</script></body></html>`;
+                res.setHeader('Content-Type', 'text/html');
+                return res.send(fallbackHtml);
+            }
+            return res.status(404).send('Not found');
+        }
+
         let html = fs.readFileSync(htmlPath, 'utf-8');
 
         if (meta) {
