@@ -341,8 +341,21 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
         const meta = await resolveSeoData({ slug, type: forcedType, url: req.originalUrl || req.url });
 
         // Read HTML
-        const isDist = fs.existsSync(path.resolve(process.cwd(), '../../apps/mweb/dist/index.html'));
-        const htmlPath = path.resolve(process.cwd(), isDist ? '../../apps/mweb/dist/index.html' : '../../apps/mweb/index.html');
+        // Read HTML - robust check for multiple CWD contexts (root vs packages/api)
+        const roots = [
+            process.cwd(), // Root (prod)
+            path.resolve(process.cwd(), '../../'), // Dev (if in packages/api)
+            path.resolve(process.cwd(), '../..') 
+        ];
+        
+        // Find first valid index.html
+        let htmlPath = '';
+        for (const r of roots) {
+            const pDist = path.join(r, 'apps/mweb/dist/index.html');
+            const pDev = path.join(r, 'apps/mweb/index.html');
+            if (fs.existsSync(pDist)) { htmlPath = pDist; break; }
+            if (fs.existsSync(pDev)) { htmlPath = pDev; break; }
+        }
 
         if (!fs.existsSync(htmlPath)) return res.status(404).send('Not found');
         let html = fs.readFileSync(htmlPath, 'utf-8');

@@ -367,6 +367,16 @@ server {
     proxy_set_header X-Forwarded-Proto https;
   }
 
+  # SEO: SSR Proxy for Product/Category pages (inject meta tags)
+  location ~ ^/(p|product|c|category)/ {
+    proxy_pass http://127.0.0.1:4000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_read_timeout 60s;
+  }
+
   # API proxy for cart endpoints (same-origin for mweb)
   # Preserve auth/cookies and upgrade headers; map /api/shop/cart/* => /api/cart/* upstream
   location ^~ /api/cart/ {
