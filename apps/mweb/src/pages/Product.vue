@@ -958,7 +958,7 @@
     v-if="optionsModalOpen"
     :onClose="()=>{ optionsModalOpen=false }"
     :onSave="onOptionsModalSave"
-    :product="{ id, title: title, price: Number(price)||0, images: images, colors: colorVariants.map(c=>({ label:c.name, img:c.image })), sizes: sizeOptions, sizeGroups: (sizeGroups||[]) }"
+    :product="{ id, title: title, price: Number(price)||0, images: images, colors: colorVariants.map(c=>({ label:c.name, img:c.image })), sizes: sizeOptions, sizeGroups: (sizeGroups||[]), colorGalleries: (colorGalleries||[]) }"
     :selectedColor="currentColorName"
     :selectedSize="(sizeGroups && sizeGroups.length) ? Object.entries(selectedGroupValues).map(([k,v])=> `${k}:${v}`).join('|') : size"
     :groupValues="(sizeGroups && sizeGroups.length) ? selectedGroupValues : undefined"
@@ -2921,7 +2921,7 @@ async function openRecOptions(pid: string){
     const groups: Array<{label:string; values:string[]}> = []
     if (letters.length) groups.push({ label:'مقاسات بالأحرف', values: letters })
     if (numbers.length) groups.push({ label:'مقاسات بالأرقام', values: numbers })
-    recModalProduct.value = { id: d.id||pid, title: d.name||'', price: Number(d.price||0), images: imgs, colors, sizes, sizeGroups: groups }
+    recModalProduct.value = { id: d.id||pid, title: d.name||'', price: Number(d.price||0), images: imgs, colors, sizes, sizeGroups: groups, colorGalleries: (d.colorGalleries||[]) }
     recModalColor.value = colors?.[0]?.label || ''
     recModalSize.value = ''
   }catch{ recModalProduct.value = { id: pid, title:'', price:0, images: [], colors: [], sizes: [], sizeGroups: [] } }
