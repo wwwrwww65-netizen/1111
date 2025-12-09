@@ -336,7 +336,7 @@ server {
 
   # Content Security Policy
   # Content Security Policy - Relaxed for Vue/Vite & Marketing scripts
-  add_header Content-Security-Policy "default-src 'self' https: data: blob:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:; connect-src 'self' https: wss: blob:; worker-src 'self' blob:; frame-src 'self' https:; object-src 'none'; upgrade-insecure-requests" always;
+  add_header Content-Security-Policy "default-src 'self' https: data: blob:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:; connect-src 'self' https: wss: blob:; worker-src 'self' blob:; frame-src 'self' https:; object-src 'none'; form-action 'self' https:; upgrade-insecure-requests" always;
 
   # Compression
   gzip on;
@@ -537,7 +537,7 @@ server {
   # HTML no-store
   location = /index.html {
     # Content Security Policy - Relaxed for Vue/Vite & Marketing scripts
-    add_header Content-Security-Policy "default-src 'self' https: data: blob:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:; connect-src 'self' https: wss: blob:; worker-src 'self' blob:; frame-src 'self' https:; object-src 'none'; upgrade-insecure-requests" always;
+    add_header Content-Security-Policy "default-src 'self' https: data: blob:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:; connect-src 'self' https: wss: blob:; worker-src 'self' blob:; frame-src 'self' https:; object-src 'none'; form-action 'self' https:; upgrade-insecure-requests" always;
     add_header Cache-Control "no-store, must-revalidate" always;
   }
 
