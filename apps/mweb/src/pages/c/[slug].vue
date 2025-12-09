@@ -680,19 +680,19 @@ async function openSuggestOptions(id: string){
   await fetchProductDetails(id)
 }
 function closeOptions(){ optionsModal.open = false }
-function onOptionsSave(payload: { color: string; size: string }){
+function onOptionsSave(payload: { color: string; size: string; img?: string }){
   try{
     const prod = optionsProduct.value
     const groups = Array.isArray(prod?.sizeGroups) ? prod!.sizeGroups : []
     if (groups.length){
       const composite = String(payload.size||'')
-      const missing = groups.some((g:any)=> !new RegExp(`(?:^|\\|)${g.label}:[^|]+`).test(composite))
+      const missing = groups.some((g:any)=> !new RegExp(`(?:^|\|)${g.label}:[^|]+`).test(composite))
       if (missing){ requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value=false, 2000); return }
     } else {
       const hasSizes = Array.isArray(prod?.sizes) && prod!.sizes.length>0
       if (hasSizes && !String(payload.size||'').trim()){ requireOptionsNotice.value = true; setTimeout(()=> requireOptionsNotice.value=false, 2000); return }
     }
-    const img = (prod?.images && prod.images[0]) || '/images/placeholder-product.jpg'
+    const img = payload.img || (prod?.images && prod.images[0]) || '/images/placeholder-product.jpg'
     cart.add({ id: prod?.id || optionsModal.productId, title: prod?.title || '', price: Number(prod?.price||0), img, variantColor: payload.color||undefined, variantSize: payload.size||undefined }, 1)
     showToast()
   }catch{}
