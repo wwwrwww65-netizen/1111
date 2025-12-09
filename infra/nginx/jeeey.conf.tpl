@@ -474,17 +474,7 @@ server {
     try_files $uri =404;
   }
 
-  # SSR for Product/Category Pages (SEO): Proxy to API (4000)
-  location ~ ^/(p|c|product|category)/ {
-     proxy_set_header Host $host;
-     proxy_set_header X-Real-IP $remote_addr;
-     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-     proxy_set_header X-Forwarded-Proto https;
-     proxy_http_version 1.1;
-     proxy_set_header Upgrade $http_upgrade;
-     proxy_set_header Connection "upgrade";
-     proxy_pass http://127.0.0.1:4000;
-  }
+
 
 
   # HTML no-store

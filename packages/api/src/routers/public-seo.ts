@@ -340,56 +340,15 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
         const slug = req.params.slug;
         const meta = await resolveSeoData({ slug, type: forcedType, url: req.originalUrl || req.url });
 
-        let html = ''; // Initialize empty string
+        // Read HTML
+        const isDist = fs.existsSync(path.resolve(process.cwd(), '../../apps/mweb/dist/index.html'));
+        const htmlPath = path.resolve(process.cwd(), isDist ? '../../apps/mweb/dist/index.html' : '../../apps/mweb/index.html');
 
-        // 1. Try reading static file efficiently first (preferred)
-        const candidates = [
-            path.resolve(process.cwd(), '../../apps/mweb/dist/index.html'),
-            path.resolve(process.cwd(), '../mweb/dist/index.html'),
-            path.resolve(process.cwd(), 'public/index.html'),
-            '/var/www/mweb/dist/index.html',
-            '/var/www/html/dist/index.html',
-            '/app/apps/mweb/dist/index.html'
-        ];
-
-        let htmlPath = '';
-        for (const c of candidates) {
-            if (fs.existsSync(c)) {
-                htmlPath = c;
-                break;
-            }
-        }
-
-        if (htmlPath) {
-            html = fs.readFileSync(htmlPath, 'utf-8');
-        } else {
-            console.log('SSR: index.html not found on disk, attempting fetch from upstream...');
-            try {
-                // Fetch from localhost:3000 (standard web port)
-                const fetch = (await import('node-fetch')).default;
-                const upstreamRes = await fetch(`http://127.0.0.1:3000${req.originalUrl || req.url}`);
-                if (upstreamRes.ok) {
-                    html = await upstreamRes.text();
-                } else {
-                    // Try root as fallback
-                    const rootRes = await fetch('http://127.0.0.1:3000/');
-                    if (rootRes.ok) {
-                        html = await rootRes.text();
-                    }
-                }
-            } catch (err) {
-                console.error('SSR Upstream Error:', err);
-            }
-        }
-
-        // 3. Absolute Fail-safe: Minimal page BUT preserves URL content if possible (client-side render)
-        if (!html) {
-            // Still serve a basic shell so at least Client-Side Routing takes over
-            html = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><div id="app"></div><script src="/index.js"></script></body></html>';
-        }
+        if (!fs.existsSync(htmlPath)) return res.status(404).send('Not found');
+        let html = fs.readFileSync(htmlPath, 'utf-8');
 
         if (meta) {
-            // Inject SEO Meta ...
+            // Inject SEO Meta
             const { titleSeo, metaDescription, ogTags, twitterCard } = meta;
             // Replacements
             html = html.replace(/<title>.*?<\/title>/, `<title>${titleSeo || 'Jeeey'}</title>`);
