@@ -171,7 +171,7 @@ import { buildThumbUrl } from '@/lib/media'
 
 const props = defineProps<{
   onClose: () => void
-  onSave: (payload: { color: string; size: string }) => void
+  onSave: (payload: { color: string; size: string; img?: string }) => void
   product: { id: string; title: string; price: number; images?: string[]; colors?: Array<{ label: string; img: string }>; sizes?: string[]; sizeGroups?: Array<{ label:string; values:string[] }>; colorGalleries?: Array<{ name:string; primaryImageUrl?:string|null; isPrimary?:boolean; order?:number; images?:string[] }> } | null
   selectedColor?: string
   selectedSize?: string
@@ -272,7 +272,9 @@ function updateOptions() {
     try { props.onSave({ color: selectedColor.value, size: selectedSize.value }) } catch {}
     return
   }
-  props.onSave({ color: selectedColor.value, size: selectedSize.value })
+  const colorObj = productColors.value.find(c => c.label === selectedColor.value)
+  const img = colorObj ? colorObj.img : (props.product?.images?.[0] || '')
+  props.onSave({ color: selectedColor.value, size: selectedSize.value, img })
   props.onClose()
 }
 </script>
