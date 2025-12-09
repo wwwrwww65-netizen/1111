@@ -253,22 +253,19 @@ shop.post('/auth/wishlist/toggle', async (req: any, res) => {
     const { productId } = req.body || {};
     if (!productId) return res.status(400).json({ error: 'missing_product_id' });
 
-    const exists: any[] = await db.$queryRawUnsafe(
-      `SELECT 1 FROM "Wishlist" WHERE "userId" = $1 AND "productId" = $2`,
-      payload.userId, productId
-    );
+    const existing = await db.wishlistItem.findFirst({
+      where: { userId: payload.userId, productId: String(productId) }
+    });
 
-    if (exists.length > 0) {
-      await db.$executeRawUnsafe(
-        `DELETE FROM "Wishlist" WHERE "userId" = $1 AND "productId" = $2`,
-        payload.userId, productId
-      );
+    if (existing) {
+      // Toggle OFF
+      await db.wishlistItem.delete({ where: { id: existing.id } });
       return res.json({ added: false });
     } else {
-      await db.$executeRawUnsafe(
-        `INSERT INTO "Wishlist" ("userId", "productId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-        payload.userId, productId
-      );
+      // Toggle ON
+      await db.wishlistItem.create({
+        data: { userId: payload.userId, productId: String(productId) }
+      });
       return res.json({ added: true });
     }
   } catch (e: any) {
@@ -5617,12 +5614,19 @@ shop.post('/wishlist/toggle', requireAuth, async (req: any, res) => {
     const userId = req.user.userId;
     const { productId } = req.body || {};
     if (!productId) return res.status(400).json({ error: 'productId required' });
-    const exists = await db.wishlistItem.findUnique({ where: { userId_productId: { userId, productId } } });
-    if (exists) {
-      await db.wishlistItem.delete({ where: { userId_productId: { userId, productId } } });
-      return res.json({ removed: true });
+    const existing = await db.wishlistItem.findFirst({
+      where: { userId: userId, productId: String(productId) }
+    });
+
+    if (existing) {
+      // Toggle OFF
+      await db.wishlistItem.delete({ where: { id: existing.id } });
+      return res.json({ added: false });
     } else {
-      await db.wishlistItem.create({ data: { userId, productId } });
+      // Toggle ON
+      await db.wishlistItem.create({
+        data: { userId: userId, productId: String(productId) }
+      });
       return res.json({ added: true });
     }
   } catch (e: any) {

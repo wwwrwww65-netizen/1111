@@ -1081,6 +1081,7 @@ import ProductGridCard from '@/components/ProductGridCard.vue'
 import { buildThumbUrl } from '@/lib/media'
 import { fmtPrice, getCurrency, getSymbol } from '@/lib/currency'
 import { getTrendingIdSet } from '@/lib/trending'
+import { trackEvent } from '@/lib/track'
 
 // ==================== ROUTE & ROUTER ====================
 const route = useRoute()
@@ -2125,7 +2126,6 @@ onMounted(async ()=>{
   loadShipping()
   loadPdpMeta()
   loadSeller()
-  trackViewItem()
   trackPageViewProduct()
   injectHeadMeta()
   try{
@@ -2314,6 +2314,7 @@ async function loadProductData(pid?: string) {
         await loadNormalizedVariants(p) 
       } catch {}
       isLoadingVariants.value = false
+      trackViewItem()
 
       // Fire dependent loads (non-blocking)
       buildRecTabsFromCategory().catch(()=>{})
@@ -3035,13 +3036,13 @@ async function loadAddresses(){
 
 // ==================== ANALYTICS EVENTS ====================
 async function trackViewItem(){
+  const pid = product.value?.id || id.value
   try{
     ;(window as any).dataLayer = (window as any).dataLayer || []
-    ;(window as any).dataLayer.push({ event:'view_item', ecommerce:{ items:[{ item_id:id.value, item_name:title.value, price:Number(price.value||0), currency:getCurrency() }] } })
+    ;(window as any).dataLayer.push({ event:'view_item', ecommerce:{ items:[{ item_id:pid, item_name:title.value, price:Number(price.value||0), currency:getCurrency() }] } })
   }catch{}
   try{
-    const { trackEvent } = await import('@/lib/track')
-    trackEvent('ViewContent', { value: Number(price.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids:[id.value], content_type:'product_group', contents:[{ id: id.value, item_price: Number(price.value||0), quantity: 1 }] })
+    trackEvent('ViewContent', { value: Number(price.value||0), currency: (window as any).__CURRENCY_CODE__||'YER', content_ids:[pid], content_type:'product_group', contents:[{ id: pid, item_price: Number(price.value||0), quantity: 1 }] })
   }catch{}
 }
 async function trackPageViewProduct(){
