@@ -243,6 +243,29 @@ server {
   gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
   # Brotli disabled (module not available on some servers) — rely on gzip
 
+  # SEO: Proxy sitemap/robots to API for dynamic generation
+  location = /sitemap.xml {
+    proxy_pass http://127.0.0.1:4000/sitemap.xml;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+  }
+  location = /robots.txt {
+    proxy_pass http://127.0.0.1:4000/robots.txt;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+  }
+  location = /products.xml {
+    proxy_pass http://127.0.0.1:4000/feed/products.xml;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+  }
+
   if ($is_mobile) { return 302 https://m.jeeey.com$request_uri; }
 
   location / {
@@ -320,6 +343,29 @@ server {
   gzip_min_length 1024;
   gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
   # Brotli disabled (module not available on some servers) — rely on gzip
+
+  # SEO: Proxy sitemap/robots to API for dynamic generation
+  location = /sitemap.xml {
+    proxy_pass http://127.0.0.1:4000/sitemap.xml;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+  }
+  location = /robots.txt {
+    proxy_pass http://127.0.0.1:4000/robots.txt;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+  }
+  location = /products.xml {
+    proxy_pass http://127.0.0.1:4000/feed/products.xml;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+  }
 
   # API proxy for cart endpoints (same-origin for mweb)
   # Preserve auth/cookies and upgrade headers; map /api/shop/cart/* => /api/cart/* upstream
