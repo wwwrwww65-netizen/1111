@@ -116,13 +116,14 @@ export const applySecurityMiddleware = (app: Express) => {
     contentSecurityPolicy: {
       useDefaults: true,
       directives: {
-        defaultSrc: ["'self'"],
-        // Allow styles from self; UI frameworks inline styles are not used here
-        styleSrc: ["'self'"],
-        scriptSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "https:"],
+        defaultSrc: ["'self'", "https:", "data:", "blob:"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https:", "blob:"],
+        imgSrc: ["'self'", "https:", "data:", "blob:"],
+        connectSrc: ["'self'", "https:", "wss:", "blob:"],
+        workerSrc: ["'self'", "blob:"],
+        frameSrc: ["'self'", "https:"],
         objectSrc: ["'none'"],
-        frameAncestors: ["'none'"],
         upgradeInsecureRequests: [],
       },
     },
