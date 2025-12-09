@@ -117,12 +117,14 @@ export const applySecurityMiddleware = (app: Express) => {
       useDefaults: true,
       directives: {
         defaultSrc: ["'self'"],
-        // Allow styles from self; UI frameworks inline styles are not used here
-        styleSrc: ["'self'"],
-        scriptSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "https:"],
+        // Allow inline styles for critical CSS/fallbacks
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        // Allow inline scripts for SSR redirect/fallback logic
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:", "blob:"],
         objectSrc: ["'none'"],
-        frameAncestors: ["'none'"],
+        // Allow being framed by facebook/others if needed, or rely on Nginx
+        frameAncestors: ["'self'", "https://www.facebook.com"],
         upgradeInsecureRequests: [],
       },
     },
