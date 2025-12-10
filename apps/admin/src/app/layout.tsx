@@ -1,6 +1,7 @@
 import { AppProviders } from "./providers";
 export const dynamic = 'force-dynamic';
 import { AppShell } from "./components/AppShell";
+import FaviconLoader from "./components/FaviconLoader";
 import '../app/globals.css';
 
 export default function RootLayout({ children }: { children: React.ReactNode }): JSX.Element {
@@ -17,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
         <script dangerouslySetInnerHTML={{ __html: `window.__admin_loaded_at = Date.now();` }} />
         <script dangerouslySetInnerHTML={{ __html: swScript }} />
         <AppProviders>
+          <FaviconLoader />
           <AppShell>{children}</AppShell>
         </AppProviders>
       </body>

@@ -15,6 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
   let siteName = 'Jeeey';
   let siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com';
+  let siteLogo = '';
 
   try {
     // We can fetch from root SEO meta to get siteName/siteLogo
@@ -22,6 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
     if (res.ok) {
       const data = await res.json();
       if (data.siteName) siteName = data.siteName;
+      if (data.siteLogo) siteLogo = data.siteLogo;
     }
   } catch { }
 
@@ -32,6 +34,10 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s | ${siteName}`
     },
     description: 'Jeeey is your gateway to global shopping.',
+    icons: {
+      icon: siteLogo || '/favicon.ico',
+      apple: '/apple-touch-icon.png',
+    },
     openGraph: {
       type: 'website',
       locale: 'ar_SA',
