@@ -250,6 +250,7 @@ server {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto https;
+    proxy_hide_header Content-Security-Policy;
   }
   location = /robots.txt {
     proxy_pass http://127.0.0.1:4000/robots.txt;
@@ -257,6 +258,7 @@ server {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto https;
+    proxy_hide_header Content-Security-Policy;
   }
   location = /products.xml {
     proxy_pass http://127.0.0.1:4000/feed/products.xml;
@@ -264,6 +266,7 @@ server {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto https;
+    proxy_hide_header Content-Security-Policy;
   }
 
   if ($is_mobile) { return 302 https://m.jeeey.com$request_uri; }
@@ -376,6 +379,7 @@ server {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto https;
     proxy_read_timeout 60s;
+    proxy_hide_header Content-Security-Policy;
   }
 
   # API proxy for cart endpoints (same-origin for mweb)
