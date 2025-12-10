@@ -340,14 +340,13 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
         const slug = req.params.slug;
         const meta = await resolveSeoData({ slug, type: forcedType, url: req.originalUrl || req.url });
 
-        // Read HTML
         // Read HTML - robust check for multiple CWD contexts (root vs packages/api)
         const roots = [
             process.cwd(), // Root (prod)
             path.resolve(process.cwd(), '../../'), // Dev (if in packages/api)
-            path.resolve(process.cwd(), '../..') 
+            path.resolve(process.cwd(), '../..')
         ];
-        
+
         // Find first valid index.html
         let htmlPath = '';
         for (const r of roots) {
@@ -361,23 +360,42 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
         let html = fs.readFileSync(htmlPath, 'utf-8');
 
         if (meta) {
-            // Inject SEO Meta
-            const { titleSeo, metaDescription, ogTags, twitterCard } = meta;
-            // Replacements
-            html = html.replace(/<title>.*?<\/title>/, `<title>${titleSeo || 'Jeeey'}</title>`);
-            if (metaDescription) html = html.replace(/<meta name="description" content=".*?"/i, `<meta name="description" content="${metaDescription.replace(/"/g, '&quot;')}"`);
+            const { titleSeo, metaDescription, ogTags, twitterCard, canonicalUrl, schema, metaRobots } = meta;
 
-            // OG Tags
-            if (ogTags) {
-                if (ogTags.title) html = html.replace(/<meta property="og:title" content=".*?"/i, `<meta property="og:title" content="${ogTags.title.replace(/"/g, '&quot;')}"`);
-                if (ogTags.description) html = html.replace(/<meta property="og:description" content=".*?"/i, `<meta property="og:description" content="${ogTags.description.replace(/"/g, '&quot;')}"`);
-                if (ogTags.image) html = html.replace(/<meta property="og:image" content=".*?"/i, `<meta property="og:image" content="${ogTags.image.replace(/"/g, '&quot;')}"`);
-                if (ogTags.url) html = html.replace(/<meta property="og:url" content=".*?"/i, `<meta property="og:url" content="${ogTags.url.replace(/"/g, '&quot;')}"`);
-            } else {
-                // Fallback if no ogTags object but we have top level fields
-                html = html.replace(/<meta property="og:title" content=".*?"/i, `<meta property="og:title" content="${(titleSeo || '').replace(/"/g, '&quot;')}"`);
-                html = html.replace(/<meta property="og:image" content=".*?"/i, `<meta property="og:image" content="${(twitterCard?.image || '').replace(/"/g, '&quot;')}"`);
-            }
+            // 1. Strip existing default tags to avoid duplicates
+            html = html.replace(/<title>.*?<\/title>/gi, '');
+            html = html.replace(/<meta\s+name=["']description["']\s+content=["'].*?["']\s*\/?>/gi, '');
+            html = html.replace(/<meta\s+property=["']og:.*?["']\s+content=["'].*?["']\s*\/?>/gi, '');
+            html = html.replace(/<meta\s+name=["']twitter:.*?["']\s+content=["'].*?["']\s*\/?>/gi, '');
+            html = html.replace(/<link\s+rel=["']canonical["']\s+href=["'].*?["']\s*\/?>/gi, '');
+
+            // 2. Construct new SEO Block
+            const seoBlock = [
+                `<title>${titleSeo || 'Jeeey'}</title>`,
+                `<meta name="description" content="${(metaDescription || '').replace(/"/g, '&quot;')}" />`,
+                `<link rel="canonical" href="${canonicalUrl || 'https://jeeey.com'}" />`,
+                metaRobots ? `<meta name="robots" content="${metaRobots}" />` : '',
+
+                // Open Graph
+                `<meta property="og:type" content="${ogTags?.type || 'website'}" />`,
+                `<meta property="og:site_name" content="Jeeey" />`,
+                `<meta property="og:title" content="${(ogTags?.title || titleSeo || '').replace(/"/g, '&quot;')}" />`,
+                `<meta property="og:description" content="${(ogTags?.description || metaDescription || '').replace(/"/g, '&quot;')}" />`,
+                `<meta property="og:image" content="${ogTags?.image || ''}" />`,
+                `<meta property="og:url" content="${ogTags?.url || canonicalUrl || ''}" />`,
+
+                // Twitter
+                `<meta name="twitter:card" content="${twitterCard?.card || 'summary_large_image'}" />`,
+                `<meta name="twitter:title" content="${(twitterCard?.title || titleSeo || '').replace(/"/g, '&quot;')}" />`,
+                `<meta name="twitter:description" content="${(twitterCard?.description || metaDescription || '').replace(/"/g, '&quot;')}" />`,
+                `<meta name="twitter:image" content="${twitterCard?.image || ogTags?.image || ''}" />`,
+
+                // Schema
+                schema ? `<script type="application/ld+json">${schema}</script>` : ''
+            ].filter(Boolean).join('\n    ');
+
+            // 3. Inject before </head>
+            html = html.replace('</head>', `${seoBlock}\n  </head>`);
         }
         res.setHeader('Content-Type', 'text/html');
         res.send(html);
