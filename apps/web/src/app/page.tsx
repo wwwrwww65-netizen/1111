@@ -21,11 +21,18 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: seo.titleSeo,
     description: seo.metaDescription,
+    icons: {
+      icon: seo.siteLogo || '/favicon.ico',
+    },
     alternates: {
       canonical: seo.canonicalUrl,
     },
     robots: seo.metaRobots,
-    openGraph: seo.ogTags ? seo.ogTags : undefined,
+    openGraph: {
+      ...seo.ogTags,
+      siteName: seo.siteName || 'Jeeey',
+      images: seo.ogTags?.image ? [{ url: seo.ogTags.image }] : undefined,
+    },
     twitter: seo.twitterCard ? seo.twitterCard : undefined,
     other: {
       'active-hidden': seo.hiddenContent,

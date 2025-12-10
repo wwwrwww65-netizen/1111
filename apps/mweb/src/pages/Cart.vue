@@ -480,6 +480,29 @@ onMounted(()=> refreshEffectivePricing())
 // Always hydrate cart from server on cart page load to avoid stale local state
 onMounted(()=> { try{ cart.syncFromServer(true) }catch{} })
 
+// SEO
+onMounted(async ()=>{
+  try {
+     const { useHead } = await import('@unhead/vue')
+     const { apiGet } = await import('@/lib/api')
+     apiGet<any>('/api/seo/meta?type=page&slug=/cart').then(seo => {
+       if (seo) {
+         useHead({
+           title: seo.titleSeo || 'سلة التسوق',
+           meta: [
+             { name: 'description', content: seo.metaDescription },
+             { name: 'robots', content: seo.metaRobots },
+             { property: 'og:title', content: seo.titleSeo },
+             { property: 'og:description', content: seo.metaDescription },
+             { property: 'og:image', content: seo.ogTags?.image || seo.siteLogo },
+             { property: 'og:url', content: seo.canonicalUrl },
+           ].filter(Boolean)
+         })
+       }
+     })
+  } catch {}
+})
+
 // وظائف التنقل
 function goBack() {
   router.back()

@@ -562,6 +562,7 @@ watch(() => route.params.slug, (newSlug, oldSlug) => {
   hasMore.value = false
   productsLoading.value = true
   void bootstrap()
+  injectHeadMeta() // Update SEO
 })
 
 function handleWindowScroll() {

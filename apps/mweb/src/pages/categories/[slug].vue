@@ -264,6 +264,24 @@ onMounted(async()=>{
   }catch{ cats.value = [] }
   loading.value = false
 
+  // Fetch authoritative SEO from Engine
+  try {
+     const seoRes = await apiGet<any>(`/api/seo/meta?type=page&slug=${encodeURIComponent(slug.value)}`)
+     if (seoRes) {
+       // Merge or overwrite
+       page.value.seo = { 
+         title: seoRes.titleSeo,
+         description: seoRes.metaDescription,
+         keywords: seoRes.keywords, // check if api returns this
+         robots: seoRes.metaRobots,
+         canonicalUrl: seoRes.canonicalUrl,
+         hiddenContent: seoRes.hiddenContent
+       }
+       // Also update title prop for fallback
+       if (seoRes.titleSeo) page.value.title = seoRes.titleSeo
+     }
+  } catch {}
+
   // Enhanced SEO (useHead)
   const seoHead = computed(() => {
     const s = page.value?.seo || {}
