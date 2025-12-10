@@ -328,6 +328,9 @@ jobs:
               pnpm install --prod --ignore-scripts || true
               # Attempt to create pg_trgm extension explicitly
               echo 'CREATE EXTENSION IF NOT EXISTS "pg_trgm";' | npx prisma db execute --stdin --url "${DATABASE_URL:-$DIRECT_URL}" || true
+              # Ensure SEO columns exist explicitly (user request)
+              echo 'ALTER TABLE "ProductSeo" ADD COLUMN IF NOT EXISTS "twitterCard" JSONB;' | npx prisma db execute --stdin --url "${DATABASE_URL:-$DIRECT_URL}" || true
+              echo 'ALTER TABLE "CategorySeo" ADD COLUMN IF NOT EXISTS "twitterCard" JSONB;' | npx prisma db execute --stdin --url "${DATABASE_URL:-$DIRECT_URL}" || true
               npx prisma db push --accept-data-loss || pnpm prisma db push --accept-data-loss || true
               cd "$PATH_ON_HOST"
             else

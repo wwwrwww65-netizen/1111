@@ -122,6 +122,7 @@ model ProductSeo {
   metaRobots      String?  @default("index, follow")
   hiddenContent   String?
   ogTags          Json?
+  twitterCard     Json?
   schema          Json?
   
   product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -140,6 +141,7 @@ model CategorySeo {
   metaRobots      String?  @default("index, follow")
   hiddenContent   String?
   ogTags          Json?
+  twitterCard     Json?
   schema          Json?
 
   category        Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)

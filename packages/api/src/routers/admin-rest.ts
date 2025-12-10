@@ -10394,7 +10394,7 @@ adminRest.post('/products', async (req, res) => {
 
   // Create Product SEO entry
   try {
-    const { slug, seoTitle, seoDescription, seoKeywords, canonicalUrl, metaRobots, hiddenContent, ogTags, schema } = req.body || {};
+    const { slug, seoTitle, seoDescription, seoKeywords, canonicalUrl, metaRobots, hiddenContent, ogTags, twitterCard, schema } = req.body || {};
     let finalSlug = slug;
     if (!finalSlug) {
       const base = String(name || 'product').toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, '-').replace(/^-+|-+$/g, '');
@@ -10407,7 +10407,7 @@ adminRest.post('/products', async (req, res) => {
         seoTitle: seoTitle || name,
         seoDescription: seoDescription || description?.slice(0, 160),
         seoKeywords: typeof seoKeywords === 'string' ? seoKeywords.split(',').map((s: string) => s.trim()).filter(Boolean) : (Array.isArray(seoKeywords) ? seoKeywords : []),
-        canonicalUrl, metaRobots, hiddenContent, ogTags, schema
+        canonicalUrl, metaRobots, hiddenContent, ogTags, twitterCard, schema
       }
     });
   } catch { }
@@ -10741,7 +10741,7 @@ adminRest.patch('/products/:id', async (req, res) => {
 
     // Update SEO fields
     try {
-      const { slug, seoTitle, seoDescription, seoKeywords, canonicalUrl, metaRobots, hiddenContent, ogTags, schema } = req.body || {};
+      const { slug, seoTitle, seoDescription, seoKeywords, canonicalUrl, metaRobots, hiddenContent, ogTags, twitterCard, schema } = req.body || {};
       const seoPatch: any = {};
 
       if (slug !== undefined) seoPatch.slug = slug;
@@ -10752,6 +10752,7 @@ adminRest.patch('/products/:id', async (req, res) => {
       if (metaRobots !== undefined) seoPatch.metaRobots = metaRobots;
       if (hiddenContent !== undefined) seoPatch.hiddenContent = hiddenContent;
       if (ogTags !== undefined) seoPatch.ogTags = ogTags;
+      if (twitterCard !== undefined) seoPatch.twitterCard = twitterCard;
       if (schema !== undefined) seoPatch.schema = schema;
 
       if (Object.keys(seoPatch).length > 0) {
@@ -11407,6 +11408,7 @@ adminRest.post('/categories', async (req, res) => {
             metaRobots: metaRobots || 'index, follow',
             hiddenContent: hiddenContent || null,
             ogTags: ogTags || undefined,
+            twitterCard: twitterCard || undefined,
             schema: schema || undefined
           }
         }
@@ -11428,7 +11430,7 @@ const categoryUpdateHandler = async (req: any, res: any) => {
 
     // Fetch old slug for redirect
     const oldCat = await db.category.findUnique({ where: { id }, select: { slug: true } });
-    const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder, canonicalUrl, metaRobots, hiddenContent, ogTags, schema } = req.body || {};
+    const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder, canonicalUrl, metaRobots, hiddenContent, ogTags, twitterCard, schema } = req.body || {};
 
     if (slug && typeof slug === 'string') {
       try {
@@ -11457,6 +11459,7 @@ const categoryUpdateHandler = async (req: any, res: any) => {
               metaRobots: metaRobots || 'index, follow',
               hiddenContent: hiddenContent || null,
               ogTags: ogTags || undefined,
+              twitterCard: twitterCard || undefined,
               schema: schema || undefined
             },
             update: {
@@ -11464,6 +11467,7 @@ const categoryUpdateHandler = async (req: any, res: any) => {
               metaRobots: metaRobots ?? undefined,
               hiddenContent: hiddenContent ?? undefined,
               ogTags: ogTags ?? undefined,
+              twitterCard: twitterCard ?? undefined,
               schema: schema ?? undefined
             }
           }
