@@ -125,27 +125,32 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
     const { slug, type, id, url } = params;
     let seoData: any = null;
 
-    // Fetch base URL for canonicals
-    const setting = await db.setting.findUnique({ where: { key: 'site_url' } });
-    const baseUrl = (setting?.value as any)?.value || process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com';
+    // Fetch Global Settings
+    const settings = await db.setting.findMany({ where: { key: { in: ['site_url', 'site_name', 'site_logo', 'twitter_site'] } } });
+    const getSetting = (key: string) => (settings.find(s => s.key === key)?.value as any)?.value;
+    
+    const baseUrl = getSetting('site_url') || process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com';
+    const siteName = getSetting('site_name') || 'جي jeeey'; // Default per user request
+    const siteLogo = getSetting('site_logo') || '';
+    const twitterSite = getSetting('twitter_site') || '@jeeey_com';
 
     // Helper: Clean slug from possible URL parts (if passed via url param)
     let exactSlug = slug;
     let exactId = id;
 
     if (url && typeof url === 'string') {
-        // Try to extract slug from /p/slug or /products/slug
         const pMatch = url.match(/\/p\/([^\/\?]+)/) || url.match(/\/products\/([^\/\?]+)/);
         if (pMatch) exactSlug = pMatch[1];
-
         const cMatch = url.match(/\/c\/([^\/\?]+)/) || url.match(/\/category\/([^\/\?]+)/);
         if (cMatch) exactSlug = cMatch[1];
+        // Handle Root
+        if (url === '/' || url === '') exactSlug = '/';
     }
 
     const lookupId = exactId || exactSlug || (slug as string);
 
-    // A. Try fetching from SEO Pages first
-    if (!type || type === 'page') {
+    // A. Try fetching from SEO Pages first (covers Root '/' and system pages)
+    if (!type || type === 'page' || lookupId === '/') {
         if (lookupId) {
             const page = await db.seoPage.findUnique({
                 where: { slug: lookupId },
@@ -160,7 +165,23 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                     hiddenContent: true
                 }
             });
-            if (page) seoData = page;
+            if (page) {
+                seoData = page;
+                // For Homepage, inject WebSite schema if missing
+                if (lookupId === '/' && (!page.schema || Object.keys(page.schema).length === 0)) {
+                    seoData.schema = JSON.stringify({
+                        "@context": "https://schema.org",
+                        "@type": "WebSite",
+                        "name": siteName,
+                        "url": baseUrl,
+                        "potentialAction": {
+                            "@type": "SearchAction",
+                            "target": `${baseUrl}/search?q={search_term_string}`,
+                            "query-input": "required name=search_term_string"
+                        }
+                    });
+                }
+            }
         }
     }
 
@@ -326,14 +347,9 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
 
     if (!seoData) return null;
 
-    // C. Inject Site Name/Logo
-    const settings = await db.setting.findMany({ where: { key: { in: ['site_name', 'site_logo'] } } });
-    const siteName = (settings.find(s => s.key === 'site_name')?.value as any)?.value || '';
-    const siteLogo = (settings.find(s => s.key === 'site_logo')?.value as any)?.value;
-
     // D. Apply Title Separator
     let finalTitle = seoData.titleSeo || '';
-    if (siteName && !finalTitle.includes(siteName)) {
+    if (siteName && !finalTitle.includes(siteName) && !finalTitle.includes('|')) {
         finalTitle = `${finalTitle} | ${siteName}`;
     }
 
@@ -344,7 +360,9 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
 publicSeoRouter.get('/seo/meta', async (req, res) => {
     try {
         const { slug, type, id, url } = req.query;
-        const data = await resolveSeoData({ slug: slug as string, type: type as string, id: id as string, url: url as string });
+        // Fix for encoded root slug if passed as %2F
+        const decodedSlug = slug ? decodeURIComponent(slug as string) : slug;
+        const data = await resolveSeoData({ slug: decodedSlug as string, type: type as string, id: id as string, url: url as string });
         if (!data) return res.status(404).json({ error: 'Not found' });
         res.json(data);
     } catch (e: any) {
@@ -355,7 +373,12 @@ publicSeoRouter.get('/seo/meta', async (req, res) => {
 // 4. SSR Handlers for Shared Links
 async function handleSsr(req: any, res: any, forcedType?: string) {
     try {
-        const slug = req.params.slug;
+        let slug = req.params.slug;
+        // Handle Root Request
+        if (req.path === '/' && !slug) {
+            slug = '/';
+        }
+
         const meta = await resolveSeoData({ slug, type: forcedType, url: req.originalUrl || req.url });
 
         // Read HTML - robust check for multiple CWD contexts (root vs packages/api)
@@ -378,7 +401,7 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
         let html = fs.readFileSync(htmlPath, 'utf-8');
 
         if (meta) {
-            const { titleSeo, metaDescription, ogTags, twitterCard, canonicalUrl, schema, metaRobots, productData } = meta;
+            const { titleSeo, metaDescription, ogTags, twitterCard, canonicalUrl, schema, metaRobots, productData, siteName } = meta;
 
             // 1. Strip existing default tags to avoid duplicates
             html = html.replace(/<title>.*?<\/title>/gi, '');
@@ -389,14 +412,14 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
 
             // 2. Construct new SEO Block
             const seoBlock = [
-                `<title>${titleSeo || 'Jeeey'}</title>`,
+                `<title>${titleSeo || siteName || 'Jeeey'}</title>`,
                 `<meta name="description" content="${(metaDescription || '').replace(/"/g, '&quot;')}" />`,
                 `<link rel="canonical" href="${canonicalUrl || 'https://jeeey.com'}" />`,
                 metaRobots ? `<meta name="robots" content="${metaRobots}" />` : '',
 
                 // Open Graph
                 `<meta property="og:type" content="${ogTags?.type || 'website'}" />`,
-                `<meta property="og:site_name" content="Jeeey" />`,
+                `<meta property="og:site_name" content="${siteName || 'Jeeey'}" />`,
                 `<meta property="og:title" content="${(ogTags?.title || titleSeo || '').replace(/"/g, '&quot;')}" />`,
                 `<meta property="og:description" content="${(ogTags?.description || metaDescription || '').replace(/"/g, '&quot;')}" />`,
                 `<meta property="og:image" content="${ogTags?.image || ''}" />`,
@@ -431,6 +454,9 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
         res.status(500).send('SSR Error');
     }
 }
+
+// Handler for Root
+publicSeoRouter.get('/', (req, res) => handleSsr(req, res, 'page'));
 
 publicSeoRouter.get('/p/:slug', (req, res) => handleSsr(req, res, 'product'));
 publicSeoRouter.get('/product/:slug', (req, res) => handleSsr(req, res, 'product'));

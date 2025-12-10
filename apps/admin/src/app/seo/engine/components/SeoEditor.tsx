@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import ImageUploader from '../../../components/ImageUploader';
+import { apiFetch } from '../../../lib/api';
 
 export default function SeoEditor({ initialData, isNew = false }: { initialData?: any, isNew?: boolean }) {
     const router = useRouter();
@@ -26,17 +27,9 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
     const [siteUrl, setSiteUrl] = useState('');
     const [siteName, setSiteName] = useState('');
 
-    function getAuthHeaders() {
-        if (typeof document === 'undefined') return {} as Record<string, string>;
-        const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
-        let token = m ? m[1] : '';
-        try { token = decodeURIComponent(token); } catch { }
-        return token ? { Authorization: `Bearer ${token}` } : {} as Record<string, string>;
-    }
-
     useEffect(() => {
-        fetch('/api/admin/settings/list', { credentials: 'include', headers: { ...getAuthHeaders() } })
-            .then(res => res.json())
+        // Load global settings for preview
+        apiFetch<any>('/api/admin/settings/list')
             .then(data => {
                 const settings = data.settings || [];
                 const u = settings.find((s: any) => s.key === 'site_url');
@@ -59,37 +52,43 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
     };
 
     const analyzeSeo = async () => {
-        const res = await fetch('/api/admin/seo/analyze', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-            credentials: 'include',
-            body: JSON.stringify(formData)
-        });
-        const data = await res.json();
-        if (data.ok) {
-            setAnalysis(data);
-        }
+        try {
+            const data = await apiFetch<any>('/api/admin/seo/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+            if (data.ok) {
+                setAnalysis(data);
+            }
+        } catch { }
     };
 
     const saveSeo = async () => {
+        // Validation
+        if (!formData.slug) return alert('الرابط (Slug) مطلوب');
+        // Simple slug regex: alphanumeric, dash, underscore, slash, dot
+        if (!/^[a-zA-Z0-9-_\/.]+$/.test(formData.slug)) {
+            return alert('الرابط يحتوي على رموز غير مسموحة. استخدم فقط الحروف والأرقام والشرطات (-).');
+        }
+
         setSaving(true);
         try {
-            const res = await fetch('/api/admin/seo/pages', {
+            const data = await apiFetch<any>('/api/admin/seo/pages', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
             });
-            const data = await res.json();
+
             if (data.ok) {
                 alert('تم الحفظ بنجاح');
                 router.push('/seo/engine');
                 router.refresh();
             } else {
-                alert('خطأ في الحفظ: ' + data.error);
+                alert('خطأ في الحفظ: ' + (data.error || 'Unknown'));
             }
-        } catch (e) {
-            alert('خطأ في الاتصال');
+        } catch (e: any) {
+            alert('خطأ في الاتصال: ' + e.message);
         } finally {
             setSaving(false);
         }
@@ -101,7 +100,6 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
     };
 
     useEffect(() => {
-        // Auto analyze on load or debounce change
         const timer = setTimeout(analyzeSeo, 1000);
         return () => clearTimeout(timer);
     }, [formData.titleSeo, formData.metaDescription, formData.focusKeyword, formData.slug]);
@@ -132,6 +130,7 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
                                         dir="ltr"
                                     />
                                 </div>
+                                <p className="text-xs text-gray-500 mt-1">يجب أن يكون فريداً لكل صفحة (مثال: /, /about, /terms)</p>
                             </div>
 
                             <div>

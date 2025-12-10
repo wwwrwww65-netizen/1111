@@ -85,6 +85,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useHead } from '@unhead/vue'
 import SkeletonGrid from '@/components/SkeletonGrid.vue'
 import { apiGet, API_BASE } from '@/lib/api'
 import { buildThumbUrl } from '@/lib/media'
@@ -263,68 +264,56 @@ onMounted(async()=>{
   }catch{ cats.value = [] }
   loading.value = false
 
-  // Enhanced SEO
-  try{
+  // Enhanced SEO (useHead)
+  const seoHead = computed(() => {
     const s = page.value?.seo || {}
     const baseTitle = page.value?.title || 'Jeeey'
     const pageTitle = s.title || baseTitle
-    document.title = pageTitle
-
-    const u = new URL(window.location.href)
-    ;['fbclid','gclid','_fbp','_fbc'].forEach(k=> u.searchParams.delete(k))
-    Array.from(u.searchParams.keys()).forEach(k=>{ if(/^utm_/i.test(k)) u.searchParams.delete(k) })
     
     // Canonical
+    const u = typeof window !== 'undefined' ? new URL(window.location.href) : { origin: 'https://jeeey.com', href: 'https://jeeey.com' }
     let canonicalUrl = s.canonicalUrl || u.href
     if (!s.canonicalUrl && slug.value) {
-       const clean = new URL(u.origin)
-       clean.pathname = `/categories/${slug.value}`
-       canonicalUrl = clean.href
+       canonicalUrl = `${u.origin}/categories/${slug.value}`
     }
-    const linkCan = document.querySelector('link[rel="canonical"]') || (()=>{ const l = document.createElement('link'); l.rel='canonical'; document.head.appendChild(l); return l })()
-    ;(linkCan as HTMLLinkElement).href = canonicalUrl
 
-    // Meta Description
     const metaDesc = s.description || baseTitle
-    let mDesc = document.querySelector('meta[name="description"]') as HTMLMetaElement|null
-    if (!mDesc){ mDesc = document.createElement('meta'); mDesc.setAttribute('name','description'); document.head.appendChild(mDesc) }
-    mDesc.content = metaDesc
-    
-    // Keywords
-    if (s.keywords) {
-      let mKey = document.querySelector('meta[name="keywords"]') as HTMLMetaElement|null
-      if (!mKey){ mKey = document.createElement('meta'); mKey.setAttribute('name','keywords'); document.head.appendChild(mKey) }
-      mKey.content = s.keywords
-    }
-    
-    // Robots
-    if (s.robots) {
-      let mRobots = document.querySelector('meta[name="robots"]') as HTMLMetaElement|null
-      if (!mRobots){ mRobots = document.createElement('meta'); mRobots.setAttribute('name','robots'); document.head.appendChild(mRobots) }
-      mRobots.content = s.robots
-    }
+    const img = page.value?.promoBanner?.image || ''
 
-    // OG Tags
-    const setMeta = (prop:string, c:string)=>{ let m = document.querySelector(`meta[property="${prop}"]`) as HTMLMetaElement|null; if(!m){ m = document.createElement('meta'); m.setAttribute('property', prop); document.head.appendChild(m) } m.content = c }
-    setMeta('og:title', pageTitle)
-    setMeta('og:type', 'website')
-    setMeta('og:url', canonicalUrl)
-    setMeta('og:description', metaDesc)
-    setMeta('og:site_name', 'jeeey')
-    if (page.value?.promoBanner?.image) setMeta('og:image', page.value.promoBanner.image)
-
-    // Hidden Content
-    if (s.hiddenContent) {
-       let hiddenDiv = document.getElementById('seo-hidden-content')
-       if (!hiddenDiv) {
-         hiddenDiv = document.createElement('div')
-         hiddenDiv.id = 'seo-hidden-content'
-         hiddenDiv.style.display = 'none'
-         document.body.appendChild(hiddenDiv)
-       }
-       hiddenDiv.innerHTML = s.hiddenContent
+    return {
+      title: pageTitle,
+      meta: [
+        { name: 'description', content: metaDesc },
+        { name: 'keywords', content: s.keywords },
+        s.robots ? { name: 'robots', content: s.robots } : undefined,
+        // OG
+        { property: 'og:title', content: pageTitle },
+        { property: 'og:type', content: 'website' },
+        { property: 'og:url', content: canonicalUrl },
+        { property: 'og:description', content: metaDesc },
+        { property: 'og:site_name', content: 'jeeey' },
+        img ? { property: 'og:image', content: img } : undefined,
+      ].filter(Boolean),
+      link: [
+        { rel: 'canonical', href: canonicalUrl }
+      ],
+      // Hidden Content for SEO text
+      bodyAttrs: s.hiddenContent ? { 'data-seo-hidden': 'true' } : {}
     }
-  }catch{}
+  })
+
+  useHead(seoHead)
+  
+  // Clean up URL params (visual only)
+  try {
+     const u = new URL(window.location.href)
+     const keysToRemove = ['fbclid','gclid','_fbp','_fbc']
+     let changed = false
+     keysToRemove.forEach(k=> { if(u.searchParams.has(k)){ u.searchParams.delete(k); changed=true } })
+     const allKeys = Array.from(u.searchParams.keys())
+     allKeys.forEach(k=>{ if(/^utm_/i.test(k)){ u.searchParams.delete(k); changed=true } })
+     if(changed) window.history.replaceState({}, '', u.href)
+  } catch {}
 
   // Live preview via postMessage
   try{

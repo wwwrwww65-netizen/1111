@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { resolveApiBase } from "../lib/apiBase";
+import { apiFetch } from "../lib/api";
 import ImageUploader from '../components/ImageUploader';
 
 export default function SettingsPage() {
@@ -12,15 +13,6 @@ export default function SettingsPage() {
 
   const [saving, setSaving] = useState(false);
   const [uploadingVer, setUploadingVer] = useState(false);
-  const apiBase = React.useMemo(() => resolveApiBase(), []);
-
-  const authHeaders = React.useCallback(() => {
-    if (typeof document === 'undefined') return {} as Record<string, string>;
-    const m = document.cookie.match(/(?:^|; )auth_token=([^;]+)/);
-    let token = m ? m[1] : '';
-    try { token = decodeURIComponent(token); } catch { }
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }, []);
 
   useEffect(() => {
     loadSettings();
@@ -28,11 +20,7 @@ export default function SettingsPage() {
 
   async function loadSettings() {
     try {
-      const res = await fetch(`${apiBase}/api/admin/settings/list`, {
-        credentials: 'include',
-        headers: { ...authHeaders() }
-      });
-      const data = await res.json();
+      const data = await apiFetch<any>('/api/admin/settings/list');
       const settings = data.settings || [];
 
       const getVal = (key: string) => settings.find((s: any) => s.key === key)?.value?.value || '';
@@ -45,6 +33,7 @@ export default function SettingsPage() {
       if (r) setRobotsTxt(r);
     } catch (err) {
       console.error(err);
+      // Quiet fail on load is better than alert loop
     }
   }
 
@@ -62,19 +51,19 @@ export default function SettingsPage() {
     reader.onload = async () => {
       try {
         const content = reader.result as string;
-        const res = await fetch(`${apiBase}/api/admin/media/upload-verification`, {
+        const data = await apiFetch<any>('/api/admin/media/upload-verification', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ content, filename: file.name })
         });
-        const data = await res.json();
+
         if (data.ok) {
           alert(`تم رفع الملف بنجاح! الرابط: ${data.url}`);
         } else {
           alert('فشل الرفع');
         }
-      } catch (err) {
-        alert('خطأ في الرفع');
+      } catch (err: any) {
+        alert(err.message || 'خطأ في الرفع');
       } finally {
         setUploadingVer(false);
       }
@@ -86,10 +75,9 @@ export default function SettingsPage() {
     setSaving(true);
     try {
       const saveKey = async (key: string, val: string) => {
-        await fetch(`${apiBase}/api/admin/settings`, {
+        return apiFetch('/api/admin/settings', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key, value: { value: val } })
         });
       };
@@ -103,12 +91,14 @@ export default function SettingsPage() {
       ]);
 
       alert('تم الحفظ بنجاح! ✅');
-    } catch (err) {
-      alert('فشل الحفظ');
+    } catch (err: any) {
+      alert('فشل الحفظ: ' + (err.message || 'خطأ غير معروف'));
     } finally {
       setSaving(false);
     }
   }
+
+  const sitemapUrl = `${resolveApiBase()}/sitemap.xml`;
 
   return (
     <div className="p-6 max-w-4xl mx-auto" dir="rtl">
@@ -196,7 +186,7 @@ export default function SettingsPage() {
             </div>
             <div className="flex gap-3">
               <a
-                href={`${apiBase.replace('/api', '')}/sitemap.xml`}
+                href={sitemapUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm transition-colors"
@@ -204,7 +194,7 @@ export default function SettingsPage() {
                 👁️ معاينة
               </a>
               <a
-                href={`${apiBase.replace('/api', '')}/sitemap.xml`}
+                href={sitemapUrl}
                 download="sitemap.xml"
                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors"
               >
