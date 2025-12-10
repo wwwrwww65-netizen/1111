@@ -428,7 +428,8 @@ onMounted(async ()=>{
            { name: 'twitter:image', content: seo.twitterCard?.image || seo.ogTags?.image || seo.siteLogo },
          ],
          link: [
-           { rel: 'canonical', href: seo.canonicalUrl || 'https://jeeey.com' }
+           { rel: 'canonical', href: seo.canonicalUrl || 'https://jeeey.com' },
+           { rel: 'icon', href: seo.siteLogo || '/favicon.ico' }
          ],
          script: [
            seo.schema ? { type: 'application/ld+json', innerHTML: seo.schema } : ''

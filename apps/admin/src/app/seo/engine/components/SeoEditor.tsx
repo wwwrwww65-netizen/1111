@@ -26,6 +26,7 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
     const [activeTab, setActiveTab] = useState('general'); // general, social, advanced
     const [siteUrl, setSiteUrl] = useState('');
     const [siteName, setSiteName] = useState('');
+    const [siteLogo, setSiteLogo] = useState('');
 
     useEffect(() => {
         // Load global settings for preview
@@ -34,8 +35,10 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
                 const settings = data.settings || [];
                 const u = settings.find((s: any) => s.key === 'site_url');
                 const n = settings.find((s: any) => s.key === 'site_name');
+                const l = settings.find((s: any) => s.key === 'site_logo');
                 if (u?.value?.value) setSiteUrl(u.value.value);
                 if (n?.value?.value) setSiteName(n.value.value);
+                if (l?.value?.value) setSiteLogo(l.value.value);
             })
             .catch(() => { });
     }, []);
@@ -74,8 +77,12 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
 
         setSaving(true);
         try {
-            const data = await apiFetch<any>('/api/admin/seo/pages', {
-                method: 'POST',
+            const isUpdate = !!(formData as any).id;
+            const url = isUpdate ? `/api/admin/seo/pages/${(formData as any).id}` : '/api/admin/seo/pages';
+            const method = isUpdate ? 'PUT' : 'POST';
+
+            const data = await apiFetch<any>(url, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
             });
@@ -328,7 +335,11 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
                     <h3 className="text-xs font-bold text-gray-500 mb-2 uppercase">Google Preview</h3>
                     <div className="font-sans" dir="rtl">
                         <div className="flex items-center gap-2 mb-1" dir="ltr">
-                            <div className="bg-gray-200 rounded-full w-6 h-6 flex items-center justify-center text-xs">🌐</div>
+                            {siteLogo ? (
+                                <img src={siteLogo} alt="Logo" className="w-6 h-6 object-contain rounded-full" />
+                            ) : (
+                                <div className="bg-gray-200 rounded-full w-6 h-6 flex items-center justify-center text-xs">🌐</div>
+                            )}
                             <div className="text-sm text-[#202124]">
                                 {(siteUrl || 'jeeey.com').replace(/^https?:\/\//, '').replace(/\/$/, '')} › {formData.slug || 'page-url'}
                             </div>
