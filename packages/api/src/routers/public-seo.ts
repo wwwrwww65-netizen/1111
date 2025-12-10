@@ -229,26 +229,44 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                     schemaObj = { ...schemaObj, ...p.seo.schema };
                 }
 
+                const defaultOg = {
+                    title: p.seo?.seoTitle || p.name,
+                    description: (p.seo?.seoDescription || p.description)?.substring(0, 160),
+                    image: imageUrl,
+                    url: productUrl,
+                    type: 'product'
+                };
+                const finalOg = p.seo?.ogTags && typeof p.seo.ogTags === 'object'
+                    ? { ...defaultOg, ...p.seo.ogTags }
+                    : defaultOg;
+
+                const defaultTw = {
+                    title: p.seo?.seoTitle || p.name,
+                    description: (p.seo?.seoDescription || p.description)?.substring(0, 160),
+                    image: imageUrl,
+                    card: 'summary_large_image'
+                };
+                const finalTw = p.seo && (p.seo as any).twitterCard && typeof (p.seo as any).twitterCard === 'object'
+                    ? { ...defaultTw, ...(p.seo as any).twitterCard }
+                    : defaultTw;
+
                 seoData = {
                     titleSeo: p.seo?.seoTitle || p.name,
                     metaDescription: (p.seo?.seoDescription || p.description)?.substring(0, 160),
                     canonicalUrl: p.seo?.canonicalUrl || productUrl,
-                    ogTags: p.seo?.ogTags || {
-                        title: p.seo?.seoTitle || p.name,
-                        description: (p.seo?.seoDescription || p.description)?.substring(0, 160),
-                        image: imageUrl,
-                        url: productUrl,
-                        type: 'product'
-                    },
-                    twitterCard: {
-                        title: p.seo?.seoTitle || p.name,
-                        description: (p.seo?.seoDescription || p.description)?.substring(0, 160),
-                        image: imageUrl,
-                        card: 'summary_large_image'
-                    },
+                    ogTags: finalOg,
+                    twitterCard: finalTw,
                     schema: JSON.stringify(schemaObj),
                     hiddenContent: p.seo?.hiddenContent,
-                    metaRobots: p.seo?.metaRobots || "index, follow"
+                    metaRobots: p.seo?.metaRobots || "index, follow",
+                    // Extended data for SSR
+                    productData: {
+                        price: p.variants?.[0]?.price || p.price,
+                        currency: 'SAR',
+                        availability: p.isActive && (p.variants.every(v => v.stockQuantity > 0) || !p.variants.length) ? 'instock' : 'oos',
+                        brand: p.brand || "Jeeey",
+                        sku: p.sku || p.id
+                    }
                 };
             }
         }
@@ -360,7 +378,7 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
         let html = fs.readFileSync(htmlPath, 'utf-8');
 
         if (meta) {
-            const { titleSeo, metaDescription, ogTags, twitterCard, canonicalUrl, schema, metaRobots } = meta;
+            const { titleSeo, metaDescription, ogTags, twitterCard, canonicalUrl, schema, metaRobots, productData } = meta;
 
             // 1. Strip existing default tags to avoid duplicates
             html = html.replace(/<title>.*?<\/title>/gi, '');
@@ -391,7 +409,16 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
                 `<meta name="twitter:image" content="${twitterCard?.image || ogTags?.image || ''}" />`,
 
                 // Schema
-                schema ? `<script type="application/ld+json">${schema}</script>` : ''
+                schema ? `<script type="application/ld+json">${schema}</script>` : '',
+
+                // Product Rich Data (Facebook/Pinterest/WhatsApp)
+                (productData ? [
+                    `<meta property="product:price:amount" content="${productData.price}" />`,
+                    `<meta property="product:price:currency" content="${productData.currency}" />`,
+                    `<meta property="product:availability" content="${productData.availability}" />`,
+                    `<meta property="product:brand" content="${(productData.brand || '').replace(/"/g, '&quot;')}" />`,
+                    `<meta property="product:retailer_item_id" content="${productData.sku}" />`
+                ].join('\n    ') : '')
             ].filter(Boolean).join('\n    ');
 
             // 3. Inject before </head>
