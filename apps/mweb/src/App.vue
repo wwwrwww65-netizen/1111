@@ -32,11 +32,26 @@ onMounted(async ()=>{
   try {
     const seo = await apiGet<any>('/api/seo/meta?slug=/');
     if (seo && seo.siteLogo) {
-      useHead({
-        link: [
-          { rel: 'icon', href: seo.siteLogo, key: 'favicon' }
-        ]
-      });
+      // Process circular favicon
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.src = seo.siteLogo;
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return;
+          const size = 64; 
+          canvas.width = size; canvas.height = size;
+          ctx.beginPath(); ctx.arc(size/2, size/2, size/2, 0, 2*Math.PI); ctx.closePath(); ctx.clip();
+          ctx.drawImage(img, 0, 0, size, size);
+          useHead({ link: [{ rel: 'icon', href: canvas.toDataURL('image/png'), key: 'favicon' }] });
+        } catch {}
+      };
+      // Fallback
+      img.onerror = () => {
+         useHead({ link: [{ rel: 'icon', href: seo.siteLogo, key: 'favicon' }] });
+      }
     }
   } catch {}
 });

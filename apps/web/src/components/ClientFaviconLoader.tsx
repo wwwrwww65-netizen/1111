@@ -1,15 +1,16 @@
 "use client";
 import React, { useEffect } from 'react';
-import { apiFetch } from '../lib/api';
 
-export default function FaviconLoader() {
+export function ClientFaviconLoader() {
     useEffect(() => {
-        apiFetch<any>('/api/admin/settings/list')
+        // Determine API URL based on environment or default
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+        fetch(`${apiUrl}/api/seo/meta?slug=/`)
+            .then(res => res.json())
             .then(data => {
-                const settings = data.settings || [];
-                const logo = settings.find((s: any) => s.key === 'site_logo');
-                if (logo?.value?.value) {
-                    processFavicon(logo.value.value);
+                if (data && data.siteLogo) {
+                    processFavicon(data.siteLogo);
                 }
             })
             .catch(() => { });
@@ -25,11 +26,10 @@ export default function FaviconLoader() {
                 const ctx = canvas.getContext('2d');
                 if (!ctx) return;
 
-                const size = 64; // Standard favicon size
+                const size = 64;
                 canvas.width = size;
                 canvas.height = size;
 
-                // Circular clipping
                 ctx.beginPath();
                 ctx.arc(size / 2, size / 2, size / 2, 0, 2 * Math.PI);
                 ctx.closePath();
@@ -37,8 +37,8 @@ export default function FaviconLoader() {
 
                 ctx.drawImage(img, 0, 0, size, size);
 
+                // Update favicon
                 const dataUrl = canvas.toDataURL('image/png');
-
                 let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
                 if (!link) {
                     link = document.createElement('link');
@@ -47,8 +47,14 @@ export default function FaviconLoader() {
                 }
                 link.href = dataUrl;
             } catch (e) {
-                // Fallback to original square if canvas fails (CORS, etc)
-                // console.error(e);
+                // If canvas fails (CORS), fallback to normal square
+                let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
+                if (!link) {
+                    link = document.createElement('link');
+                    link.rel = 'icon';
+                    document.head.appendChild(link);
+                }
+                link.href = url;
             }
         };
     }

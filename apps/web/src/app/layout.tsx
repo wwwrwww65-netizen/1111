@@ -7,6 +7,7 @@ import { MobileBottomNav } from "../components/MobileBottomNav";
 import { CookieConsent } from "../components/CookieConsent";
 import { Tajawal } from "next/font/google";
 import { PromoHost } from "../components/PromoHost";
+import { ClientFaviconLoader } from "../components/ClientFaviconLoader";
 
 const tajawal = Tajawal({ subsets: ["arabic"], weight: ["400", "500", "700", "800"] });
 
@@ -74,6 +75,7 @@ export default function RootLayout({
     <html lang="ar" dir="rtl">
       <body className={tajawal.className} suppressHydrationWarning>
         <AppProviders>
+          <ClientFaviconLoader />
           <Header />
           <div className="pb-16 md:pb-0">{children}</div>
           <FooterCompact />
