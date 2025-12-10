@@ -11375,7 +11375,7 @@ adminRest.post('/categories/reorder', async (req, res) => {
 adminRest.post('/categories', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.create'))) { await audit(req, 'categories', 'forbidden_create', { path: req.path }); return res.status(403).json({ error: 'forbidden' }); }
-    let { name, slug, description, image, parentId, seoTitle, seoDescription, seoKeywords, translations, canonicalUrl, metaRobots, hiddenContent, ogTags, schema } = req.body || {};
+    let { name, slug, description, image, parentId, seoTitle, seoDescription, seoKeywords, translations, canonicalUrl, metaRobots, hiddenContent, ogTags, twitterCard, schema } = req.body || {};
     if (!name || !name.trim()) return res.status(400).json({ error: 'name_required' });
 
     if (!slug) {
