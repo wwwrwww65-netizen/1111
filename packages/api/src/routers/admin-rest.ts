@@ -10406,7 +10406,7 @@ adminRest.post('/products', async (req, res) => {
         slug: finalSlug,
         seoTitle: seoTitle || name,
         seoDescription: seoDescription || description?.slice(0, 160),
-        seoKeywords: Array.isArray(seoKeywords) ? seoKeywords : [],
+        seoKeywords: typeof seoKeywords === 'string' ? seoKeywords.split(',').map((s: string) => s.trim()).filter(Boolean) : (Array.isArray(seoKeywords) ? seoKeywords : []),
         canonicalUrl, metaRobots, hiddenContent, ogTags, schema
       }
     });
@@ -10747,7 +10747,7 @@ adminRest.patch('/products/:id', async (req, res) => {
       if (slug !== undefined) seoPatch.slug = slug;
       if (seoTitle !== undefined) seoPatch.seoTitle = seoTitle;
       if (seoDescription !== undefined) seoPatch.seoDescription = seoDescription;
-      if (seoKeywords !== undefined) seoPatch.seoKeywords = Array.isArray(seoKeywords) ? seoKeywords : undefined;
+      if (seoKeywords !== undefined) seoPatch.seoKeywords = typeof seoKeywords === 'string' ? seoKeywords.split(',').map((s: string) => s.trim()).filter(Boolean) : (Array.isArray(seoKeywords) ? seoKeywords : undefined);
       if (canonicalUrl !== undefined) seoPatch.canonicalUrl = canonicalUrl;
       if (metaRobots !== undefined) seoPatch.metaRobots = metaRobots;
       if (hiddenContent !== undefined) seoPatch.hiddenContent = hiddenContent;
@@ -11399,7 +11399,7 @@ adminRest.post('/categories', async (req, res) => {
         slug: slug || null,
         seoTitle: seoTitle || null,
         seoDescription: seoDescription || null,
-        seoKeywords: Array.isArray(seoKeywords) ? seoKeywords : [],
+        seoKeywords: typeof seoKeywords === 'string' ? seoKeywords.split(',').map((s: string) => s.trim()).filter(Boolean) : (Array.isArray(seoKeywords) ? seoKeywords : []),
         translations: translations || undefined,
         seo: {
           create: {
@@ -11447,7 +11447,7 @@ const categoryUpdateHandler = async (req: any, res: any) => {
         slug: slug ?? undefined,
         seoTitle: seoTitle ?? undefined,
         seoDescription: seoDescription ?? undefined,
-        seoKeywords: Array.isArray(seoKeywords) ? seoKeywords : undefined,
+        seoKeywords: typeof seoKeywords === 'string' ? seoKeywords.split(',').map((s: string) => s.trim()).filter(Boolean) : (Array.isArray(seoKeywords) ? seoKeywords : undefined),
         translations: translations ?? undefined,
         sortOrder: typeof sortOrder === 'number' ? sortOrder : undefined,
         seo: {

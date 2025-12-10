@@ -18,6 +18,22 @@ const createProductSchema = z.object({
   brand: z.string().optional(),
   tags: z.array(z.string()).optional(),
   isActive: z.boolean().default(true),
+  // Loyalty fields
+  pointsFixed: z.number().int().optional(),
+  pointsPercent: z.number().optional(),
+  loyaltyMultiplier: z.number().optional(),
+  excludeFromPoints: z.boolean().optional(),
+  // SEO fields
+  seoTitle: z.string().optional(),
+  seoDescription: z.string().optional(),
+  slug: z.string().optional(),
+  seoKeywords: z.string().optional(),
+  canonicalUrl: z.string().optional(),
+  metaRobots: z.string().optional(),
+  hiddenContent: z.string().optional(),
+  ogTags: z.any().optional(),
+  twitterCard: z.any().optional(),
+  schema: z.any().optional(),
 });
 
 const updateProductSchema = createProductSchema.partial().extend({
@@ -164,12 +180,26 @@ export const adminRouter = router({
     .use(adminMiddleware)
     .input(createProductSchema)
     .mutation(async ({ input }) => {
-      let nextSku = input.sku;
-      if (!nextSku && input.vendorId) {
-        const vendor = await db.vendor.findUnique({ where: { id: input.vendorId } });
+      const {
+        seoTitle,
+        seoDescription,
+        slug,
+        seoKeywords,
+        canonicalUrl,
+        metaRobots,
+        hiddenContent,
+        ogTags,
+        twitterCard,
+        schema,
+        ...productData
+      } = input;
+
+      let nextSku = productData.sku;
+      if (!nextSku && productData.vendorId) {
+        const vendor = await db.vendor.findUnique({ where: { id: productData.vendorId } });
         if (vendor?.vendorCode) {
           const prefix = vendor.vendorCode + '-';
-          const last = await db.product.findFirst({ where: { vendorId: input.vendorId, sku: { startsWith: prefix } }, orderBy: { createdAt: 'desc' } });
+          const last = await db.product.findFirst({ where: { vendorId: productData.vendorId, sku: { startsWith: prefix } }, orderBy: { createdAt: 'desc' } });
           let n = 0;
           if (last?.sku && last.sku.startsWith(prefix)) {
             const tail = last.sku.substring(prefix.length);
@@ -179,8 +209,31 @@ export const adminRouter = router({
           nextSku = `${prefix}${n + 1}`;
         }
       }
+
+      // Helper to process SEO keywords
+      const processedKeywords = seoKeywords
+        ? seoKeywords.split(',').map((k) => k.trim()).filter((k) => k.length > 0)
+        : [];
+
       const product = await db.product.create({
-        data: { ...input, sku: nextSku ?? input.sku ?? null },
+        data: {
+          ...productData,
+          sku: nextSku ?? productData.sku ?? null,
+          seo: {
+            create: {
+              seoTitle,
+              seoDescription,
+              slug,
+              seoKeywords: processedKeywords,
+              canonicalUrl,
+              metaRobots,
+              hiddenContent,
+              ogTags: ogTags as any,
+              twitterCard: twitterCard as any,
+              schema: schema as any,
+            },
+          },
+        },
         include: { category: { select: { id: true, name: true } } },
       });
 
@@ -191,11 +244,57 @@ export const adminRouter = router({
     .use(adminMiddleware)
     .input(updateProductSchema)
     .mutation(async ({ input }) => {
-      const { id, ...data } = input;
+      const {
+        id,
+        seoTitle,
+        seoDescription,
+        slug,
+        seoKeywords,
+        canonicalUrl,
+        metaRobots,
+        hiddenContent,
+        ogTags,
+        twitterCard,
+        schema,
+        ...productData
+      } = input;
+
+      const processedKeywords = (typeof seoKeywords === 'string')
+        ? seoKeywords.split(',').map((k) => k.trim()).filter((k) => k.length > 0)
+        : undefined; // undefined allows partial updates to ignore this field if not provided
+
+      const seoData = {
+        seoTitle,
+        seoDescription,
+        slug,
+        // Only update keywords if explicitly provided (even empty string clears it)
+        ...(seoKeywords !== undefined && { seoKeywords: processedKeywords }),
+        canonicalUrl,
+        metaRobots,
+        hiddenContent,
+        ogTags: ogTags as any,
+        twitterCard: twitterCard as any,
+        schema: schema as any,
+      };
+
+      // Filter out undefined values for update to avoid overwriting with null/undefined naturally
+      // But Zod .partial() makes them optional/undefined, so we should only include keys that are present
+      // Actually Prisma accepts undefined and ignores it for updates
 
       const product = await db.product.update({
         where: { id },
-        data,
+        data: {
+          ...productData,
+          seo: {
+            upsert: {
+              create: {
+                ...seoData,
+                seoKeywords: processedKeywords || []
+              },
+              update: seoData
+            }
+          }
+        },
         include: { category: { select: { id: true, name: true } } },
       });
 

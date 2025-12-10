@@ -2635,7 +2635,7 @@ export default function AdminProductCreate(): JSX.Element {
       seoTitle: seoTitle || undefined,
       seoDescription: seoDescription || undefined,
       slug: slug || undefined,
-      seoKeywords: seoKeywords || undefined,
+      seoKeywords: seoKeywords,
       canonicalUrl: canonicalUrl || undefined,
       metaRobots: metaRobots || undefined,
       hiddenContent: hiddenContent || undefined,
