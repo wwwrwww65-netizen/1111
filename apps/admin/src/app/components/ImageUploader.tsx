@@ -48,7 +48,7 @@ export default function ImageUploader({
                         ...authHeaders()
                     },
                     credentials: 'include',
-                    body: JSON.stringify({ dataUrl: base64 })
+                    body: JSON.stringify({ base64, filename: file.name })
                 });
 
                 const data = await res.json();
