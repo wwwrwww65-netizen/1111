@@ -17,8 +17,9 @@ export default function FaviconLoader() {
 
     function processFavicon(url: string) {
         const img = new Image();
-        img.crossOrigin = 'Anonymous';
-        img.src = url;
+        // img.crossOrigin = 'Anonymous'; // Not needed with proxy
+        // Use proxy to avoid CORS
+        img.src = `/api/seo/media/proxy?url=${encodeURIComponent(url)}`;
         img.onload = () => {
             try {
                 const canvas = document.createElement('canvas');

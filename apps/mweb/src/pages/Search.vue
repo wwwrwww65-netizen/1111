@@ -369,27 +369,30 @@ onMounted(() => {
   fetchCategories()
   
   // SEO
-  ;(async () => {
-    try {
-       const { useHead } = await import('@unhead/vue')
-       const { apiGet } = await import('@/lib/api') 
-       apiGet<any>('/api/seo/meta?type=page&slug=/search').then(seo => {
-         if (seo) {
-           useHead({
-             title: seo.titleSeo || 'البحث',
-             meta: [
-               { name: 'description', content: seo.metaDescription },
-               { name: 'robots', content: seo.metaRobots },
-               { property: 'og:title', content: seo.titleSeo },
-               { property: 'og:description', content: seo.metaDescription },
-               { property: 'og:image', content: seo.ogTags?.image || seo.siteLogo },
-               { property: 'og:url', content: seo.canonicalUrl },
-             ].filter(Boolean)
-           })
-         }
-       })
-    } catch {}
-  })();
+  // SEO
+  const seoHead = ref({
+    title: 'البحث',
+    meta: [] as any[],
+    link: [] as any[]
+  })
+  useHead(seoHead)
+  
+  apiGet<any>('/api/seo/meta?type=page&slug=/search').then(seo => {
+     if (seo) {
+       seoHead.value = {
+         title: seo.titleSeo || 'البحث',
+         meta: [
+           { name: 'description', content: seo.metaDescription },
+           { name: 'robots', content: seo.metaRobots },
+           { property: 'og:title', content: seo.titleSeo },
+           { property: 'og:description', content: seo.metaDescription },
+           { property: 'og:image', content: seo.ogTags?.image || seo.siteLogo },
+           { property: 'og:url', content: seo.canonicalUrl },
+         ].filter(Boolean),
+         link: []
+       }
+     }
+  }).catch(()=>{})
 })
 </script>
 

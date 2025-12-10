@@ -586,27 +586,30 @@ onMounted(async () => {
   }catch{}
   
   // Authoritative SEO from Engine (slug: /categories)
-  ;(async () => {
-    try {
-       const { useHead } = await import('@unhead/vue')
-       apiGet<any>('/api/seo/meta?type=page&slug=/categories').then(seo => {
-         if (seo) {
-           useHead({
-             title: seo.titleSeo || 'الفئات',
-             meta: [
-               { name: 'description', content: seo.metaDescription },
-               { name: 'robots', content: seo.metaRobots },
-               { property: 'og:title', content: seo.titleSeo },
-               { property: 'og:description', content: seo.metaDescription },
-               { property: 'og:image', content: seo.ogTags?.image || seo.siteLogo },
-               { property: 'og:url', content: seo.canonicalUrl },
-             ].filter(Boolean),
-             link: [ { rel: 'canonical', href: seo.canonicalUrl } ].filter(x=>x.href)
-           })
-         }
-       })
-    } catch {}
-  })();
+  // Authoritative SEO from Engine (slug: /categories)
+  const seoHead = ref({
+    title: 'الفئات',
+    meta: [] as any[],
+    link: [] as any[]
+  })
+  useHead(seoHead)
+  
+  apiGet<any>('/api/seo/meta?type=page&slug=/categories').then(seo => {
+    if (seo) {
+      seoHead.value = {
+        title: seo.titleSeo || 'الفئات',
+        meta: [
+          { name: 'description', content: seo.metaDescription },
+          { name: 'robots', content: seo.metaRobots },
+          { property: 'og:title', content: seo.titleSeo },
+          { property: 'og:description', content: seo.metaDescription },
+          { property: 'og:image', content: seo.ogTags?.image || seo.siteLogo },
+          { property: 'og:url', content: seo.canonicalUrl },
+        ].filter(Boolean),
+        link: [ { rel: 'canonical', href: seo.canonicalUrl } ].filter(x=>x.href)
+      }
+    }
+  }).catch(()=>{})
 })
 </script>
 
