@@ -85,6 +85,8 @@ mediaRouter.post('/upload', async (req, res) => {
     }
 });
 
+import { db } from '@repo/db';
+
 // Verification File Upload (HTML)
 mediaRouter.post('/upload-verification', async (req, res) => {
     try {
@@ -98,6 +100,16 @@ mediaRouter.post('/upload-verification', async (req, res) => {
             return res.status(400).json({ error: 'Only .html or .xml files allowed' });
         }
 
+        // Save to DB for public-seo router to serve
+        if (filename.startsWith('google') && filename.endsWith('.html')) {
+            await db.setting.upsert({
+                where: { key: 'google_html_file' },
+                update: { value: { name: filename, content: content } },
+                create: { key: 'google_html_file', value: { name: filename, content: content } }
+            });
+        }
+
+        // Also save to disk (legacy/backup)
         const VERIFICATION_DIR = path.resolve(process.cwd(), 'verification');
         if (!fs.existsSync(VERIFICATION_DIR)) {
             fs.mkdirSync(VERIFICATION_DIR, { recursive: true });

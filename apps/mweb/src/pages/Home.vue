@@ -158,6 +158,10 @@ import PromoPopup from '@/components/PromoPopup.vue'
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
 import { useRouter, useRoute, RouterLink } from 'vue-router'
 import { useHead } from '@unhead/vue'
+
+// SEO Setup
+const seoHead = ref<any>({ title: 'Jeeey', meta: [] })
+useHead(seoHead)
 import { apiGet, API_BASE } from '@/lib/api'
 import { useCart } from '@/store/cart'
 import { useWishlist } from '@/store/wishlist'
@@ -411,9 +415,9 @@ onMounted(async ()=>{
 
   // SEO: Fetch metadata for Homepage (Root)
   try {
-    const seo = await apiGet<any>('/api/seo/meta?slug=/')
+     const seo = await apiGet<any>('/api/seo/meta?slug=/')
     if (seo) {
-       useHead({
+       seoHead.value = {
          title: seo.titleSeo || 'Jeeey',
          meta: [
            { name: 'description', content: seo.metaDescription },
@@ -426,14 +430,14 @@ onMounted(async ()=>{
            { name: 'twitter:title', content: seo.twitterCard?.title || seo.titleSeo },
            { name: 'twitter:description', content: seo.twitterCard?.description || seo.metaDescription },
            { name: 'twitter:image', content: seo.twitterCard?.image || seo.ogTags?.image || seo.siteLogo },
-         ],
+         ].filter(Boolean),
          link: [
            { rel: 'canonical', href: seo.canonicalUrl || 'https://jeeey.com' }
          ],
          script: [
            seo.schema ? { type: 'application/ld+json', innerHTML: seo.schema } : ''
          ].filter(Boolean)
-       })
+       }
     }
   } catch (e) {
     console.error('SEO Fetch Error:', e)

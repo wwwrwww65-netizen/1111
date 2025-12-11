@@ -332,6 +332,7 @@
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
+import { useHead } from '@unhead/vue'
 import { useCart } from '@/store/cart'
 import { useRouter } from 'vue-router'
 import { ref, computed, reactive, onMounted, onBeforeUnmount, watch } from 'vue'
@@ -360,6 +361,10 @@ import { buildThumbUrl } from '@/lib/media'
 const cart = useCart()
 const router = useRouter()
 const { items, total } = storeToRefs(cart)
+
+// SEO Setup
+const seoHead = ref<any>({ title: 'سلة التسوق', meta: [] })
+useHead(seoHead)
 
 // عنوان الشحن الديناميكي: إظهار المحافظة والمنطقة فقط
 const shippingAddress = ref('اليمن')
@@ -481,13 +486,13 @@ onMounted(()=> refreshEffectivePricing())
 onMounted(()=> { try{ cart.syncFromServer(true) }catch{} })
 
 // SEO
+// SEO
 onMounted(async ()=>{
   try {
-     const { useHead } = await import('@unhead/vue')
      const { apiGet } = await import('@/lib/api')
      apiGet<any>('/api/seo/meta?type=page&slug=/cart').then(seo => {
        if (seo) {
-         useHead({
+         seoHead.value = {
            title: seo.titleSeo || 'سلة التسوق',
            meta: [
              { name: 'description', content: seo.metaDescription },
@@ -497,7 +502,7 @@ onMounted(async ()=>{
              { property: 'og:image', content: seo.ogTags?.image || seo.siteLogo },
              { property: 'og:url', content: seo.canonicalUrl },
            ].filter(Boolean)
-         })
+         }
        }
      })
   } catch {}

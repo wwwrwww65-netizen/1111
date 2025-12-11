@@ -353,7 +353,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive, watch } from 'vue'
+import { useHead } from '@unhead/vue'
 import { useRouter } from 'vue-router'
+
+// SEO Setup
+const seoHead = ref<any>({ title: 'حسابي', meta: [] })
+useHead(seoHead)
 import { useUser } from '@/store/user'
 import { useWishlist } from '@/store/wishlist'
 import { useRecent } from '@/store/recent'
@@ -755,10 +760,9 @@ onMounted(async () => {
   
   // SEO
   try {
-     const { useHead } = await import('@unhead/vue')
      apiGet<any>('/api/seo/meta?type=page&slug=/account').then(seo => {
        if (seo) {
-         useHead({
+         seoHead.value = {
            title: seo.titleSeo || 'حسابي',
            meta: [
              { name: 'description', content: seo.metaDescription },
@@ -768,7 +772,7 @@ onMounted(async () => {
              { property: 'og:image', content: seo.ogTags?.image || seo.siteLogo },
              { property: 'og:url', content: seo.canonicalUrl },
            ].filter(Boolean)
-         })
+         }
        }
      })
   } catch {}
