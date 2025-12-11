@@ -1,3 +1,4 @@
+"use client";
 import React, { useEffect } from 'react';
 import { apiFetch } from '../lib/api';
 import { resolveApiBase } from '../lib/apiBase';
