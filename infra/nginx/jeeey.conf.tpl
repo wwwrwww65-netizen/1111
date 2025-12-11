@@ -92,6 +92,7 @@ server {
     alias /var/www/ecom/uploads/;
     types { }
     default_type application/octet-stream;
+    add_header Access-Control-Allow-Origin * always;
     add_header Cache-Control "public, max-age=31536000, immutable" always;
     try_files $uri =404;
   }
@@ -302,6 +303,7 @@ server {
     proxy_hide_header Set-Cookie;
   }
   location ^~ /uploads/ {
+    add_header Access-Control-Allow-Origin * always;
     add_header Cache-Control "public, max-age=31536000, immutable" always;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;

@@ -17,9 +17,11 @@ export function ClientFaviconLoader() {
     }, []);
 
     function processFavicon(url: string) {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
         const img = new Image();
         img.crossOrigin = 'Anonymous';
-        img.src = url;
+        // Use proxy for guaranteed CORS headers
+        img.src = `${apiUrl}/api/media/proxy?url=${encodeURIComponent(url)}`;
         img.onload = () => {
             try {
                 const canvas = document.createElement('canvas');

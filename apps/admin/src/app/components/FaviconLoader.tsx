@@ -17,10 +17,11 @@ export default function FaviconLoader() {
     }, []);
 
     function processFavicon(url: string) {
+        const base = resolveApiBase();
         const img = new Image();
         img.crossOrigin = 'Anonymous';
-        // Direct URL now works thanks to backend CORS headers
-        img.src = url;
+        // Use proxy for guaranteed CORS headers
+        img.src = `${base}/api/media/proxy?url=${encodeURIComponent(url)}`;
         img.onload = () => {
             try {
                 const canvas = document.createElement('canvas');

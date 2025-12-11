@@ -21,189 +21,205 @@ publicSeoRouter.get('/:filename', async (req, res, next) => {
         } catch { }
     }
     next();
-});
 
 
+    // Proxy route for images (CORS bypass for canvas)
+    publicSeoRouter.get('/media/proxy', async (req, res) => {
+        try {
+            const targetUrl = String(req.query.url);
+            if (!targetUrl || !targetUrl.startsWith('http')) {
+                return res.status(400).send('Invalid URL');
+            }
 
-// 1. Robots.txt
-publicSeoRouter.get('/robots.txt', async (req, res) => {
-    try {
-        const setting = await db.setting.findUnique({ where: { key: 'robots_txt' } });
-        const content = (setting?.value as any)?.value || 'User-agent: *\nAllow: /';
-        res.header('Content-Type', 'text/plain');
-        res.send(content);
-    } catch (e) {
-        res.status(500).send('User-agent: *\nDisallow: /');
-    }
-});
+            const response = await fetch(targetUrl);
+            if (!response.ok) {
+                return res.status(response.status).send('Failed to fetch image');
+            }
 
-// Helper to escape XML special chars
-function escapeXml(unsafe: string): string {
-    return unsafe.replace(/[<>&'"]/g, (c) => {
-        switch (c) {
-            case '<': return '&lt;';
-            case '>': return '&gt;';
-            case '&': return '&amp;';
-            case '\'': return '&apos;';
-            case '"': return '&quot;';
+            const contentType = response.headers.get('content-type') || 'application/octet-stream';
+            res.setHeader('Content-Type', contentType);
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+
+            const arrayBuffer = await response.arrayBuffer();
+            res.send(Buffer.from(arrayBuffer));
+        } catch (e) {
+            console.error('Proxy Error:', e);
+            res.status(500).send('Proxy Error');
         }
-        return c;
     });
-}
 
-// 2. Sitemap.xml
-publicSeoRouter.get('/sitemap.xml', async (req, res) => {
-    try {
-        const setting = await db.setting.findUnique({ where: { key: 'site_url' } });
-        const baseUrl = (setting?.value as any)?.value || process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com';
 
-        // Fetch pages and products
-        const [pages, products, categories] = await Promise.all([
-            db.seoPage.findMany({ select: { slug: true, updatedAt: true } }),
-            db.product.findMany({ where: { isActive: true }, select: { id: true, updatedAt: true, seo: { select: { slug: true } } } }),
-            db.category.findMany({ select: { id: true, slug: true, updatedAt: true } })
-        ]);
 
-        let xml = `<?xml version="1.0" encoding="UTF-8"?>
+
+    // 1. Robots.txt
+    publicSeoRouter.get('/robots.txt', async (req, res) => {
+        try {
+            const setting = await db.setting.findUnique({ where: { key: 'robots_txt' } });
+            const content = (setting?.value as any)?.value || 'User-agent: *\nAllow: /';
+            res.header('Content-Type', 'text/plain');
+            res.send(content);
+        } catch (e) {
+            res.status(500).send('User-agent: *\nDisallow: /');
+        }
+    });
+
+    // Helper to escape XML special chars
+    function escapeXml(unsafe: string): string {
+        return unsafe.replace(/[<>&'"]/g, (c) => {
+            switch (c) {
+                case '<': return '&lt;';
+                case '>': return '&gt;';
+                case '&': return '&amp;';
+                case '\'': return '&apos;';
+                case '"': return '&quot;';
+            }
+            return c;
+        });
+    }
+
+    // 2. Sitemap.xml
+    publicSeoRouter.get('/sitemap.xml', async (req, res) => {
+        try {
+            const setting = await db.setting.findUnique({ where: { key: 'site_url' } });
+            const baseUrl = (setting?.value as any)?.value || process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com';
+
+            // Fetch pages and products
+            const [pages, products, categories] = await Promise.all([
+                db.seoPage.findMany({ select: { slug: true, updatedAt: true } }),
+                db.product.findMany({ where: { isActive: true }, select: { id: true, updatedAt: true, seo: { select: { slug: true } } } }),
+                db.category.findMany({ select: { id: true, slug: true, updatedAt: true } })
+            ]);
+
+            let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
 
-        // Static Home
-        xml += `
+            // Static Home
+            xml += `
   <url>
     <loc>${escapeXml(baseUrl.replace(/\/$/, ''))}/</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>`;
 
-        // SEO Pages
-        for (const page of pages) {
-            const cleanSlug = page.slug.startsWith('/') ? page.slug.slice(1) : page.slug;
-            xml += `
+            // SEO Pages
+            for (const page of pages) {
+                const cleanSlug = page.slug.startsWith('/') ? page.slug.slice(1) : page.slug;
+                xml += `
   <url>
     <loc>${escapeXml(baseUrl.replace(/\/$/, ''))}/${escapeXml(cleanSlug)}</loc>
     <lastmod>${(page.updatedAt || new Date()).toISOString().split('T')[0]}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>`;
-        }
+            }
 
-        // Categories
-        for (const cat of categories) {
-            const slug = cat.slug || cat.id;
-            xml += `
+            // Categories
+            for (const cat of categories) {
+                const slug = cat.slug || cat.id;
+                xml += `
   <url>
     <loc>${escapeXml(baseUrl.replace(/\/$/, ''))}/c/${escapeXml(slug)}</loc>
     <lastmod>${cat.updatedAt.toISOString().split('T')[0]}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>`;
-        }
+            }
 
-        // Product Pages
-        for (const product of products) {
-            const slug = product.seo?.slug || product.id;
-            xml += `
+            // Product Pages
+            for (const product of products) {
+                const slug = product.seo?.slug || product.id;
+                xml += `
   <url>
     <loc>${escapeXml(baseUrl.replace(/\/$/, ''))}/p/${escapeXml(slug)}</loc>
     <lastmod>${product.updatedAt.toISOString().split('T')[0]}</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>`;
-        }
+            }
 
-        xml += `
+            xml += `
 </urlset>`;
 
-        res.header('Content-Type', 'application/xml');
-        res.send(xml);
-    } catch (e) {
-        console.error(e);
-        res.status(500).send('Error generating sitemap');
-    }
-});
+            res.header('Content-Type', 'application/xml');
+            res.send(xml);
+        } catch (e) {
+            console.error(e);
+            res.status(500).send('Error generating sitemap');
+        }
+    });
 
-// Helper: Resolve SEO Data (Refactored for reuse in SSR)
-async function resolveSeoData(params: { slug?: string, type?: string, id?: string, url?: string }) {
-    const { slug, type, id, url } = params;
-    let seoData: any = null;
+    // Helper: Resolve SEO Data (Refactored for reuse in SSR)
+    async function resolveSeoData(params: { slug?: string, type?: string, id?: string, url?: string }) {
+        const { slug, type, id, url } = params;
+        let seoData: any = null;
 
-    // Fetch Global Settings
-    const settings = await db.setting.findMany({ where: { key: { in: ['site_url', 'site_name', 'site_logo', 'twitter_site'] } } });
-    const getSetting = (key: string) => (settings.find(s => s.key === key)?.value as any)?.value;
+        // Fetch Global Settings
+        const settings = await db.setting.findMany({ where: { key: { in: ['site_url', 'site_name', 'site_logo', 'twitter_site'] } } });
+        const getSetting = (key: string) => (settings.find(s => s.key === key)?.value as any)?.value;
 
-    const baseUrl = getSetting('site_url') || process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com';
-    const siteName = getSetting('site_name') || 'جي jeeey'; // Default per user request
-    const siteLogo = getSetting('site_logo') || '';
-    const twitterSite = getSetting('twitter_site') || '@jeeey_com';
+        const baseUrl = getSetting('site_url') || process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com';
+        const siteName = getSetting('site_name') || 'جي jeeey'; // Default per user request
+        const siteLogo = getSetting('site_logo') || '';
+        const twitterSite = getSetting('twitter_site') || '@jeeey_com';
 
-    // Helper: Clean slug from possible URL parts (if passed via url param)
-    let exactSlug = slug;
-    let exactId = id;
+        // Helper: Clean slug from possible URL parts (if passed via url param)
+        let exactSlug = slug;
+        let exactId = id;
 
-    if (url && typeof url === 'string') {
-        const pMatch = url.match(/\/p\/([^\/\?]+)/) || url.match(/\/products\/([^\/\?]+)/);
-        if (pMatch) exactSlug = pMatch[1];
-        const cMatch = url.match(/\/c\/([^\/\?]+)/) || url.match(/\/category\/([^\/\?]+)/);
-        if (cMatch) exactSlug = cMatch[1];
-        // Handle Root
-        if (url === '/' || url === '') exactSlug = '/';
-    }
+        if (url && typeof url === 'string') {
+            const pMatch = url.match(/\/p\/([^\/\?]+)/) || url.match(/\/products\/([^\/\?]+)/);
+            if (pMatch) exactSlug = pMatch[1];
+            const cMatch = url.match(/\/c\/([^\/\?]+)/) || url.match(/\/category\/([^\/\?]+)/);
+            if (cMatch) exactSlug = cMatch[1];
+            // Handle Root
+            if (url === '/' || url === '') exactSlug = '/';
+        }
 
-    const lookupId = exactId || exactSlug || (slug as string);
+        const lookupId = exactId || exactSlug || (slug as string);
 
-    // A. Try fetching from SEO Pages first (covers Root '/' and system pages)
-    if (!type || type === 'page' || lookupId === '/') {
-        if (lookupId) {
-            const page = await db.seoPage.findUnique({
-                where: { slug: lookupId },
-                select: {
-                    titleSeo: true,
-                    metaDescription: true,
-                    canonicalUrl: true,
-                    metaRobots: true,
-                    ogTags: true,
-                    twitterCard: true,
-                    schema: true,
-                    hiddenContent: true
-                }
-            });
-            if (page) {
-                seoData = page;
-                // For Homepage, inject WebSite schema if missing
-                if (lookupId === '/' && (!page.schema || Object.keys(page.schema).length === 0)) {
-                    seoData.schema = JSON.stringify({
-                        "@context": "https://schema.org",
-                        "@type": "WebSite",
-                        "name": siteName,
-                        "url": baseUrl,
-                        "potentialAction": {
-                            "@type": "SearchAction",
-                            "target": `${baseUrl}/search?q={search_term_string}`,
-                            "query-input": "required name=search_term_string"
-                        }
-                    });
+        // A. Try fetching from SEO Pages first (covers Root '/' and system pages)
+        if (!type || type === 'page' || lookupId === '/') {
+            if (lookupId) {
+                const page = await db.seoPage.findUnique({
+                    where: { slug: lookupId },
+                    select: {
+                        titleSeo: true,
+                        metaDescription: true,
+                        canonicalUrl: true,
+                        metaRobots: true,
+                        ogTags: true,
+                        twitterCard: true,
+                        schema: true,
+                        hiddenContent: true
+                    }
+                });
+                if (page) {
+                    seoData = page;
+                    // For Homepage, inject WebSite schema if missing
+                    if (lookupId === '/' && (!page.schema || Object.keys(page.schema).length === 0)) {
+                        seoData.schema = JSON.stringify({
+                            "@context": "https://schema.org",
+                            "@type": "WebSite",
+                            "name": siteName,
+                            "url": baseUrl,
+                            "potentialAction": {
+                                "@type": "SearchAction",
+                                "target": `${baseUrl}/search?q={search_term_string}`,
+                                "query-input": "required name=search_term_string"
+                            }
+                        });
+                    }
                 }
             }
         }
-    }
 
-    // B. If not found, check based on type
-    if (!seoData) {
-        // 1. Check Product
-        if (type === 'product' || id || (url && (url as string).includes('/p/'))) {
-            let product = await db.product.findUnique({
-                where: { id: lookupId },
-                select: {
-                    id: true, name: true, description: true, images: true, price: true, sku: true, brand: true, isActive: true, updatedAt: true,
-                    variants: { select: { id: true, name: true, price: true, sku: true, stockQuantity: true } },
-                    colors: { include: { images: true } },
-                    seo: true
-                }
-            });
-
-            if (!product && lookupId) {
-                product = await db.product.findFirst({
-                    where: { OR: [{ seo: { slug: lookupId } }, { sku: lookupId }] },
+        // B. If not found, check based on type
+        if (!seoData) {
+            // 1. Check Product
+            if (type === 'product' || id || (url && (url as string).includes('/p/'))) {
+                let product = await db.product.findUnique({
+                    where: { id: lookupId },
                     select: {
                         id: true, name: true, description: true, images: true, price: true, sku: true, brand: true, isActive: true, updatedAt: true,
                         variants: { select: { id: true, name: true, price: true, sku: true, stockQuantity: true } },
@@ -211,311 +227,322 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                         seo: true
                     }
                 });
-            }
 
-            if (product) {
-                const p = product;
-                const productUrl = `${baseUrl}/p/${p.seo?.slug || p.id}`;
-                const primaryColor = p.colors.find(c => c.isPrimary) || p.colors[0];
-                const imageUrl = primaryColor?.primaryImageUrl || primaryColor?.images[0]?.url || p.images[0] || '';
-
-                const offers = p.variants.length > 0 ? p.variants.map(v => ({
-                    "@type": "Offer",
-                    "url": `${productUrl}?variant=${v.id}`,
-                    "priceCurrency": "SAR",
-                    "price": v.price || p.price,
-                    "sku": v.sku || v.id,
-                    "name": v.name,
-                    "availability": v.stockQuantity > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-                    "itemCondition": "https://schema.org/NewCondition"
-                })) : [{
-                    "@type": "Offer",
-                    "url": productUrl,
-                    "priceCurrency": "SAR",
-                    "price": p.price,
-                    "availability": p.isActive ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-                    "itemCondition": "https://schema.org/NewCondition"
-                }];
-
-                let schemaObj: any = {
-                    "@context": "https://schema.org/",
-                    "@type": "Product",
-                    "name": p.seo?.seoTitle || p.name,
-                    "image": [imageUrl, ...p.images].filter(Boolean),
-                    "description": (p.seo?.seoDescription || p.description)?.substring(0, 160),
-                    "sku": p.sku || p.id,
-                    "brand": { "@type": "Brand", "name": p.brand || "JEEEY" },
-                    "offers": offers
-                };
-
-                if (p.seo?.schema && typeof p.seo.schema === 'object') {
-                    schemaObj = { ...schemaObj, ...p.seo.schema };
+                if (!product && lookupId) {
+                    product = await db.product.findFirst({
+                        where: { OR: [{ seo: { slug: lookupId } }, { sku: lookupId }] },
+                        select: {
+                            id: true, name: true, description: true, images: true, price: true, sku: true, brand: true, isActive: true, updatedAt: true,
+                            variants: { select: { id: true, name: true, price: true, sku: true, stockQuantity: true } },
+                            colors: { include: { images: true } },
+                            seo: true
+                        }
+                    });
                 }
 
-                const defaultOg = {
-                    title: p.seo?.seoTitle || p.name,
-                    description: (p.seo?.seoDescription || p.description)?.substring(0, 160),
-                    image: imageUrl,
-                    url: productUrl,
-                    type: 'product'
-                };
-                const finalOg = p.seo?.ogTags && typeof p.seo.ogTags === 'object'
-                    ? { ...defaultOg, ...p.seo.ogTags }
-                    : defaultOg;
+                if (product) {
+                    const p = product;
+                    const productUrl = `${baseUrl}/p/${p.seo?.slug || p.id}`;
+                    const primaryColor = p.colors.find(c => c.isPrimary) || p.colors[0];
+                    const imageUrl = primaryColor?.primaryImageUrl || primaryColor?.images[0]?.url || p.images[0] || '';
 
-                const defaultTw = {
-                    title: p.seo?.seoTitle || p.name,
-                    description: (p.seo?.seoDescription || p.description)?.substring(0, 160),
-                    image: imageUrl,
-                    card: 'summary_large_image'
-                };
-                const finalTw = p.seo && (p.seo as any).twitterCard && typeof (p.seo as any).twitterCard === 'object'
-                    ? { ...defaultTw, ...(p.seo as any).twitterCard }
-                    : defaultTw;
+                    const offers = p.variants.length > 0 ? p.variants.map(v => ({
+                        "@type": "Offer",
+                        "url": `${productUrl}?variant=${v.id}`,
+                        "priceCurrency": "SAR",
+                        "price": v.price || p.price,
+                        "sku": v.sku || v.id,
+                        "name": v.name,
+                        "availability": v.stockQuantity > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+                        "itemCondition": "https://schema.org/NewCondition"
+                    })) : [{
+                        "@type": "Offer",
+                        "url": productUrl,
+                        "priceCurrency": "SAR",
+                        "price": p.price,
+                        "availability": p.isActive ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+                        "itemCondition": "https://schema.org/NewCondition"
+                    }];
 
-                seoData = {
-                    titleSeo: p.seo?.seoTitle || p.name,
-                    metaDescription: (p.seo?.seoDescription || p.description)?.substring(0, 160),
-                    canonicalUrl: p.seo?.canonicalUrl || productUrl,
-                    ogTags: finalOg,
-                    twitterCard: finalTw,
-                    schema: JSON.stringify(schemaObj),
-                    hiddenContent: p.seo?.hiddenContent,
-                    metaRobots: p.seo?.metaRobots || "index, follow",
-                    // Extended data for SSR
-                    productData: {
-                        price: p.variants?.[0]?.price || p.price,
-                        currency: 'SAR',
-                        availability: p.isActive && (p.variants.every(v => v.stockQuantity > 0) || !p.variants.length) ? 'instock' : 'oos',
-                        brand: p.brand || "Jeeey",
-                        sku: p.sku || p.id
+                    let schemaObj: any = {
+                        "@context": "https://schema.org/",
+                        "@type": "Product",
+                        "name": p.seo?.seoTitle || p.name,
+                        "image": [imageUrl, ...p.images].filter(Boolean),
+                        "description": (p.seo?.seoDescription || p.description)?.substring(0, 160),
+                        "sku": p.sku || p.id,
+                        "brand": { "@type": "Brand", "name": p.brand || "JEEEY" },
+                        "offers": offers
+                    };
+
+                    if (p.seo?.schema && typeof p.seo.schema === 'object') {
+                        schemaObj = { ...schemaObj, ...p.seo.schema };
                     }
-                };
+
+                    const defaultOg = {
+                        title: p.seo?.seoTitle || p.name,
+                        description: (p.seo?.seoDescription || p.description)?.substring(0, 160),
+                        image: imageUrl,
+                        url: productUrl,
+                        type: 'product'
+                    };
+                    const finalOg = p.seo?.ogTags && typeof p.seo.ogTags === 'object'
+                        ? { ...defaultOg, ...p.seo.ogTags }
+                        : defaultOg;
+
+                    const defaultTw = {
+                        title: p.seo?.seoTitle || p.name,
+                        description: (p.seo?.seoDescription || p.description)?.substring(0, 160),
+                        image: imageUrl,
+                        card: 'summary_large_image'
+                    };
+                    const finalTw = p.seo && (p.seo as any).twitterCard && typeof (p.seo as any).twitterCard === 'object'
+                        ? { ...defaultTw, ...(p.seo as any).twitterCard }
+                        : defaultTw;
+
+                    seoData = {
+                        titleSeo: p.seo?.seoTitle || p.name,
+                        metaDescription: (p.seo?.seoDescription || p.description)?.substring(0, 160),
+                        canonicalUrl: p.seo?.canonicalUrl || productUrl,
+                        ogTags: finalOg,
+                        twitterCard: finalTw,
+                        schema: JSON.stringify(schemaObj),
+                        hiddenContent: p.seo?.hiddenContent,
+                        metaRobots: p.seo?.metaRobots || "index, follow",
+                        // Extended data for SSR
+                        productData: {
+                            price: p.variants?.[0]?.price || p.price,
+                            currency: 'SAR',
+                            availability: p.isActive && (p.variants.every(v => v.stockQuantity > 0) || !p.variants.length) ? 'instock' : 'oos',
+                            brand: p.brand || "Jeeey",
+                            sku: p.sku || p.id
+                        }
+                    };
+                }
             }
-        }
 
-        // 2. Check Category
-        if (!seoData && (type === 'category' || slug || (url && (url as string).includes('/c/')))) {
-            let category = await db.category.findUnique({
-                where: { id: lookupId },
-                select: { id: true, slug: true, name: true, image: true, description: true, seoTitle: true, seoDescription: true, seoKeywords: true, seo: true }
-            });
-
-            if (!category && lookupId) {
-                category = await db.category.findUnique({
-                    where: { slug: lookupId },
+            // 2. Check Category
+            if (!seoData && (type === 'category' || slug || (url && (url as string).includes('/c/')))) {
+                let category = await db.category.findUnique({
+                    where: { id: lookupId },
                     select: { id: true, slug: true, name: true, image: true, description: true, seoTitle: true, seoDescription: true, seoKeywords: true, seo: true }
                 });
-            }
 
-            if (category) {
-                const categoryUrl = `${baseUrl}/c/${category.slug || category.id}`;
-                let schemaObj: any = {
-                    "@context": "https://schema.org",
-                    "@type": "CollectionPage",
-                    "name": category.seoTitle || category.name,
-                    "description": category.seoDescription || category.description || `تسوق من قسم ${category.name}`,
-                    "url": categoryUrl,
-                    "image": category.image
-                };
-                if (category.seo?.schema && typeof category.seo.schema === 'object') {
-                    schemaObj = { ...schemaObj, ...category.seo.schema };
+                if (!category && lookupId) {
+                    category = await db.category.findUnique({
+                        where: { slug: lookupId },
+                        select: { id: true, slug: true, name: true, image: true, description: true, seoTitle: true, seoDescription: true, seoKeywords: true, seo: true }
+                    });
                 }
 
-                seoData = {
-                    titleSeo: category.seoTitle || category.name,
-                    metaDescription: category.seoDescription || category.description || `تصفح أفضل منتجات ${category.name} لدينا`,
-                    canonicalUrl: category.seo?.canonicalUrl || categoryUrl,
-                    ogTags: category.seo?.ogTags || {
-                        title: category.seoTitle || category.name,
-                        description: category.seoDescription || category.description || `تسوق من قسم ${category.name}`,
-                        image: category.image || '',
-                        url: categoryUrl,
-                        type: 'website'
-                    },
-                    twitterCard: {
-                        title: category.seoTitle || category.name,
-                        description: category.seoDescription || category.description || `تسوق من قسم ${category.name}`,
-                        image: category.image || '',
-                        card: 'summary_large_image'
-                    },
-                    schema: JSON.stringify(schemaObj),
-                    hiddenContent: category.seo?.hiddenContent,
-                    metaRobots: category.seo?.metaRobots || "index, follow"
-                };
+                if (category) {
+                    const categoryUrl = `${baseUrl}/c/${category.slug || category.id}`;
+                    let schemaObj: any = {
+                        "@context": "https://schema.org",
+                        "@type": "CollectionPage",
+                        "name": category.seoTitle || category.name,
+                        "description": category.seoDescription || category.description || `تسوق من قسم ${category.name}`,
+                        "url": categoryUrl,
+                        "image": category.image
+                    };
+                    if (category.seo?.schema && typeof category.seo.schema === 'object') {
+                        schemaObj = { ...schemaObj, ...category.seo.schema };
+                    }
+
+                    seoData = {
+                        titleSeo: category.seoTitle || category.name,
+                        metaDescription: category.seoDescription || category.description || `تصفح أفضل منتجات ${category.name} لدينا`,
+                        canonicalUrl: category.seo?.canonicalUrl || categoryUrl,
+                        ogTags: category.seo?.ogTags || {
+                            title: category.seoTitle || category.name,
+                            description: category.seoDescription || category.description || `تسوق من قسم ${category.name}`,
+                            image: category.image || '',
+                            url: categoryUrl,
+                            type: 'website'
+                        },
+                        twitterCard: {
+                            title: category.seoTitle || category.name,
+                            description: category.seoDescription || category.description || `تسوق من قسم ${category.name}`,
+                            image: category.image || '',
+                            card: 'summary_large_image'
+                        },
+                        schema: JSON.stringify(schemaObj),
+                        hiddenContent: category.seo?.hiddenContent,
+                        metaRobots: category.seo?.metaRobots || "index, follow"
+                    };
+                }
             }
         }
-    }
 
-    if (!seoData) return null;
+        if (!seoData) return null;
 
-    // D. Apply Title Separator
-    let finalTitle = seoData.titleSeo || '';
-    if (siteName && !finalTitle.includes(siteName) && !finalTitle.includes('|')) {
-        finalTitle = `${finalTitle} | ${siteName}`;
-    }
-
-    return { ...seoData, titleSeo: finalTitle, siteName, siteLogo };
-}
-
-// 3. Public SEO Data (JSON)
-publicSeoRouter.get('/seo/meta', async (req, res) => {
-    try {
-        const { slug, type, id, url } = req.query;
-        // Fix for encoded root slug if passed as %2F
-        const decodedSlug = slug ? decodeURIComponent(slug as string) : slug;
-        const data = await resolveSeoData({ slug: decodedSlug as string, type: type as string, id: id as string, url: url as string });
-        if (!data) return res.status(404).json({ error: 'Not found' });
-        res.json(data);
-    } catch (e: any) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// 4. SSR Handlers for Shared Links
-async function handleSsr(req: any, res: any, forcedType?: string) {
-    try {
-        let slug = req.params.slug;
-        // Handle Root Request
-        if (req.path === '/' && !slug) {
-            slug = '/';
+        // D. Apply Title Separator
+        let finalTitle = seoData.titleSeo || '';
+        if (siteName && !finalTitle.includes(siteName) && !finalTitle.includes('|')) {
+            finalTitle = `${finalTitle} | ${siteName}`;
         }
 
-        const meta = await resolveSeoData({ slug, type: forcedType, url: req.originalUrl || req.url });
-
-        // Read HTML - robust check for multiple CWD contexts (root vs packages/api)
-        const roots = [
-            process.cwd(), // Root (prod)
-            path.resolve(process.cwd(), '../../'), // Dev (if in packages/api)
-            path.resolve(process.cwd(), '../..')
-        ];
-
-        // Find first valid index.html
-        let htmlPath = '';
-        for (const r of roots) {
-            const pDist = path.join(r, 'apps/mweb/dist/index.html');
-            const pDev = path.join(r, 'apps/mweb/index.html');
-            if (fs.existsSync(pDist)) { htmlPath = pDist; break; }
-            if (fs.existsSync(pDev)) { htmlPath = pDev; break; }
-        }
-
-        if (!fs.existsSync(htmlPath)) return res.status(404).send('Not found');
-        let html = fs.readFileSync(htmlPath, 'utf-8');
-
-        if (meta) {
-            const { titleSeo, metaDescription, ogTags, twitterCard, canonicalUrl, schema, metaRobots, productData, siteName } = meta;
-
-            // 1. Strip existing default tags to avoid duplicates
-            html = html.replace(/<title>.*?<\/title>/gi, '');
-            html = html.replace(/<meta\s+name=["']description["']\s+content=["'].*?["']\s*\/?>/gi, '');
-            html = html.replace(/<meta\s+property=["']og:.*?["']\s+content=["'].*?["']\s*\/?>/gi, '');
-            html = html.replace(/<meta\s+name=["']twitter:.*?["']\s+content=["'].*?["']\s*\/?>/gi, '');
-            html = html.replace(/<link\s+rel=["']canonical["']\s+href=["'].*?["']\s*\/?>/gi, '');
-
-            // 2. Construct new SEO Block
-            const seoBlock = [
-                `<title>${titleSeo || siteName || 'Jeeey'}</title>`,
-                `<meta name="description" content="${(metaDescription || '').replace(/"/g, '&quot;')}" />`,
-                `<link rel="canonical" href="${canonicalUrl || 'https://jeeey.com'}" />`,
-                metaRobots ? `<meta name="robots" content="${metaRobots}" />` : '',
-
-                // Open Graph
-                `<meta property="og:type" content="${ogTags?.type || 'website'}" />`,
-                `<meta property="og:site_name" content="${siteName || 'Jeeey'}" />`,
-                `<meta property="og:title" content="${(ogTags?.title || titleSeo || '').replace(/"/g, '&quot;')}" />`,
-                `<meta property="og:description" content="${(ogTags?.description || metaDescription || '').replace(/"/g, '&quot;')}" />`,
-                `<meta property="og:image" content="${ogTags?.image || ''}" />`,
-                `<meta property="og:url" content="${ogTags?.url || canonicalUrl || ''}" />`,
-
-                // Twitter
-                `<meta name="twitter:card" content="${twitterCard?.card || 'summary_large_image'}" />`,
-                `<meta name="twitter:title" content="${(twitterCard?.title || titleSeo || '').replace(/"/g, '&quot;')}" />`,
-                `<meta name="twitter:description" content="${(twitterCard?.description || metaDescription || '').replace(/"/g, '&quot;')}" />`,
-                `<meta name="twitter:image" content="${twitterCard?.image || ogTags?.image || ''}" />`,
-
-                // Schema
-                schema ? `<script type="application/ld+json">${schema}</script>` : '',
-
-                // Product Rich Data (Facebook/Pinterest/WhatsApp)
-                (productData ? [
-                    `<meta property="product:price:amount" content="${productData.price}" />`,
-                    `<meta property="product:price:currency" content="${productData.currency}" />`,
-                    `<meta property="product:availability" content="${productData.availability}" />`,
-                    `<meta property="product:brand" content="${(productData.brand || '').replace(/"/g, '&quot;')}" />`,
-                    `<meta property="product:retailer_item_id" content="${productData.sku}" />`
-                ].join('\n    ') : '')
-            ].filter(Boolean).join('\n    ');
-
-            // 3. Inject before </head>
-            html = html.replace('</head>', `${seoBlock}\n  </head>`);
-        }
-        res.setHeader('Content-Type', 'text/html');
-        res.send(html);
-    } catch (e) {
-        console.error(e);
-        res.status(500).send('SSR Error');
+        return { ...seoData, titleSeo: finalTitle, siteName, siteLogo };
     }
-}
 
-// Handler for Root
-publicSeoRouter.get('/', (req, res) => handleSsr(req, res, 'page'));
-
-publicSeoRouter.get('/p/:slug', (req, res) => handleSsr(req, res, 'product'));
-publicSeoRouter.get('/product/:slug', (req, res) => handleSsr(req, res, 'product'));
-publicSeoRouter.get('/c/:slug', (req, res) => handleSsr(req, res, 'category'));
-publicSeoRouter.get('/category/:slug', (req, res) => handleSsr(req, res, 'category'));
-
-// 4. Check Redirects (For Storefront Middleware)
-publicSeoRouter.get('/seo/redirect', async (req, res) => {
-    try {
-        const { slug } = req.query;
-        if (!slug || typeof slug !== 'string') return res.status(400).json({ error: 'Slug required' });
-
-        // Check if redirect model exists, otherwise skip
+    // 3. Public SEO Data (JSON)
+    publicSeoRouter.get('/seo/meta', async (req, res) => {
         try {
-            const redirect = await (db as any).redirect?.findUnique({
-                where: { from: slug }
+            const { slug, type, id, url } = req.query;
+            // Fix for encoded root slug if passed as %2F
+            const decodedSlug = slug ? decodeURIComponent(slug as string) : slug;
+            const data = await resolveSeoData({ slug: decodedSlug as string, type: type as string, id: id as string, url: url as string });
+            if (!data) return res.status(404).json({ error: 'Not found' });
+            res.json(data);
+        } catch (e: any) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    // 4. SSR Handlers for Shared Links
+    async function handleSsr(req: any, res: any, forcedType?: string) {
+        try {
+            let slug = req.params.slug;
+            // Handle Root Request
+            if (req.path === '/' && !slug) {
+                slug = '/';
+            }
+
+            const meta = await resolveSeoData({ slug, type: forcedType, url: req.originalUrl || req.url });
+
+            // Read HTML - robust check for multiple CWD contexts (root vs packages/api)
+            const roots = [
+                process.cwd(), // Root (prod)
+                path.resolve(process.cwd(), '../../'), // Dev (if in packages/api)
+                path.resolve(process.cwd(), '../..')
+            ];
+
+            // Find first valid index.html
+            let htmlPath = '';
+            for (const r of roots) {
+                const pDist = path.join(r, 'apps/mweb/dist/index.html');
+                const pDev = path.join(r, 'apps/mweb/index.html');
+                if (fs.existsSync(pDist)) { htmlPath = pDist; break; }
+                if (fs.existsSync(pDev)) { htmlPath = pDev; break; }
+            }
+
+            if (!fs.existsSync(htmlPath)) return res.status(404).send('Not found');
+            let html = fs.readFileSync(htmlPath, 'utf-8');
+
+            if (meta) {
+                const { titleSeo, metaDescription, ogTags, twitterCard, canonicalUrl, schema, metaRobots, productData, siteName } = meta;
+
+                // 1. Strip existing default tags to avoid duplicates
+                html = html.replace(/<title>.*?<\/title>/gi, '');
+                html = html.replace(/<meta\s+name=["']description["']\s+content=["'].*?["']\s*\/?>/gi, '');
+                html = html.replace(/<meta\s+property=["']og:.*?["']\s+content=["'].*?["']\s*\/?>/gi, '');
+                html = html.replace(/<meta\s+name=["']twitter:.*?["']\s+content=["'].*?["']\s*\/?>/gi, '');
+                html = html.replace(/<link\s+rel=["']canonical["']\s+href=["'].*?["']\s*\/?>/gi, '');
+
+                // 2. Construct new SEO Block
+                const seoBlock = [
+                    `<title>${titleSeo || siteName || 'Jeeey'}</title>`,
+                    `<meta name="description" content="${(metaDescription || '').replace(/"/g, '&quot;')}" />`,
+                    `<link rel="canonical" href="${canonicalUrl || 'https://jeeey.com'}" />`,
+                    metaRobots ? `<meta name="robots" content="${metaRobots}" />` : '',
+
+                    // Open Graph
+                    `<meta property="og:type" content="${ogTags?.type || 'website'}" />`,
+                    `<meta property="og:site_name" content="${siteName || 'Jeeey'}" />`,
+                    `<meta property="og:title" content="${(ogTags?.title || titleSeo || '').replace(/"/g, '&quot;')}" />`,
+                    `<meta property="og:description" content="${(ogTags?.description || metaDescription || '').replace(/"/g, '&quot;')}" />`,
+                    `<meta property="og:image" content="${ogTags?.image || ''}" />`,
+                    `<meta property="og:url" content="${ogTags?.url || canonicalUrl || ''}" />`,
+
+                    // Twitter
+                    `<meta name="twitter:card" content="${twitterCard?.card || 'summary_large_image'}" />`,
+                    `<meta name="twitter:title" content="${(twitterCard?.title || titleSeo || '').replace(/"/g, '&quot;')}" />`,
+                    `<meta name="twitter:description" content="${(twitterCard?.description || metaDescription || '').replace(/"/g, '&quot;')}" />`,
+                    `<meta name="twitter:image" content="${twitterCard?.image || ogTags?.image || ''}" />`,
+
+                    // Schema
+                    schema ? `<script type="application/ld+json">${schema}</script>` : '',
+
+                    // Product Rich Data (Facebook/Pinterest/WhatsApp)
+                    (productData ? [
+                        `<meta property="product:price:amount" content="${productData.price}" />`,
+                        `<meta property="product:price:currency" content="${productData.currency}" />`,
+                        `<meta property="product:availability" content="${productData.availability}" />`,
+                        `<meta property="product:brand" content="${(productData.brand || '').replace(/"/g, '&quot;')}" />`,
+                        `<meta property="product:retailer_item_id" content="${productData.sku}" />`
+                    ].join('\n    ') : '')
+                ].filter(Boolean).join('\n    ');
+
+                // 3. Inject before </head>
+                html = html.replace('</head>', `${seoBlock}\n  </head>`);
+            }
+            res.setHeader('Content-Type', 'text/html');
+            res.send(html);
+        } catch (e) {
+            console.error(e);
+            res.status(500).send('SSR Error');
+        }
+    }
+
+    // Handler for Root
+    publicSeoRouter.get('/', (req, res) => handleSsr(req, res, 'page'));
+
+    publicSeoRouter.get('/p/:slug', (req, res) => handleSsr(req, res, 'product'));
+    publicSeoRouter.get('/product/:slug', (req, res) => handleSsr(req, res, 'product'));
+    publicSeoRouter.get('/c/:slug', (req, res) => handleSsr(req, res, 'category'));
+    publicSeoRouter.get('/category/:slug', (req, res) => handleSsr(req, res, 'category'));
+
+    // 4. Check Redirects (For Storefront Middleware)
+    publicSeoRouter.get('/seo/redirect', async (req, res) => {
+        try {
+            const { slug } = req.query;
+            if (!slug || typeof slug !== 'string') return res.status(400).json({ error: 'Slug required' });
+
+            // Check if redirect model exists, otherwise skip
+            try {
+                const redirect = await (db as any).redirect?.findUnique({
+                    where: { from: slug }
+                });
+
+                if (redirect && redirect.isActive) {
+                    return res.json({
+                        found: true,
+                        to: redirect.to,
+                        code: redirect.code
+                    });
+                }
+            } catch (e) {
+                // Redirect model doesn't exist yet, will be created after db push
+                console.log('Redirect model not available yet');
+            }
+
+            res.json({ found: false });
+        } catch (e: any) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    // 5. Product XML Feed (Merchant Center / SEO)
+    publicSeoRouter.get('/feed/products.xml', async (req, res) => {
+        try {
+            const setting = await db.setting.findUnique({ where: { key: 'site_url' } });
+            const baseUrl = (setting?.value as any)?.value || process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com';
+
+            const products = await db.product.findMany({
+                where: { isActive: true },
+                select: { id: true, name: true, description: true, price: true, images: true, updatedAt: true, sku: true, seo: { select: { slug: true } } }
             });
 
-            if (redirect && redirect.isActive) {
-                return res.json({
-                    found: true,
-                    to: redirect.to,
-                    code: redirect.code
-                });
-            }
-        } catch (e) {
-            // Redirect model doesn't exist yet, will be created after db push
-            console.log('Redirect model not available yet');
-        }
-
-        res.json({ found: false });
-    } catch (e: any) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// 5. Product XML Feed (Merchant Center / SEO)
-publicSeoRouter.get('/feed/products.xml', async (req, res) => {
-    try {
-        const setting = await db.setting.findUnique({ where: { key: 'site_url' } });
-        const baseUrl = (setting?.value as any)?.value || process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com';
-
-        const products = await db.product.findMany({
-            where: { isActive: true },
-            select: { id: true, name: true, description: true, price: true, images: true, updatedAt: true, sku: true, seo: { select: { slug: true } } }
-        });
-
-        let xml = `<?xml version="1.0" encoding="UTF-8"?>
+            let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
 <channel>
 <title>Product Feed</title>
 <link>${baseUrl}</link>
 <description>Product Feed</description>`;
 
-        for (const p of products) {
-            const slug = p.seo?.slug || p.id;
-            xml += `
+            for (const p of products) {
+                const slug = p.seo?.slug || p.id;
+                xml += `
 <item>
 <g:id>${p.id}</g:id>
 <g:title>${p.name.replace(/&/g, '&amp;')}</g:title>
@@ -525,15 +552,16 @@ publicSeoRouter.get('/feed/products.xml', async (req, res) => {
 <g:price>${p.price} SAR</g:price>
 <g:availability>in stock</g:availability>
 </item>`;
-        }
+            }
 
-        xml += `
+            xml += `
 </channel>
 </rss>`;
 
-        res.header('Content-Type', 'application/xml');
-        res.send(xml);
-    } catch (e) {
-        res.status(500).send('Error generating feed');
-    }
+            res.header('Content-Type', 'application/xml');
+            res.send(xml);
+        } catch (e) {
+            res.status(500).send('Error generating feed');
+        }
+    });
 });

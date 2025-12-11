@@ -58,13 +58,8 @@ try {
 } catch { }
 
 const app = express();
-// Serve uploaded media with CORS enabled for Canvas/Proxy access
-app.use('/uploads', (req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
-  next();
-}, express.static(path.resolve(process.cwd(), 'uploads'), { maxAge: '365d', immutable: true }));
+// Serve uploaded media
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads'), { maxAge: '365d', immutable: true }));
 // Serve verification files (Google/Bing HTML files) from root
 app.use('/', express.static(path.resolve(process.cwd(), 'verification')));
 // Android App Links: serve assetlinks.json
