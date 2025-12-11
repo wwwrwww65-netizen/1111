@@ -244,6 +244,15 @@ server {
   gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
   # Brotli disabled (module not available on some servers) — rely on gzip
 
+  # Google Verification HTML (Proxy to API)
+  location ~ ^/google.*\.html$ {
+    proxy_pass http://127.0.0.1:4000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+  }
+
   # SEO: Proxy sitemap/robots to API for dynamic generation
   location = /sitemap.xml {
     proxy_pass http://127.0.0.1:4000/sitemap.xml;
