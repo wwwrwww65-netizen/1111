@@ -18,6 +18,9 @@ export async function generateMetadata(): Promise<Metadata> {
   let siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com';
   let siteLogo = '';
 
+  let googleVerification: string | undefined;
+  let bingVerification: string | undefined;
+
   try {
     // We can fetch from root SEO meta to get siteName/siteLogo
     const res = await fetch(`${apiUrl}/api/seo/meta?slug=/`, { cache: 'no-store' });
@@ -25,6 +28,14 @@ export async function generateMetadata(): Promise<Metadata> {
       const data = await res.json();
       if (data.siteName) siteName = data.siteName;
       if (data.siteLogo) siteLogo = data.siteLogo;
+      if (data.googleVerification) googleVerification = data.googleVerification;
+      if (data.bingVerification) {
+        // Bing often is full tag, but Next.js expects just the code in 'verification.other' or 'verification.bing' if it's just code.
+        // If it's a full tag, we might need to parse or put in 'other'.
+        // For now, let's assume if it contains 'content=', we extract it, else use as is.
+        const match = data.bingVerification.match(/content="([^"]+)"/);
+        bingVerification = match ? match[1] : data.bingVerification;
+      }
     }
   } catch { }
 
@@ -52,6 +63,10 @@ export async function generateMetadata(): Promise<Metadata> {
     robots: {
       index: true,
       follow: true,
+    },
+    verification: {
+      ...(googleVerification ? { google: googleVerification } : {}),
+      other: bingVerification ? { 'msvalidate.01': bingVerification } : undefined
     }
   };
 }

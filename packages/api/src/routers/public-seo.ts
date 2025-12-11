@@ -152,13 +152,15 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
     let seoData: any = null;
 
     // Fetch Global Settings
-    const settings = await db.setting.findMany({ where: { key: { in: ['site_url', 'site_name', 'site_logo', 'twitter_site'] } } });
+    const settings = await db.setting.findMany({ where: { key: { in: ['site_url', 'site_name', 'site_logo', 'twitter_site', 'google_verification', 'bing_verification'] } } });
     const getSetting = (key: string) => (settings.find(s => s.key === key)?.value as any)?.value;
 
     const baseUrl = getSetting('site_url') || process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com';
     const siteName = getSetting('site_name') || 'جي jeeey'; // Default per user request
     const siteLogo = getSetting('site_logo') || '';
     const twitterSite = getSetting('twitter_site') || '@jeeey_com';
+    const googleVerification = getSetting('google_verification') || '';
+    const bingVerification = getSetting('bing_verification') || '';
 
     // Helper: Clean slug from possible URL parts (if passed via url param)
     let exactSlug = slug;
@@ -379,7 +381,7 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
         finalTitle = `${finalTitle} | ${siteName}`;
     }
 
-    return { ...seoData, titleSeo: finalTitle, siteName, siteLogo };
+    return { ...seoData, titleSeo: finalTitle, siteName, siteLogo, googleVerification, bingVerification };
 }
 
 // 3. Public SEO Data (JSON)
@@ -427,7 +429,7 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
         let html = fs.readFileSync(htmlPath, 'utf-8');
 
         if (meta) {
-            const { titleSeo, metaDescription, ogTags, twitterCard, canonicalUrl, schema, metaRobots, productData, siteName } = meta;
+            const { titleSeo, metaDescription, ogTags, twitterCard, canonicalUrl, schema, metaRobots, productData, siteName, googleVerification, bingVerification } = meta;
 
             // 1. Strip existing default tags to avoid duplicates
             html = html.replace(/<title>.*?<\/title>/gi, '');
@@ -442,6 +444,8 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
                 `<meta name="description" content="${(metaDescription || '').replace(/"/g, '&quot;')}" />`,
                 `<link rel="canonical" href="${canonicalUrl || 'https://jeeey.com'}" />`,
                 metaRobots ? `<meta name="robots" content="${metaRobots}" />` : '',
+                googleVerification ? `<meta name="google-site-verification" content="${googleVerification}" />` : '',
+                bingVerification ? bingVerification : '',
 
                 // Open Graph
                 `<meta property="og:type" content="${ogTags?.type || 'website'}" />`,

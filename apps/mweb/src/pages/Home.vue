@@ -422,6 +422,7 @@ onMounted(async ()=>{
          meta: [
            { name: 'description', content: seo.metaDescription },
            { name: 'robots', content: seo.metaRobots },
+           { name: 'google-site-verification', content: seo.googleVerification },
            { property: 'og:title', content: seo.ogTags?.title || seo.titleSeo },
            { property: 'og:description', content: seo.ogTags?.description || seo.metaDescription },
            { property: 'og:image', content: seo.ogTags?.image || seo.siteLogo },
