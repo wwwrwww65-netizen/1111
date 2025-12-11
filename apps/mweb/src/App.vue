@@ -17,7 +17,7 @@ import { useHead } from '@unhead/vue';
 import gsap from 'gsap';
 import ConsentBanner from '@/components/ConsentBanner.vue'
 import PromoHost from '@/components/PromoHost.vue'
-import { apiGet } from '@/lib/api';
+import { apiGet, API_BASE } from '@/lib/api';
 
 useHead({
   link: [
@@ -35,7 +35,7 @@ onMounted(async ()=>{
       // Process circular favicon
       const img = new Image();
       // img.crossOrigin = 'Anonymous';
-      img.src = `/api/seo/media/proxy?url=${encodeURIComponent(seo.siteLogo)}`;
+      img.src = `${API_BASE}/api/seo/media/proxy?url=${encodeURIComponent(seo.siteLogo)}`;
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');

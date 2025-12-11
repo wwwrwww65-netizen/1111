@@ -1,6 +1,6 @@
-"use client";
 import React, { useEffect } from 'react';
 import { apiFetch } from '../lib/api';
+import { resolveApiBase } from '../lib/apiBase';
 
 export default function FaviconLoader() {
     useEffect(() => {
@@ -16,10 +16,10 @@ export default function FaviconLoader() {
     }, []);
 
     function processFavicon(url: string) {
+        const base = resolveApiBase();
         const img = new Image();
-        // img.crossOrigin = 'Anonymous'; // Not needed with proxy
         // Use proxy to avoid CORS
-        img.src = `/api/seo/media/proxy?url=${encodeURIComponent(url)}`;
+        img.src = `${base}/api/seo/media/proxy?url=${encodeURIComponent(url)}`;
         img.onload = () => {
             try {
                 const canvas = document.createElement('canvas');
