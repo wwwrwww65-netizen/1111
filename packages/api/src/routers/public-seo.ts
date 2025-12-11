@@ -23,31 +23,7 @@ publicSeoRouter.get('/:filename', async (req, res, next) => {
     next();
 });
 
-// Proxy route for images (CORS bypass for canvas)
-publicSeoRouter.get('/media/proxy', async (req, res) => {
-    try {
-        const targetUrl = String(req.query.url);
-        if (!targetUrl || !targetUrl.startsWith('http')) {
-            return res.status(400).send('Invalid URL');
-        }
 
-        const response = await fetch(targetUrl);
-        if (!response.ok) {
-            return res.status(response.status).send('Failed to fetch image');
-        }
-
-        const contentType = response.headers.get('content-type') || 'application/octet-stream';
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
-
-        const arrayBuffer = await response.arrayBuffer();
-        res.send(Buffer.from(arrayBuffer));
-    } catch (e) {
-        console.error('Proxy Error:', e);
-        res.status(500).send('Proxy Error');
-    }
-});
 
 // 1. Robots.txt
 publicSeoRouter.get('/robots.txt', async (req, res) => {

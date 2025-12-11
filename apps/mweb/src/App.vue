@@ -34,8 +34,8 @@ onMounted(async ()=>{
     if (seo && seo.siteLogo) {
       // Process circular favicon
       const img = new Image();
-      // img.crossOrigin = 'Anonymous';
-      img.src = `${API_BASE}/api/seo/media/proxy?url=${encodeURIComponent(seo.siteLogo)}`;
+      img.crossOrigin = 'Anonymous';
+      img.src = seo.siteLogo;
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');
