@@ -426,6 +426,9 @@ EOF
     fi
   fi
 fi
+# Ensure ecom user owns all files before restart (crucial because build steps above ran as root)
+chown -R ecom:ecom "$ROOT_DIR" || true
+
 systemctl restart ecom-api || true
 systemctl restart ecom-web || true
 systemctl restart ecom-admin || true
