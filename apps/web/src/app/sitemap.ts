@@ -4,7 +4,7 @@ export const revalidate = 3600 // Revalidate every hour
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com'
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
+  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000'
 
   // fetch top categories and products for sitemap
   // using a reasonable limit to avoid timeout, ideally this should be paginated or streamed if thousands

@@ -4,7 +4,7 @@ import HomeClient from './client';
 export const dynamic = 'force-dynamic';
 
 async function getSeoData() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
   try {
     const res = await fetch(`${apiUrl}/api/seo/meta?slug=/`, { cache: 'no-store' });
     if (!res.ok) return null;
