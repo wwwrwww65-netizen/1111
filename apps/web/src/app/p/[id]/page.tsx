@@ -7,7 +7,7 @@ type Props = {
 };
 
 async function getProductSeo(idOrSlug: string): Promise<any> {
-  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
   try {
     // Explicitly ask for product meta by ID/Slug using the new API logic
     const res = await fetch(`${apiUrl}/api/seo/meta?type=product&id=${encodeURIComponent(idOrSlug)}`, { cache: 'no-store' });

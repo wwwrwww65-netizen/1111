@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 export function ClientFaviconLoader() {
     useEffect(() => {
         // Determine API URL based on environment or default
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
         fetch(`${apiUrl}/api/seo/meta?slug=/`)
             .then(res => res.json())

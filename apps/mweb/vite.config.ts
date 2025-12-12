@@ -55,14 +55,6 @@ export default defineConfig(({ mode }) => ({
       '/trpc': {
         target: process.env.API_URL || 'http://localhost:4000',
         changeOrigin: true,
-      },
-      '/robots.txt': {
-        target: process.env.API_URL || 'http://localhost:4000',
-        changeOrigin: true,
-      },
-      '/sitemap.xml': {
-        target: process.env.API_URL || 'http://localhost:4000',
-        changeOrigin: true,
       }
     }
   },

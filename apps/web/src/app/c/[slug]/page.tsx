@@ -6,7 +6,7 @@ type Props = {
 };
 
 async function getCategory(slug: string): Promise<any> {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     try {
         const res = await fetch(`${apiUrl}/api/shop/category/${encodeURIComponent(slug)}`, { cache: 'no-store' }); // Use the new endpoint
         if (!res.ok) return null;

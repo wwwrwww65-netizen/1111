@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next'
 
 export default async function robots(): Promise<MetadataRoute.Robots> {
   const host = process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com'
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
 
   let rules = { userAgent: '*', allow: '/' };
 
