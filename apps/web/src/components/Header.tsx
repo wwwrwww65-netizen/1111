@@ -5,21 +5,34 @@ import { useI18n } from "../lib/i18n";
 export function Header(): JSX.Element {
   const { locale, setLocale, t } = useI18n();
   const [q, setQ] = React.useState("");
+  const [logo, setLogo] = React.useState<string>("");
+
+  React.useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.jeeey.com'}/api/seo/meta?slug=/`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.siteLogo) setLogo(d.siteLogo);
+      })
+      .catch(() => { });
+  }, []);
+
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b">
       <div className="max-w-7xl mx-auto px-4">
         {/* Top row (mobile) */}
         <div className="flex items-center justify-between py-2 md:hidden">
           <a href="/search" aria-label="Search" className="p-2">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           </a>
-          <a href="/" className="text-xl font-extrabold tracking-wide">جي jeeey</a>
+          <a href="/" className="font-extrabold tracking-wide flex items-center">
+            {logo ? <img src={logo} alt="Jeeey" className="h-8 object-contain" /> : <span className="text-xl">جي jeeey</span>}
+          </a>
           <div className="flex items-center gap-1">
             <a href="/cart" aria-label="Cart" className="p-2">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L21 6H6"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L21 6H6" /></svg>
             </a>
             <a href="/account" aria-label="Account" className="p-2">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
             </a>
           </div>
         </div>
@@ -30,8 +43,8 @@ export function Header(): JSX.Element {
         >
           <div className="flex items-center gap-2 rounded-full px-3 py-2 border bg-white">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <circle cx="11" cy="11" r="7"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <input
               value={q}
@@ -50,7 +63,9 @@ export function Header(): JSX.Element {
             <a href="/account" className="hover:text-[#800020]">{t('account')}</a>
           </nav>
           <div className="col-span-4 flex justify-center">
-            <a href="/" className="text-2xl font-extrabold tracking-wide">جي jeeey</a>
+            <a href="/" className="font-extrabold tracking-wide flex items-center justify-center">
+              {logo ? <img src={logo} alt="Jeeey" className="h-10 object-contain" /> : <span className="text-2xl">جي jeeey</span>}
+            </a>
           </div>
           <div className="col-span-4 flex items-center justify-end gap-3">
             <form
@@ -69,10 +84,10 @@ export function Header(): JSX.Element {
               <button type="submit" className="text-sm px-3 py-1.5 bg-[#800020] text-white rounded-full">بحث</button>
             </form>
             <a href="/cart" aria-label="Cart" className="p-2 hover:text-[#800020]">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L21 6H6"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L21 6H6" /></svg>
             </a>
             <a href="/account" aria-label="Account" className="p-2 hover:text-[#800020]">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
             </a>
             <button onClick={() => setLocale(locale === 'ar' ? 'en' : 'ar')} className="text-xs px-2 py-1 border rounded">
               {locale === 'ar' ? 'EN' : 'AR'}

@@ -47,7 +47,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description: 'Jeeey is your gateway to global shopping.',
     icons: {
-      icon: siteLogo || '/favicon.ico',
+      icon: siteLogo || '/icon.png',
       apple: '/apple-touch-icon.png',
     },
     openGraph: {
