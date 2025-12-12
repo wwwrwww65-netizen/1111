@@ -419,6 +419,7 @@ onMounted(async ()=>{
     if (seo) {
        seoHead.value = {
          title: seo.titleSeo || 'Jeeey',
+         titleTemplate: null, // Override global template for Home to avoid "Jeeey - ... | Jeeey"
          meta: [
            { name: 'description', content: seo.metaDescription },
            { name: 'robots', content: seo.metaRobots },

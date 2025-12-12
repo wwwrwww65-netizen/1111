@@ -20,6 +20,14 @@ const nextConfig = {
   ]),
   rewrites: async () => ([
     {
+      source: '/robots.txt',
+      destination: `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/robots.txt`,
+    },
+    {
+      source: '/sitemap.xml',
+      destination: `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/sitemap.xml`,
+    },
+    {
       source: '/uploads/:path*',
       destination: `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/uploads/:path*`,
     },
