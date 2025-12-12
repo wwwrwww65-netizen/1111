@@ -43,14 +43,14 @@
                 </div>
               </div>
             </div>
-            <!-- Logo (dynamic) -->
+            <!-- Logo (default) -->
             <div 
               v-else
               key="logo"
-              class="font-extrabold flex items-center justify-center p-1"
+              class="text-[20px] font-extrabold"
+              style="color: #8a1538"
             >
-              <img v-if="logo" :src="logo" alt="jeeey" class="h-8 object-contain" />
-              <span v-else class="text-[20px]" style="color: #8a1538">جي jeeey</span>
+              جي jeeey
             </div>
           </Transition>
         </div>
@@ -1094,7 +1094,6 @@ const descOpen = ref(false)
 function isAuthenticated(){ return typeof document!=='undefined' && (document.cookie.includes('shop_auth_token=') || document.cookie.includes('auth_token=')) }
 
 // ==================== PRODUCT DATA ====================
-const logo = ref('')
 const product = ref<any>(null)
 const isLoadingPdp = ref(true)
 const isLoadingVariants = ref(true)
@@ -1167,11 +1166,7 @@ const pdpCouponsCards = computed(()=>{
 const nowTs = ref(Date.now())
 let countdownInterval2: any = null
 onMounted(()=>{ 
-  countdownInterval2 = setInterval(()=> nowTs.value = Date.now(), 1000)
-  fetch('https://api.jeeey.com/api/seo/meta?slug=/')
-   .then(r=>r.json())
-   .then(d=>{ if(d.siteLogo) logo.value=d.siteLogo })
-   .catch(()=>{})
+  countdownInterval2 = setInterval(()=> nowTs.value = Date.now(), 1000) 
 })
 onBeforeUnmount(()=>{ if (countdownInterval2) clearInterval(countdownInterval2) })
 function getExpiryTs(coupon:any){

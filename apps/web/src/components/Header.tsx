@@ -5,16 +5,6 @@ import { useI18n } from "../lib/i18n";
 export function Header(): JSX.Element {
   const { locale, setLocale, t } = useI18n();
   const [q, setQ] = React.useState("");
-  const [logo, setLogo] = React.useState<string>("");
-
-  React.useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.jeeey.com'}/api/seo/meta?slug=/`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.siteLogo) setLogo(d.siteLogo);
-      })
-      .catch(() => { });
-  }, []);
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b">
@@ -24,9 +14,7 @@ export function Header(): JSX.Element {
           <a href="/search" aria-label="Search" className="p-2">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           </a>
-          <a href="/" className="font-extrabold tracking-wide flex items-center">
-            {logo ? <img src={logo} alt="Jeeey" className="h-8 object-contain" /> : <span className="text-xl">جي jeeey</span>}
-          </a>
+          <a href="/" className="text-xl font-extrabold tracking-wide">جي jeeey</a>
           <div className="flex items-center gap-1">
             <a href="/cart" aria-label="Cart" className="p-2">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L21 6H6" /></svg>
@@ -63,9 +51,7 @@ export function Header(): JSX.Element {
             <a href="/account" className="hover:text-[#800020]">{t('account')}</a>
           </nav>
           <div className="col-span-4 flex justify-center">
-            <a href="/" className="font-extrabold tracking-wide flex items-center justify-center">
-              {logo ? <img src={logo} alt="Jeeey" className="h-10 object-contain" /> : <span className="text-2xl">جي jeeey</span>}
-            </a>
+            <a href="/" className="text-2xl font-extrabold tracking-wide">جي jeeey</a>
           </div>
           <div className="col-span-4 flex items-center justify-end gap-3">
             <form

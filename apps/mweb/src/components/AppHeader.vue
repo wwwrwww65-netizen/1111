@@ -6,10 +6,7 @@
         <a class="icon" href="/wishlist" aria-label="المفضلة"><Icon name="heart" /></a>
         <a class="icon" href="/search" aria-label="بحث"><Icon name="search" /></a>
       </div>
-      <div class="brand" aria-label="jeeey">
-        <img v-if="logo" :src="logo" alt="jeeey" style="height:32px;object-fit:contain;" />
-        <template v-else>jeeey</template>
-      </div>
+      <div class="brand" aria-label="jeeey">jeeey</div>
       <div class="left">
         <a class="icon" href="/orders" aria-label="الطلبات/الرسائل"><Icon name="bell" /><span class="dot" aria-hidden="true"></span></a>
       </div>
@@ -25,17 +22,8 @@ import { useCart } from '@/store/cart'
 const props = defineProps<{ alwaysSolid?: boolean; solid?: boolean }>()
 const alwaysSolid = (props.alwaysSolid === true) || (props.solid === true)
 const scrolled = ref(false)
-const logo = ref('')
-
 function onScroll(){ scrolled.value = window.scrollY > 60 }
-onMounted(()=>{ 
-  onScroll(); 
-  window.addEventListener('scroll', onScroll, { passive:true })
-  fetch('https://api.jeeey.com/api/seo/meta?slug=/')
-    .then(r=>r.json())
-    .then(d=>{ if(d.siteLogo) logo.value=d.siteLogo })
-    .catch(()=>{})
-})
+onMounted(()=>{ onScroll(); window.addEventListener('scroll', onScroll, { passive:true }) })
 onBeforeUnmount(()=> window.removeEventListener('scroll', onScroll))
 const cart = useCart();
 const { count } = storeToRefs(cart)
