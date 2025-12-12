@@ -48,6 +48,7 @@ export async function generateMetadata(): Promise<Metadata> {
     description: 'Jeeey is your gateway to global shopping.',
     icons: {
       icon: siteLogo || '/icon.png',
+      shortcut: siteLogo || '/icon.png',
       apple: '/apple-touch-icon.png',
     },
     openGraph: {
@@ -81,14 +82,46 @@ export const viewport: Viewport = {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default function RootLayout({
+// Shared data fetcher for layout usage
+async function getSeoSettings() {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+  try {
+    const res = await fetch(`${apiUrl}/api/seo/meta?slug=/`, { cache: 'no-store' });
+    if (res.ok) return await res.json();
+  } catch { }
+  return {};
+}
+
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
-}): JSX.Element {
+}): Promise<JSX.Element> {
+  const settings = await getSeoSettings();
+  const siteName = settings.siteName || 'Jeeey';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com';
+  const siteLogo = settings.siteLogo || `${siteUrl}/icon.png`;
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": siteName,
+    "url": siteUrl,
+    "logo": siteLogo,
+    "sameAs": [
+      "https://twitter.com/jeeey_com",
+      "https://www.facebook.com/jeeeycom",
+      "https://www.instagram.com/jeeeycom"
+    ]
+  };
+
   return (
     <html lang="ar" dir="rtl">
       <body className={tajawal.className} suppressHydrationWarning>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         <AppProviders>
           <ClientFaviconLoader />
           <Header />
