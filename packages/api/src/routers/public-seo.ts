@@ -159,8 +159,27 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
     const siteName = getSetting('site_name') || 'جي jeeey'; // Default per user request
     const siteLogo = getSetting('site_logo') || '';
     const twitterSite = getSetting('twitter_site') || '@jeeey_com';
-    const googleVerification = getSetting('google_verification') || '';
-    const bingVerification = getSetting('bing_verification') || '';
+    let googleVerification = getSetting('google_verification') || '';
+    let bingVerification = getSetting('bing_verification') || '';
+
+    // Sanitize: If user pasted full <meta ... content="..."> tag, extract content
+    if (googleVerification.includes('<meta')) {
+        const match = googleVerification.match(/content=["']([^"']+)["']/);
+        if (match) googleVerification = match[1];
+    }
+    // Bing often uses full tag in Next.js 'verification.other' but let's be consistent. 
+    // Actually Next.js layout.tsx logic handles bing separation manually in my previous code,
+    // but cleaning it here standardizes the API response.
+    // However, if I clean it here, the public-seo.ts SSR injector (which expects full tag for Bing?) might break?
+    // In public-seo.ts: `bingVerification ? bingVerification : ''`. It treats bing as full tag.
+    // In layout.tsx: `other: bingVerification ? { 'msvalidate.01': bingVerification } : undefined`. It treats as CODE.
+    // I should generate the CODE here. And invoke correct tag in SSR.
+
+    // Let's resolve to CODE (hash) here.
+    if (bingVerification.includes('<meta')) {
+        const match = bingVerification.match(/content=["']([^"']+)["']/);
+        if (match) bingVerification = match[1];
+    }
 
     // Helper: Clean slug from possible URL parts (if passed via url param)
     let exactSlug = slug;
