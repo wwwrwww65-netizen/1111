@@ -352,7 +352,7 @@ r.get('/seo/pages/:id', async (req, res) => {
 
 r.post('/seo/pages', async (req, res) => {
   try {
-    const { slug, titleSeo, metaDescription, focusKeyword, canonicalUrl, metaRobots, ogTags, twitterCard, schema, hiddenContent, breadcrumbs } = req.body || {};
+    const { slug, titleSeo, metaDescription, focusKeyword, canonicalUrl, metaRobots, ogTags, twitterCard, schema, hiddenContent, breadcrumbs, sitemapPriority, sitemapFrequency, author, alternateLinks } = req.body || {};
 
     // Check duplication
     const existing = await db.seoPage.findUnique({ where: { slug: slug } });
@@ -370,7 +370,11 @@ r.post('/seo/pages', async (req, res) => {
         ogTags: ogTags || undefined,
         twitterCard: twitterCard || undefined,
         schema: schema ? JSON.parse(typeof schema === 'string' ? schema : JSON.stringify(schema)) : undefined,
-      }
+        sitemapPriority: sitemapPriority != null ? Number(sitemapPriority) : undefined,
+        sitemapFrequency: sitemapFrequency || undefined,
+        author: author || undefined,
+        alternateLinks: alternateLinks ? (typeof alternateLinks === 'string' ? JSON.parse(alternateLinks) : alternateLinks) : undefined
+      } as any
     });
     res.json(page);
   } catch (e: any) { res.status(500).json({ error: e.message || 'Failed to create seo page' }); }
@@ -379,7 +383,7 @@ r.post('/seo/pages', async (req, res) => {
 r.put('/seo/pages/:id', async (req, res) => {
   try {
     const id = req.params.id;
-    const { slug, titleSeo, metaDescription, focusKeyword, canonicalUrl, metaRobots, ogTags, twitterCard, schema, hiddenContent } = req.body || {};
+    const { slug, titleSeo, metaDescription, focusKeyword, canonicalUrl, metaRobots, ogTags, twitterCard, schema, hiddenContent, sitemapPriority, sitemapFrequency, author, alternateLinks } = req.body || {};
 
     const page = await db.seoPage.update({
       where: { id },
@@ -394,8 +398,12 @@ r.put('/seo/pages/:id', async (req, res) => {
         ogTags: ogTags || undefined,
         twitterCard: twitterCard || undefined,
         schema: schema ? JSON.parse(typeof schema === 'string' ? schema : JSON.stringify(schema)) : undefined,
+        sitemapPriority: sitemapPriority != null ? Number(sitemapPriority) : undefined,
+        sitemapFrequency: sitemapFrequency || undefined,
+        author: author || undefined,
+        alternateLinks: alternateLinks ? (typeof alternateLinks === 'string' ? JSON.parse(alternateLinks) : alternateLinks) : undefined,
         updatedAt: new Date()
-      }
+      } as any
     });
     res.json(page);
   } catch (e: any) { res.status(500).json({ error: e.message || 'Failed to update seo page' }); }

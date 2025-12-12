@@ -415,8 +415,8 @@ async function ensureCategoryColumnsAlways(): Promise<void> { return; }
 
 applySecurityMiddleware(app);
 app.use(cookieParser());
-import seoRouter from './routers/seo';
-app.use('/api/admin/seo', seoRouter);
+// import seoRouter from './routers/seo';
+// app.use('/api/admin/seo', seoRouter);
 
 app.use('/api/admin', adminRest);
 app.use('/api/admin', adminExtra);
