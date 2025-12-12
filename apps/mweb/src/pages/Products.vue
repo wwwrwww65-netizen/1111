@@ -1,5 +1,8 @@
 <template>
   <div class="min-h-screen bg-[#f7f7f7]" dir="rtl" @scroll.passive="onScroll" ref="page">
+    <!-- Hidden SEO Content -->
+    <div v-if="seoHead.hiddenContent" id="seo-hidden-content" style="display:none;visibility:hidden;" v-html="seoHead.hiddenContent"></div>
+
     <!-- الهيدر (ثابت أعلى) -->
     <div class="w-full bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
       <div class="h-12 px-2 flex items-center justify-between">
@@ -472,6 +475,15 @@ const headerHeight = computed(() => {
 
 let lastScrollY = 0;
 
+// SEO
+const seoHead = ref({
+  title: 'المنتجات',
+  meta: [] as any[],
+  link: [] as any[],
+  hiddenContent: ''
+})
+useHead(seoHead)
+
 onMounted(() => {
   lastScrollY = window.scrollY || 0;
   atTop.value = lastScrollY <= 0;
@@ -479,15 +491,7 @@ onMounted(() => {
   window.addEventListener('scroll', handleWindowScroll, { passive: true });
   void bootstrap()
   
-  // SEO
-  // SEO
-  const seoHead = ref({
-    title: 'المنتجات',
-    meta: [] as any[],
-    link: [] as any[]
-  })
-  useHead(seoHead)
-
+  // SEO Check
   apiGet<any>('/api/seo/meta?type=page&slug=/products').then(seo => {
     if (seo) {
       seoHead.value = {
@@ -495,12 +499,17 @@ onMounted(() => {
         meta: [
           { name: 'description', content: seo.metaDescription },
           { name: 'robots', content: seo.metaRobots },
+          { name: 'author', content: seo.author },
           { property: 'og:title', content: seo.titleSeo },
           { property: 'og:description', content: seo.metaDescription },
           { property: 'og:image', content: seo.ogTags?.image || seo.siteLogo },
           { property: 'og:url', content: seo.canonicalUrl },
         ].filter(Boolean),
-        link: []
+        link: [
+           { rel: 'canonical', href: seo.canonicalUrl },
+           ...(seo.alternateLinks ? Object.entries(seo.alternateLinks).map(([lang, url]) => ({ rel: 'alternate', hreflang: lang, href: url })) : [])
+        ].filter(x=>x.href),
+        hiddenContent: seo.hiddenContent
       }
     }
   }).catch(()=>{})

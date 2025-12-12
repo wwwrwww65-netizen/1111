@@ -1,5 +1,8 @@
 <template>
   <div class="bg-[#f7f7f7] pb-24" dir="rtl">
+    <!-- Hidden SEO Content -->
+    <div v-if="seoData?.hiddenContent" id="seo-hidden-content" style="display:none;visibility:hidden;" v-html="seoData.hiddenContent"></div>
+    
     <!-- Header - Dynamic with Search Bar on Scroll -->
     <div class="fixed top-0 left-0 right-0 z-50 bg-white">
 
@@ -2044,11 +2047,13 @@ const seoSchema = computed(() => {
 })
 
 // Initialize Head (Synchronously)
+// Initialize Head (Synchronously)
 useHead({
   title: seoTitle,
   meta: [
     { name: 'description', content: seoDesc },
     { name: 'robots', content: seoRobots },
+    { name: 'author', content: computed(() => seoData.value?.author) },
     { property: 'og:title', content: seoOgTitle },
     { property: 'og:description', content: seoOgDesc },
     { property: 'og:image', content: seoOgImage },
@@ -2058,10 +2063,16 @@ useHead({
     { name: 'twitter:title', content: seoTwTitle },
     { name: 'twitter:description', content: seoTwDesc },
     { name: 'twitter:image', content: seoTwImage },
-  ],
-  link: [
-    { rel: 'canonical', href: seoCanonical }
-  ],
+  ].filter(Boolean),
+  link: computed(() => {
+    const links: any[] = [{ rel: 'canonical', href: seoCanonical.value }];
+    if (seoData.value?.alternateLinks) {
+       for (const [lang, url] of Object.entries(seoData.value.alternateLinks)) {
+         links.push({ rel: 'alternate', hreflang: lang, href: url })
+       }
+    }
+    return links
+  }),
   script: [
     { type: 'application/ld+json', innerHTML: seoSchema }
   ].filter(Boolean)

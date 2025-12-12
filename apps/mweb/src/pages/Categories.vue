@@ -140,6 +140,9 @@
     </div>
 
     <BottomNav active="categories" />
+    
+    <!-- Hidden SEO Content -->
+    <div v-if="seoHead.hiddenContent" id="seo-hidden-content" style="display:none;visibility:hidden;" v-html="seoHead.hiddenContent"></div>
   </div>
   
 </template>
@@ -148,6 +151,7 @@
 defineOptions({ name: 'CategoriesIndex' })
 import BottomNav from '@/components/BottomNav.vue'
 import Icon from '@/components/Icon.vue'
+import { useHead } from '@unhead/vue'
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiGet, API_BASE } from '@/lib/api'
@@ -507,8 +511,40 @@ function thumb(u?: string, w: number = 160, q: number = 60): string {
   return buildThumbUrl(String(u||''), w, q)
 }
 
+// Authoritative SEO from Engine (slug: /categories)
+const seoHead = ref({
+  title: 'الفئات',
+  meta: [] as any[],
+  link: [] as any[],
+  hiddenContent: '' // Computed property for hidden content
+})
+useHead(seoHead)
+
 // Load categories & config
 onMounted(async () => {
+  // Fetch SEO data independently
+  apiGet<any>('/api/seo/meta?type=page&slug=/categories').then(seo => {
+    if (seo) {
+      seoHead.value = {
+        title: seo.titleSeo || 'الفئات',
+        meta: [
+          { name: 'description', content: seo.metaDescription },
+          { name: 'robots', content: seo.metaRobots },
+          { name: 'author', content: seo.author },
+          { property: 'og:title', content: seo.titleSeo },
+          { property: 'og:description', content: seo.metaDescription },
+          { property: 'og:image', content: seo.ogTags?.image || seo.siteLogo },
+          { property: 'og:url', content: seo.canonicalUrl },
+        ].filter(Boolean),
+        link: [ 
+          { rel: 'canonical', href: seo.canonicalUrl },
+          ...(seo.alternateLinks ? Object.entries(seo.alternateLinks).map(([lang, url]) => ({ rel: 'alternate', hreflang: lang, href: url })) : [])
+        ].filter(x=>x.href),
+        hiddenContent: seo.hiddenContent
+      }
+    }
+  }).catch(()=>{})
+
   // Preview support
   try{
     const u = new URL(location.href)
@@ -585,31 +621,6 @@ onMounted(async () => {
     })
   }catch{}
   
-  // Authoritative SEO from Engine (slug: /categories)
-  // Authoritative SEO from Engine (slug: /categories)
-  const seoHead = ref({
-    title: 'الفئات',
-    meta: [] as any[],
-    link: [] as any[]
-  })
-  useHead(seoHead)
-  
-  apiGet<any>('/api/seo/meta?type=page&slug=/categories').then(seo => {
-    if (seo) {
-      seoHead.value = {
-        title: seo.titleSeo || 'الفئات',
-        meta: [
-          { name: 'description', content: seo.metaDescription },
-          { name: 'robots', content: seo.metaRobots },
-          { property: 'og:title', content: seo.titleSeo },
-          { property: 'og:description', content: seo.metaDescription },
-          { property: 'og:image', content: seo.ogTags?.image || seo.siteLogo },
-          { property: 'og:url', content: seo.canonicalUrl },
-        ].filter(Boolean),
-        link: [ { rel: 'canonical', href: seo.canonicalUrl } ].filter(x=>x.href)
-      }
-    }
-  }).catch(()=>{})
 })
 </script>
 

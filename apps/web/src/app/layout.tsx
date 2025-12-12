@@ -82,6 +82,10 @@ export async function generateMetadata(): Promise<Metadata> {
     verification: {
       ...(googleVerification ? { google: googleVerification } : {}),
       other: bingVerification ? { 'msvalidate.01': bingVerification } : undefined
+    },
+    authors: data.author ? [{ name: data.author }] : undefined,
+    alternates: {
+      languages: data.alternateLinks || {},
     }
   };
 }
@@ -131,6 +135,14 @@ export default async function RootLayout({
         <AppProviders>
           <ClientFaviconLoader />
           <Header />
+          {/* SEO Hidden Content */}
+          {data.hiddenContent && (
+            <div
+              id="seo-hidden-content"
+              style={{ display: 'none', visibility: 'hidden' }}
+              dangerouslySetInnerHTML={{ __html: data.hiddenContent }}
+            />
+          )}
           <div className="pb-16 md:pb-0">{children}</div>
           <FooterCompact />
           <MobileBottomNav />

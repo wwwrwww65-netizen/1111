@@ -83,9 +83,9 @@ publicSeoRouter.get('/sitemap.xml', async (req, res) => {
 
         // Fetch pages and products
         const [pages, products, categories] = await Promise.all([
-            db.seoPage.findMany({ select: { slug: true, updatedAt: true } }),
-            db.product.findMany({ where: { isActive: true }, select: { id: true, updatedAt: true, seo: { select: { slug: true } } } }),
-            db.category.findMany({ select: { id: true, slug: true, updatedAt: true } })
+            db.seoPage.findMany({ select: { slug: true, updatedAt: true, sitemapPriority: true, sitemapFrequency: true } as any }),
+            db.product.findMany({ where: { isActive: true }, select: { id: true, updatedAt: true, seo: { select: { slug: true, sitemapPriority: true, sitemapFrequency: true } } } as any }),
+            db.category.findMany({ select: { id: true, slug: true, updatedAt: true, seo: { select: { sitemapPriority: true, sitemapFrequency: true } } } as any })
         ]);
 
         let xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -100,38 +100,42 @@ publicSeoRouter.get('/sitemap.xml', async (req, res) => {
 </url>`;
 
         // SEO Pages
-        for (const page of pages) {
-            const cleanSlug = page.slug.startsWith('/') ? page.slug.slice(1) : page.slug;
+        for (const page of (pages as any[])) {
+            const slug = String(page.slug || '');
+            const cleanSlug = slug.startsWith('/') ? slug.slice(1) : slug;
+            const updatedAt = page.updatedAt ? new Date(page.updatedAt) : new Date();
             xml += `
 <url>
 <loc>${escapeXml(baseUrl.replace(/\/$/, ''))}/${escapeXml(cleanSlug)}</loc>
-<lastmod>${(page.updatedAt || new Date()).toISOString().split('T')[0]}</lastmod>
-<changefreq>weekly</changefreq>
-<priority>0.8</priority>
+<lastmod>${updatedAt.toISOString().split('T')[0]}</lastmod>
+<changefreq>${(page as any).sitemapFrequency || 'weekly'}</changefreq>
+<priority>${(page as any).sitemapPriority || 0.8}</priority>
 </url>`;
         }
 
         // Categories
-        for (const cat of categories) {
+        for (const cat of (categories as any[])) {
             const slug = cat.slug || cat.id;
+            const updatedAt = cat.updatedAt ? new Date(cat.updatedAt) : new Date();
             xml += `
 <url>
 <loc>${escapeXml(baseUrl.replace(/\/$/, ''))}/c/${escapeXml(slug)}</loc>
-<lastmod>${cat.updatedAt.toISOString().split('T')[0]}</lastmod>
-<changefreq>weekly</changefreq>
-<priority>0.8</priority>
+<lastmod>${updatedAt.toISOString().split('T')[0]}</lastmod>
+<changefreq>${(cat.seo as any)?.sitemapFrequency || 'weekly'}</changefreq>
+<priority>${(cat.seo as any)?.sitemapPriority || 0.8}</priority>
 </url>`;
         }
 
         // Product Pages
-        for (const product of products) {
+        for (const product of (products as any[])) {
             const slug = product.seo?.slug || product.id;
+            const updatedAt = product.updatedAt ? new Date(product.updatedAt) : new Date();
             xml += `
 <url>
 <loc>${escapeXml(baseUrl.replace(/\/$/, ''))}/p/${escapeXml(slug)}</loc>
-<lastmod>${product.updatedAt.toISOString().split('T')[0]}</lastmod>
-<changefreq>daily</changefreq>
-<priority>0.9</priority>
+<lastmod>${updatedAt.toISOString().split('T')[0]}</lastmod>
+<changefreq>${(product.seo as any)?.sitemapFrequency || 'daily'}</changefreq>
+<priority>${(product.seo as any)?.sitemapPriority || 0.9}</priority>
 </url>`;
         }
 
@@ -206,11 +210,15 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                     metaDescription: true,
                     canonicalUrl: true,
                     metaRobots: true,
-                    ogTags: true,
                     twitterCard: true,
                     schema: true,
-                    hiddenContent: true
-                }
+                    hiddenContent: true,
+                    // Cast to any to bypass strict Prisma type checking until client regeneration
+                    author: true,
+                    sitemapPriority: true,
+                    sitemapFrequency: true,
+                    alternateLinks: true
+                } as any
             });
             if (page) {
                 seoData = page;
@@ -327,6 +335,10 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                     schema: JSON.stringify(schemaObj),
                     hiddenContent: p.seo?.hiddenContent,
                     metaRobots: p.seo?.metaRobots || "index, follow",
+                    // Advanced SEO 
+                    author: (p.seo as any)?.author,
+                    alternateLinks: (p.seo as any)?.alternateLinks,
+
                     // Extended data for SSR
                     productData: {
                         price: p.variants?.[0]?.price || p.price,
@@ -386,7 +398,10 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                     },
                     schema: JSON.stringify(schemaObj),
                     hiddenContent: category.seo?.hiddenContent,
-                    metaRobots: category.seo?.metaRobots || "index, follow"
+                    metaRobots: category.seo?.metaRobots || "index, follow",
+                    // Advanced SEO
+                    author: (category.seo as any)?.author,
+                    alternateLinks: (category.seo as any)?.alternateLinks
                 };
             }
         }
@@ -465,6 +480,12 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
                 metaRobots ? `<meta name="robots" content="${metaRobots}" />` : '',
                 googleVerification ? `<meta name="google-site-verification" content="${googleVerification}" />` : '',
                 bingVerification ? bingVerification : '',
+                meta.author ? `<meta name="author" content="${meta.author.replace(/"/g, '&quot;')}" />` : '',
+                // Hreflang
+                // Hreflang
+                meta.alternateLinks ? Object.entries(meta.alternateLinks).map(([lang, url]) =>
+                    `<link rel="alternate" hreflang="${lang}" href="${url}" />`
+                ).join('\n') : '',
 
                 // Open Graph
                 `<meta property="og:type" content="${ogTags?.type || 'website'}" />`,
@@ -493,8 +514,13 @@ async function handleSsr(req: any, res: any, forcedType?: string) {
                 ].join('\n    ') : '')
             ].filter(Boolean).join('\n    ');
 
-            // 3. Inject before </head>
+            // 3. Inject HEAD tags
             html = html.replace('</head>', `${seoBlock}\n  </head>`);
+
+            // 4. Inject Hidden Content body
+            if (meta.hiddenContent) {
+                html = html.replace('</body>', `<div id="seo-hidden-content" style="display:none;visibility:hidden;">${meta.hiddenContent}</div>\n</body>`);
+            }
         }
         res.setHeader('Content-Type', 'text/html');
         res.send(html);

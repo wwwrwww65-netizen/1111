@@ -125,6 +125,12 @@ model ProductSeo {
   twitterCard     Json?
   schema          Json?
   
+  // Advanced SEO
+  author          String?
+  alternateLinks  Json?
+  sitemapPriority Float?
+  sitemapFrequency String?
+
   product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   
   createdAt       DateTime @default(now())
@@ -143,6 +149,12 @@ model CategorySeo {
   ogTags          Json?
   twitterCard     Json?
   schema          Json?
+  
+  // Advanced SEO
+  author          String?
+  alternateLinks  Json?
+  sitemapPriority Float?
+  sitemapFrequency String?
 
   category        Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
@@ -1092,6 +1104,12 @@ model SeoPage {
   isActive        Boolean?  @default(true)
   createdAt       DateTime? @default(now()) @db.Timestamp(6)
   updatedAt       DateTime? @default(now()) @updatedAt @db.Timestamp(6)
+  
+  // Advanced SEO
+  author          String?
+  alternateLinks  Json?
+  sitemapPriority Float?
+  sitemapFrequency String?
 }
 
 model Redirect {

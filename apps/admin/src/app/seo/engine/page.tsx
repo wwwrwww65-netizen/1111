@@ -74,7 +74,7 @@ export default function SeoListPage() {
                                         ) : '-'}
                                     </td>
                                     <td className="p-4 text-sm text-gray-400">
-                                        {new Date(page.lastUpdated).toLocaleDateString('ar-EG')}
+                                        {new Date(page.updatedAt).toLocaleDateString('ar-EG')}
                                     </td>
                                     <td className="p-4">
                                         <button

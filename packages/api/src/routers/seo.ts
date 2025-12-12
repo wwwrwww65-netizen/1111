@@ -60,10 +60,52 @@ seoRouter.get('/pages/by-slug/:slug', async (req, res) => {
 // Upsert SEO Page with Auto-Redirect
 seoRouter.post('/pages', async (req, res) => {
   try {
-    const body = req.body;
-    const { id, slug, ...data } = body; // Extract ID if present
+    const body = req.body || {};
+    // Explicitly destructure only allowed fields to prevent Prisma "Unknown arg" errors
+    const {
+      id,
+      slug,
+      titleSeo,
+      metaDescription,
+      focusKeyword,
+      canonicalUrl,
+      metaRobots,
+      hiddenContent,
+      ogTags,
+      twitterCard,
+      schema,
+      // New fields
+      sitemapPriority,
+      sitemapFrequency,
+      author,
+      alternateLinks
+    } = body;
 
     if (!slug) return res.status(400).json({ error: 'Slug is required' });
+
+    // Validate/Format JSON fields
+    const safeSchema = schema ? (typeof schema === 'string' ? JSON.parse(schema) : schema) : undefined;
+    const safeOg = ogTags ? (typeof ogTags === 'string' ? JSON.parse(ogTags) : ogTags) : undefined;
+    const safeTw = twitterCard ? (typeof twitterCard === 'string' ? JSON.parse(twitterCard) : twitterCard) : undefined;
+    const safeAlt = alternateLinks ? (typeof alternateLinks === 'string' ? JSON.parse(alternateLinks) : alternateLinks) : undefined;
+
+    const dataPayload = {
+      titleSeo,
+      metaDescription,
+      focusKeyword,
+      canonicalUrl,
+      metaRobots,
+      hiddenContent,
+      ogTags: safeOg,
+      twitterCard: safeTw,
+      schema: safeSchema,
+      // New fields casting
+      sitemapPriority: typeof sitemapPriority === 'number' ? sitemapPriority : (sitemapPriority ? parseFloat(sitemapPriority) : undefined),
+      sitemapFrequency: sitemapFrequency || undefined,
+      author: author || undefined,
+      alternateLinks: safeAlt,
+      updatedAt: new Date()
+    };
 
     let page;
 
@@ -77,7 +119,6 @@ seoRouter.post('/pages', async (req, res) => {
       if (existingPage.slug !== slug) {
         console.log(`Creating redirect from ${existingPage.slug} to ${slug}`);
         try {
-          // Check if redirect model exists (will be created after db push)
           if ((db as any).redirect) {
             await (db as any).redirect.create({
               data: {
@@ -86,23 +127,19 @@ seoRouter.post('/pages', async (req, res) => {
                 code: 301
               }
             });
-          } else {
-            console.log('Redirect model not available yet (will be created after db push)');
           }
-        } catch (err) {
-          console.warn('Redirect creation failed (maybe already exists or model not ready):', err);
-        }
+        } catch (err) { }
       }
 
       // Update
       page = await db.seoPage.update({
         where: { id: existingPage.id },
-        data: { slug, ...data }
+        data: { slug, ...dataPayload }
       });
     } else {
       // Create new
       page = await db.seoPage.create({
-        data: { slug, ...data }
+        data: { slug, ...dataPayload }
       });
     }
 
@@ -124,38 +161,34 @@ seoRouter.delete('/pages/:id', async (req, res) => {
   }
 });
 
-// Analyze SEO
+// Analyze SEO (Advanced)
 seoRouter.post('/analyze', async (req, res) => {
   const { titleSeo, metaDescription, focusKeyword, slug } = req.body;
 
   const issues: string[] = [];
   let score = 100;
 
-  if (!titleSeo || titleSeo.length < 10) {
-    issues.push('العنوان قصير جداً');
-    score -= 10;
-  } else if (titleSeo.length > 70) {
-    issues.push('العنوان طويل جداً (أكثر من 70 حرف)');
-    score -= 5;
-  }
+  const title = String(titleSeo || '').trim();
+  if (title.length < 30) { issues.push('العنوان قصير جداً (يفضل أكثر من 30 حرف)'); score -= 10; }
+  if (title.length > 60) { issues.push('العنوان طويل جداً (يفضل أقل من 60 حرف)'); score -= 5; }
 
-  if (!metaDescription || metaDescription.length < 50) {
-    issues.push('الوصف قصير جداً');
-    score -= 10;
-  } else if (metaDescription.length > 160) {
-    issues.push('الوصف طويل جداً (أكثر من 160 حرف)');
-    score -= 5;
-  }
+  const desc = String(metaDescription || '').trim();
+  if (desc.length < 120) { issues.push('الوصف قصير جداً (يفضل أكثر من 120 حرف)'); score -= 10; }
+  if (desc.length > 160) { issues.push('الوصف طويل جداً (يفضل أقل من 160 حرف)'); score -= 5; }
+
+  if (!title) { issues.push('العنوان مفقود'); score -= 20; }
+  if (!desc) { issues.push('الوصف مفقود'); score -= 20; }
+
   if (focusKeyword) {
     const keywords = focusKeyword.split(/[,،]/).map((k: string) => k.trim()).filter(Boolean);
     const primaryKeyword = keywords[0];
 
     if (primaryKeyword) {
-      if (!titleSeo?.includes(primaryKeyword)) {
+      if (!title.includes(primaryKeyword)) {
         issues.push(`الكلمة المفتاحية الرئيسية (${primaryKeyword}) غير موجودة في العنوان`);
         score -= 20;
       }
-      if (!metaDescription?.includes(primaryKeyword)) {
+      if (!desc.includes(primaryKeyword)) {
         issues.push(`الكلمة المفتاحية الرئيسية (${primaryKeyword}) غير موجودة في الوصف`);
         score -= 20;
       }
@@ -165,7 +198,7 @@ seoRouter.post('/analyze', async (req, res) => {
       const normalizedKeyword = primaryKeyword.toLowerCase();
       const keywordWithDashes = normalizedKeyword.replace(/\s+/g, '-');
 
-      if (!normalizedSlug.includes(normalizedKeyword) && !normalizedSlug.includes(keywordWithDashes)) {
+      if (normalizedSlug !== '/' && !normalizedSlug.includes(normalizedKeyword) && !normalizedSlug.includes(keywordWithDashes)) {
         issues.push(`الكلمة المفتاحية الرئيسية (${primaryKeyword}) غير موجودة في الرابط`);
         score -= 10;
       }
@@ -175,7 +208,7 @@ seoRouter.post('/analyze', async (req, res) => {
     score -= 10;
   }
 
-  res.json({ ok: true, score, issues });
+  res.json({ ok: true, score: Math.max(0, score), issues });
 });
 
 export default seoRouter;

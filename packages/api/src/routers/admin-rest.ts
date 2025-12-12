@@ -10394,7 +10394,7 @@ adminRest.post('/products', async (req, res) => {
 
   // Create Product SEO entry
   try {
-    const { slug, seoTitle, seoDescription, seoKeywords, canonicalUrl, metaRobots, hiddenContent, ogTags, twitterCard, schema } = req.body || {};
+    const { slug, seoTitle, seoDescription, seoKeywords, canonicalUrl, metaRobots, hiddenContent, ogTags, twitterCard, schema, author, alternateLinks, sitemapPriority, sitemapFrequency } = req.body || {};
     let finalSlug = slug;
     if (!finalSlug) {
       const base = String(name || 'product').toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, '-').replace(/^-+|-+$/g, '');
@@ -10407,7 +10407,10 @@ adminRest.post('/products', async (req, res) => {
         seoTitle: seoTitle || name,
         seoDescription: seoDescription || description?.slice(0, 160),
         seoKeywords: typeof seoKeywords === 'string' ? seoKeywords.split(',').map((s: string) => s.trim()).filter(Boolean) : (Array.isArray(seoKeywords) ? seoKeywords : []),
-        canonicalUrl, metaRobots, hiddenContent, ogTags, twitterCard, schema
+        canonicalUrl, metaRobots, hiddenContent, ogTags, twitterCard, schema,
+        author, alternateLinks,
+        sitemapPriority: sitemapPriority != null ? Number(sitemapPriority) : undefined,
+        sitemapFrequency
       }
     });
   } catch { }
@@ -10741,7 +10744,7 @@ adminRest.patch('/products/:id', async (req, res) => {
 
     // Update SEO fields
     try {
-      const { slug, seoTitle, seoDescription, seoKeywords, canonicalUrl, metaRobots, hiddenContent, ogTags, twitterCard, schema } = req.body || {};
+      const { slug, seoTitle, seoDescription, seoKeywords, canonicalUrl, metaRobots, hiddenContent, ogTags, twitterCard, schema, author, alternateLinks, sitemapPriority, sitemapFrequency } = req.body || {};
       const seoPatch: any = {};
 
       if (slug !== undefined) seoPatch.slug = slug;
@@ -10754,6 +10757,10 @@ adminRest.patch('/products/:id', async (req, res) => {
       if (ogTags !== undefined) seoPatch.ogTags = ogTags;
       if (twitterCard !== undefined) seoPatch.twitterCard = twitterCard;
       if (schema !== undefined) seoPatch.schema = schema;
+      if (author !== undefined) seoPatch.author = author;
+      if (alternateLinks !== undefined) seoPatch.alternateLinks = alternateLinks;
+      if (sitemapPriority !== undefined) seoPatch.sitemapPriority = sitemapPriority != null ? Number(sitemapPriority) : null;
+      if (sitemapFrequency !== undefined) seoPatch.sitemapFrequency = sitemapFrequency;
 
       if (Object.keys(seoPatch).length > 0) {
         await db.productSeo.upsert({

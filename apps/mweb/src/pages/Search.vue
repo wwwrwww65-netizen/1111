@@ -1,5 +1,8 @@
 <template>
   <div dir="rtl" lang="ar" class="shein-search-page">
+    <!-- Hidden SEO Content -->
+    <div v-if="seoHead.hiddenContent" id="seo-hidden-content" style="display:none;visibility:hidden;" v-html="seoHead.hiddenContent"></div>
+
     <!-- Fixed Search Header -->
     <header class="search-header">
       <!-- Back Button: 24x24 Icon, No Container -->
@@ -162,6 +165,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { API_BASE, apiGet, apiPost } from '@/lib/api'
 import { fmtPrice } from '@/lib/currency'
+import { useHead } from '@unhead/vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -353,6 +357,15 @@ async function runSearch() {
   router.push({ path: '/search/result', query: { q: term } })
 }
 
+// SEO
+const seoHead = ref({
+  title: 'البحث',
+  meta: [] as any[],
+  link: [] as any[],
+  hiddenContent: ''
+})
+useHead(seoHead)
+
 onMounted(() => {
   if (route.query.q) {
     q.value = String(route.query.q)
@@ -369,14 +382,6 @@ onMounted(() => {
   fetchCategories()
   
   // SEO
-  // SEO
-  const seoHead = ref({
-    title: 'البحث',
-    meta: [] as any[],
-    link: [] as any[]
-  })
-  useHead(seoHead)
-  
   apiGet<any>('/api/seo/meta?type=page&slug=/search').then(seo => {
      if (seo) {
        seoHead.value = {
@@ -384,12 +389,17 @@ onMounted(() => {
          meta: [
            { name: 'description', content: seo.metaDescription },
            { name: 'robots', content: seo.metaRobots },
+           { name: 'author', content: seo.author },
            { property: 'og:title', content: seo.titleSeo },
            { property: 'og:description', content: seo.metaDescription },
            { property: 'og:image', content: seo.ogTags?.image || seo.siteLogo },
            { property: 'og:url', content: seo.canonicalUrl },
          ].filter(Boolean),
-         link: []
+         link: [
+           { rel: 'canonical', href: seo.canonicalUrl },
+           ...(seo.alternateLinks ? Object.entries(seo.alternateLinks).map(([lang, url]) => ({ rel: 'alternate', hreflang: lang, href: url })) : [])
+         ].filter(x=>x.href),
+         hiddenContent: seo.hiddenContent
        }
      }
   }).catch(()=>{})

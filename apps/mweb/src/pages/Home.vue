@@ -150,6 +150,9 @@
       :primaryLabel="'أضف إلى عربة التسوق'"
       :showWishlist="false"
     />
+    
+    <!-- Hidden SEO Content -->
+    <div v-if="seoHead.hiddenContent" id="seo-hidden-content" style="display:none;visibility:hidden;" v-html="seoHead.hiddenContent"></div>
   </div>
 </template>
 
@@ -423,6 +426,7 @@ onMounted(async ()=>{
            { name: 'description', content: seo.metaDescription },
            { name: 'robots', content: seo.metaRobots },
            { name: 'google-site-verification', content: seo.googleVerification },
+           { name: 'author', content: seo.author },
            { property: 'og:title', content: seo.ogTags?.title || seo.titleSeo },
            { property: 'og:description', content: seo.ogTags?.description || seo.metaDescription },
            { property: 'og:image', content: seo.ogTags?.image || seo.siteLogo },
@@ -433,11 +437,13 @@ onMounted(async ()=>{
            { name: 'twitter:image', content: seo.twitterCard?.image || seo.ogTags?.image || seo.siteLogo },
          ].filter(Boolean),
          link: [
-           { rel: 'canonical', href: seo.canonicalUrl || 'https://jeeey.com' }
-         ],
+           { rel: 'canonical', href: seo.canonicalUrl || 'https://jeeey.com' },
+           ...(seo.alternateLinks ? Object.entries(seo.alternateLinks).map(([lang, url]) => ({ rel: 'alternate', hreflang: lang, href: url })) : [])
+         ].filter(x=>x.href),
          script: [
            seo.schema ? { type: 'application/ld+json', innerHTML: seo.schema } : ''
-         ].filter(Boolean)
+         ].filter(Boolean),
+         hiddenContent: seo.hiddenContent
        }
     }
   } catch (e) {

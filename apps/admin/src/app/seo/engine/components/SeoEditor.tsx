@@ -267,14 +267,85 @@ export default function SeoEditor({ initialData, isNew = false }: { initialData?
                                 </select>
                             </div>
                             <div>
+                                <label className="block text-gray-400 mb-1">Alternate Links (Hreflang JSON)</label>
+                                <textarea
+                                    value={formData.alternateLinks || ''}
+                                    onChange={e => handleChange('alternateLinks', e.target.value)}
+                                    className="w-full bg-[#0b0e14] border border-[#1f2937] rounded p-2 text-white font-mono text-sm h-24"
+                                    dir="ltr"
+                                    placeholder='{ "en": "https://jeeey.com/en/page", "ar": "https://jeeey.com/page" }'
+                                />
+                            </div>
+
+                            <div>
                                 <label className="block text-gray-400 mb-1">Schema (JSON-LD)</label>
                                 <textarea
                                     value={formData.schema}
                                     onChange={e => handleChange('schema', e.target.value)}
                                     className="w-full bg-[#0b0e14] border border-[#1f2937] rounded p-2 text-white font-mono text-sm h-32"
                                     dir="ltr"
+                                    placeholder='{ "@context": "https://schema.org", ... }'
                                 />
                             </div>
+
+                            {/* New Advanced Fields */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#1f2937] pt-4">
+                                <div>
+                                    <label className="block text-gray-400 mb-1">أولوية Sitemap (0.0 - 1.0)</label>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        max="1"
+                                        value={formData.sitemapPriority !== undefined ? formData.sitemapPriority : ''}
+                                        onChange={e => handleChange('sitemapPriority', e.target.value)}
+                                        className="w-full bg-[#0b0e14] border border-[#1f2937] rounded p-2 text-white"
+                                        placeholder="0.8"
+                                        dir="ltr"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-400 mb-1">تحديث Sitemap (Frequency)</label>
+                                    <select
+                                        value={formData.sitemapFrequency || ''}
+                                        onChange={e => handleChange('sitemapFrequency', e.target.value)}
+                                        className="w-full bg-[#0b0e14] border border-[#1f2937] rounded p-2 text-white"
+                                        dir="ltr"
+                                    >
+                                        <option value="">(الافتراضي)</option>
+                                        <option value="always">Always</option>
+                                        <option value="hourly">Hourly</option>
+                                        <option value="daily">Daily</option>
+                                        <option value="weekly">Weekly</option>
+                                        <option value="monthly">Monthly</option>
+                                        <option value="yearly">Yearly</option>
+                                        <option value="never">Never</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-gray-400 mb-1">المؤلف (Author)</label>
+                                <input
+                                    type="text"
+                                    value={formData.author || ''}
+                                    onChange={e => handleChange('author', e.target.value)}
+                                    className="w-full bg-[#0b0e14] border border-[#1f2937] rounded p-2 text-white"
+                                    placeholder="اسم الكاتب أو الناشر"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-gray-400 mb-1">محتوى مخفي (Hidden Content)</label>
+                                <textarea
+                                    value={formData.hiddenContent || ''}
+                                    onChange={e => handleChange('hiddenContent', e.target.value)}
+                                    className="w-full bg-[#0b0e14] border border-[#1f2937] rounded p-2 text-white h-24"
+                                    placeholder="محتوى إضافي لمحركات البحث لا يظهر للمستخدم (استخدم بحذر)"
+                                />
+                                <p className="text-xs text-yellow-500 mt-1">تنبيه: محركات البحث قد تعاقب المواقع التي تستخدم النصوص المخفية بشكل مفرط (Cloaking).</p>
+                            </div>
+
                             <div className="flex items-center gap-2">
                                 <input
                                     type="checkbox"

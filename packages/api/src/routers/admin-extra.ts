@@ -333,5 +333,107 @@ r.get('/analytics', async (_req, res) => {
   } catch { res.status(500).json({ error: 'Failed to compute analytics' }); }
 });
 
+
+// -------- SEO Page Management --------
+r.get('/seo/pages', async (req, res) => {
+  try {
+    const pages = await db.seoPage.findMany({ orderBy: { updatedAt: 'desc' } });
+    res.json({ pages });
+  } catch (e) { res.status(500).json({ error: 'Failed to list seo pages' }); }
+});
+
+r.get('/seo/pages/:id', async (req, res) => {
+  try {
+    const page = await db.seoPage.findUnique({ where: { id: req.params.id } });
+    if (!page) return res.status(404).json({ error: 'not_found' });
+    res.json(page);
+  } catch (e) { res.status(500).json({ error: 'Failed to get seo page' }); }
+});
+
+r.post('/seo/pages', async (req, res) => {
+  try {
+    const { slug, titleSeo, metaDescription, focusKeyword, canonicalUrl, metaRobots, ogTags, twitterCard, schema, hiddenContent, breadcrumbs } = req.body || {};
+
+    // Check duplication
+    const existing = await db.seoPage.findUnique({ where: { slug: slug } });
+    if (existing) return res.status(400).json({ error: 'slug_exists' });
+
+    const page = await db.seoPage.create({
+      data: {
+        slug,
+        titleSeo,
+        metaDescription,
+        focusKeyword,
+        canonicalUrl,
+        metaRobots,
+        hiddenContent,
+        ogTags: ogTags || undefined,
+        twitterCard: twitterCard || undefined,
+        schema: schema ? JSON.parse(typeof schema === 'string' ? schema : JSON.stringify(schema)) : undefined,
+      }
+    });
+    res.json(page);
+  } catch (e: any) { res.status(500).json({ error: e.message || 'Failed to create seo page' }); }
+});
+
+r.put('/seo/pages/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { slug, titleSeo, metaDescription, focusKeyword, canonicalUrl, metaRobots, ogTags, twitterCard, schema, hiddenContent } = req.body || {};
+
+    const page = await db.seoPage.update({
+      where: { id },
+      data: {
+        slug,
+        titleSeo,
+        metaDescription,
+        focusKeyword,
+        canonicalUrl,
+        metaRobots,
+        hiddenContent,
+        ogTags: ogTags || undefined,
+        twitterCard: twitterCard || undefined,
+        schema: schema ? JSON.parse(typeof schema === 'string' ? schema : JSON.stringify(schema)) : undefined,
+        updatedAt: new Date()
+      }
+    });
+    res.json(page);
+  } catch (e: any) { res.status(500).json({ error: e.message || 'Failed to update seo page' }); }
+});
+
+r.delete('/seo/pages/:id', async (req, res) => {
+  try {
+    await db.seoPage.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: 'Failed to delete seo page' }); }
+});
+
+// -------- SEO Analysis --------
+r.post('/seo/analyze', async (req, res) => {
+  try {
+    const { titleSeo, metaDescription, focusKeyword, slug } = req.body || {};
+    const issues: string[] = [];
+    let score = 100;
+
+    const title = String(titleSeo || '').trim();
+    if (title.length < 30) { issues.push('العنوان قصير جداً (يفضل أكثر من 30 حرف)'); score -= 10; }
+    if (title.length > 60) { issues.push('العنوان طويل جداً (يفضل أقل من 60 حرف)'); score -= 5; }
+
+    const desc = String(metaDescription || '').trim();
+    if (desc.length < 120) { issues.push('الوصف قصير جداً (يفضل أكثر من 120 حرف)'); score -= 10; }
+    if (desc.length > 160) { issues.push('الوصف طويل جداً (يفضل أقل من 160 حرف)'); score -= 5; }
+
+    const kw = String(focusKeyword || '').trim().split(',')[0];
+    if (kw && !title.includes(kw)) { issues.push(`الكلمة المفتاحية "${kw}" غير موجودة في العنوان`); score -= 15; }
+    if (kw && !desc.includes(kw)) { issues.push(`الكلمة المفتاحية "${kw}" غير موجودة في الوصف`); score -= 10; }
+    if (kw && slug && !slug.includes(kw) && slug !== '/') { issues.push(`الكلمة المفتاحية "${kw}" غير موجودة في الرابط`); score -= 5; }
+
+    if (!title) { issues.push('العنوان مفقود'); score -= 20; }
+    if (!desc) { issues.push('الوصف مفقود'); score -= 20; }
+
+    res.json({ ok: true, score: Math.max(0, score), issues });
+  } catch (e) { res.status(500).json({ error: 'Analysis failed' }); }
+});
+
 export const adminExtra = r;
 

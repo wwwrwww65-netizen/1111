@@ -398,6 +398,13 @@ async function ensureSchema(): Promise<void> {
       ')'
     );
     await db.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Wishlist_userId_idx" ON "Wishlist"("userId")');
+
+    // Ensure SeoPage has advanced fields
+    try { await db.$executeRawUnsafe('ALTER TABLE "SeoPage" ADD COLUMN IF NOT EXISTS "sitemapPriority" DOUBLE PRECISION'); } catch { }
+    try { await db.$executeRawUnsafe('ALTER TABLE "SeoPage" ADD COLUMN IF NOT EXISTS "sitemapFrequency" TEXT'); } catch { }
+    try { await db.$executeRawUnsafe('ALTER TABLE "SeoPage" ADD COLUMN IF NOT EXISTS "author" TEXT'); } catch { }
+    try { await db.$executeRawUnsafe('ALTER TABLE "SeoPage" ADD COLUMN IF NOT EXISTS "alternateLinks" JSONB'); } catch { }
+
   } catch (e) {
     console.error('[ensureSchema] warning:', e);
   }
@@ -408,6 +415,9 @@ async function ensureCategoryColumnsAlways(): Promise<void> { return; }
 
 applySecurityMiddleware(app);
 app.use(cookieParser());
+import seoRouter from './routers/seo';
+app.use('/api/admin/seo', seoRouter);
+
 app.use('/api/admin', adminRest);
 app.use('/api/admin', adminExtra);
 // Public shop API for mweb
@@ -415,8 +425,9 @@ app.use('/api', shop);
 // Mount shipping webhooks (required by tests hitting /webhooks/shipping)
 app.use('/webhooks', shippingWebhooks);
 app.use('/api/admin', rbac);
-import seoRouter from './routers/seo';
-app.use('/api/admin/seo', seoRouter);
+
+// import seoRouter from './routers/seo';  <-- Removed/Moved
+// app.use('/api/admin/seo', seoRouter); <-- Removed/Moved
 import { mediaRouter } from './routers/media';
 app.use('/api/admin/media', mediaRouter);
 import { publicSeoRouter } from './routers/public-seo';
