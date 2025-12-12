@@ -7,7 +7,10 @@
         "./src/*"
       ]
     },
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "downlevelIteration": true,
+    "target": "es2019",
+    "noImplicitAny": false
   },
   "include": [
     "next-env.d.ts",

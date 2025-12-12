@@ -2354,8 +2354,9 @@ shop.get('/product/:id/variants', async (req, res) => {
       }
     }
     if (!p) return res.status(404).json({ error: 'not_found' })
+    const product = p
     // Use p.id (actual product ID) instead of id (which could be slug)
-    const productId = p.id
+    const productId = product.id
     const rows = await db.productVariant.findMany({
       where: { productId },
       select: { id: true, name: true, value: true, price: true, stockQuantity: true, sku: true },
@@ -2405,8 +2406,8 @@ shop.get('/product/:id/variants', async (req, res) => {
       let image: string | undefined
       try {
         const col = String(attributes_map['color'] || '').toLowerCase()
-        if (col && Array.isArray(p.images)) {
-          image = (p.images as string[]).find(u => (u.split('/').pop() || '').toLowerCase().includes(col))
+        if (col && Array.isArray(product.images)) {
+          image = (product.images as string[]).find(u => (u.split('/').pop() || '').toLowerCase().includes(col))
         }
       } catch { }
       // Back-compat aliases for clients expecting color/size fields
