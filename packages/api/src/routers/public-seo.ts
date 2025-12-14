@@ -588,6 +588,44 @@ publicSeoRouter.get('/product/:slug', (req, res) => handleSsr(req, res, 'product
 publicSeoRouter.get('/c/:slug', (req, res) => handleSsr(req, res, 'category'));
 publicSeoRouter.get('/category/:slug', (req, res) => handleSsr(req, res, 'category'));
 
+// Main Pages SSR (for social sharing - Facebook, WhatsApp, Twitter crawlers don't execute JS)
+publicSeoRouter.get('/products', (req, res) => {
+    req.params = { slug: '/products' };
+    handleSsr(req, res, 'page');
+});
+publicSeoRouter.get('/categories', (req, res) => {
+    req.params = { slug: '/categories' };
+    handleSsr(req, res, 'page');
+});
+publicSeoRouter.get('/categories/:slug', (req, res) => {
+    req.params = { slug: `/categories/${req.params.slug}` };
+    handleSsr(req, res, 'page');
+});
+publicSeoRouter.get('/cart', (req, res) => {
+    req.params = { slug: '/cart' };
+    handleSsr(req, res, 'page');
+});
+publicSeoRouter.get('/search', (req, res) => {
+    req.params = { slug: '/search' };
+    handleSsr(req, res, 'page');
+});
+publicSeoRouter.get('/search/result', (req, res) => {
+    req.params = { slug: '/search-results' };
+    handleSsr(req, res, 'page');
+});
+publicSeoRouter.get('/account', (req, res) => {
+    req.params = { slug: '/account' };
+    handleSsr(req, res, 'page');
+});
+publicSeoRouter.get('/wishlist', (req, res) => {
+    req.params = { slug: '/wishlist' };
+    handleSsr(req, res, 'page');
+});
+publicSeoRouter.get('/checkout', (req, res) => {
+    req.params = { slug: '/checkout' };
+    handleSsr(req, res, 'page');
+});
+
 // 4. Check Redirects (For Storefront Middleware)
 publicSeoRouter.get('/seo/redirect', async (req, res) => {
     try {
