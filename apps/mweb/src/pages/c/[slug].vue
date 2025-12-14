@@ -490,9 +490,7 @@ const seoOgUrl = computed(() => seoData.value?.ogTags?.url || seoCanonical.value
 const seoTwTitle = computed(() => seoData.value?.twitterCard?.title || seoTitle.value)
 const seoTwDesc = computed(() => seoData.value?.twitterCard?.description || seoDesc.value)
 const seoTwImage = computed(() => seoData.value?.twitterCard?.image || currentCategory.value?.image || '')
-const seoTwTitle = computed(() => seoData.value?.twitterCard?.title || seoTitle.value)
-const seoTwDesc = computed(() => seoData.value?.twitterCard?.description || seoDesc.value)
-const seoTwImage = computed(() => seoData.value?.twitterCard?.image || currentCategory.value?.image || '')
+
 const seoSchema = computed(() => seoData.value?.schema || '')
 const seoKeywords = computed(() => seoData.value?.keywords || '')
 const seoAuthor = computed(() => seoData.value?.author || '')
