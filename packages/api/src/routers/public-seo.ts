@@ -382,26 +382,39 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                 seoData = {
                     titleSeo: category.seoTitle || category.name,
                     metaDescription: category.seoDescription || category.description || `تصفح أفضل منتجات ${category.name} لدينا`,
+                    // Include keywords from Category table
+                    keywords: Array.isArray(category.seoKeywords) ? category.seoKeywords.join(', ') : '',
                     canonicalUrl: category.seo?.canonicalUrl || categoryUrl,
-                    ogTags: category.seo?.ogTags || {
-                        title: category.seoTitle || category.name,
-                        description: category.seoDescription || category.description || `تسوق من قسم ${category.name}`,
-                        image: category.image || '',
-                        url: categoryUrl,
-                        type: 'website'
-                    },
-                    twitterCard: {
-                        title: category.seoTitle || category.name,
-                        description: category.seoDescription || category.description || `تسوق من قسم ${category.name}`,
-                        image: category.image || '',
-                        card: 'summary_large_image'
-                    },
-                    schema: JSON.stringify(schemaObj),
+                    // Use ogTags from DB if available, else build defaults
+                    ogTags: category.seo?.ogTags && Object.keys(category.seo.ogTags).length > 0
+                        ? category.seo.ogTags
+                        : {
+                            title: category.seoTitle || category.name,
+                            description: category.seoDescription || category.description || `تسوق من قسم ${category.name}`,
+                            image: category.image || '',
+                            url: categoryUrl,
+                            type: 'website'
+                        },
+                    // Use twitterCard from DB if available, else build defaults
+                    twitterCard: category.seo?.twitterCard && Object.keys(category.seo.twitterCard).length > 0
+                        ? category.seo.twitterCard
+                        : {
+                            title: category.seoTitle || category.name,
+                            description: category.seoDescription || category.description || `تسوق من قسم ${category.name}`,
+                            image: category.image || '',
+                            card: 'summary_large_image'
+                        },
+                    // Use schema from DB if available, else use generated
+                    schema: category.seo?.schema && Object.keys(category.seo.schema).length > 0
+                        ? JSON.stringify(category.seo.schema)
+                        : JSON.stringify(schemaObj),
                     hiddenContent: category.seo?.hiddenContent,
                     metaRobots: category.seo?.metaRobots || "index, follow",
-                    // Advanced SEO
+                    // Advanced SEO from CategorySeo
                     author: (category.seo as any)?.author,
-                    alternateLinks: (category.seo as any)?.alternateLinks
+                    alternateLinks: (category.seo as any)?.alternateLinks,
+                    sitemapPriority: (category.seo as any)?.sitemapPriority,
+                    sitemapFrequency: (category.seo as any)?.sitemapFrequency
                 };
             }
         }
