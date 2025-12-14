@@ -117,6 +117,7 @@ function resolveLink(id: string) {
 const cats = ref<Cat[]>([])
 const loading = ref(true)
 const page = ref<PageData>({})
+const seoData = ref<any>(null)
 const selectedSidebarIndex = ref(0)
 const selectedSubcategory = ref<string|null>(null)
 
@@ -268,25 +269,18 @@ onMounted(async()=>{
   try {
      const seoRes = await apiGet<any>(`/api/seo/meta?type=page&slug=${encodeURIComponent(slug.value)}`)
      if (seoRes) {
-       // Merge or overwrite
-       page.value.seo = { 
-         title: seoRes.titleSeo,
-         description: seoRes.metaDescription,
-         keywords: seoRes.keywords, // check if api returns this
-         robots: seoRes.metaRobots,
-         canonicalUrl: seoRes.canonicalUrl,
-         hiddenContent: seoRes.hiddenContent
-       }
+       seoData.value = seoRes
        // Also update title prop for fallback
        if (seoRes.titleSeo) page.value.title = seoRes.titleSeo
      }
   } catch {}
 
   // Enhanced SEO (useHead)
+  // seoData defined at top
   const seoHead = computed(() => {
-    const s = page.value?.seo || {}
+    const s = seoData.value || {}
     const baseTitle = page.value?.title || 'Jeeey'
-    const pageTitle = s.title || baseTitle
+    const pageTitle = s.titleSeo || baseTitle
     
     // Canonical
     const u = typeof window !== 'undefined' ? new URL(window.location.href) : { origin: 'https://jeeey.com', href: 'https://jeeey.com' }
@@ -295,26 +289,38 @@ onMounted(async()=>{
        canonicalUrl = `${u.origin}/categories/${slug.value}`
     }
 
-    const metaDesc = s.description || baseTitle
-    const img = page.value?.promoBanner?.image || ''
+    const metaDesc = s.metaDescription || baseTitle
+    const img = s.ogTags?.image || page.value?.promoBanner?.image || ''
 
     return {
       title: pageTitle,
       meta: [
         { name: 'description', content: metaDesc },
         { name: 'keywords', content: s.keywords },
-        s.robots ? { name: 'robots', content: s.robots } : undefined,
+        { name: 'robots', content: s.metaRobots || 'index, follow' },
+        { name: 'author', content: s.author },
+        
         // OG
-        { property: 'og:title', content: pageTitle },
-        { property: 'og:type', content: 'website' },
-        { property: 'og:url', content: canonicalUrl },
-        { property: 'og:description', content: metaDesc },
+        { property: 'og:title', content: s.ogTags?.title || pageTitle },
+        { property: 'og:type', content: s.ogTags?.type || 'website' },
+        { property: 'og:url', content: s.ogTags?.url || canonicalUrl },
+        { property: 'og:description', content: s.ogTags?.description || metaDesc },
         { property: 'og:site_name', content: 'jeeey' },
-        img ? { property: 'og:image', content: img } : undefined,
+        { property: 'og:image', content: img },
+        
+        // Twitter
+        { name: 'twitter:card', content: s.twitterCard?.card || 'summary_large_image' },
+        { name: 'twitter:title', content: s.twitterCard?.title || pageTitle },
+        { name: 'twitter:description', content: s.twitterCard?.description || metaDesc },
+        { name: 'twitter:image', content: s.twitterCard?.image || img },
       ].filter(Boolean),
       link: [
-        { rel: 'canonical', href: canonicalUrl }
+        { rel: 'canonical', href: canonicalUrl },
+        ...(s.alternateLinks ? Object.entries(s.alternateLinks).map(([lang, url]) => ({ rel: 'alternate', hreflang: lang, href: String(url) })) : [])
       ],
+      script: [
+        s.schema ? { type: 'application/ld+json', innerHTML: s.schema } : undefined
+      ].filter(Boolean),
       // Hidden Content for SEO text
       bodyAttrs: s.hiddenContent ? { 'data-seo-hidden': 'true' } : {}
     }

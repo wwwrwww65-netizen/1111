@@ -2052,6 +2052,7 @@ useHead({
   title: seoTitle,
   meta: [
     { name: 'description', content: seoDesc },
+    { name: 'keywords', content: computed(() => seoData.value?.keywords) },
     { name: 'robots', content: seoRobots },
     { name: 'author', content: computed(() => seoData.value?.author) },
     { property: 'og:title', content: seoOgTitle },
@@ -2059,7 +2060,8 @@ useHead({
     { property: 'og:image', content: seoOgImage },
     { property: 'og:url', content: seoOgUrl },
     { property: 'og:type', content: 'product' },
-    { name: 'twitter:card', content: 'summary_large_image' },
+    { property: 'og:site_name', content: 'Jeeey' },
+    { name: 'twitter:card', content: computed(() => seoData.value?.twitterCard?.card || 'summary_large_image') },
     { name: 'twitter:title', content: seoTwTitle },
     { name: 'twitter:description', content: seoTwDesc },
     { name: 'twitter:image', content: seoTwImage },
@@ -2068,7 +2070,7 @@ useHead({
     const links: any[] = [{ rel: 'canonical', href: seoCanonical.value }];
     if (seoData.value?.alternateLinks) {
        for (const [lang, url] of Object.entries(seoData.value.alternateLinks)) {
-         links.push({ rel: 'alternate', hreflang: lang, href: url })
+         links.push({ rel: 'alternate', hreflang: lang, href: String(url) })
        }
     }
     return links

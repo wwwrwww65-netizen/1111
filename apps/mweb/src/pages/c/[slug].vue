@@ -1,5 +1,7 @@
 <template>
   <div class="min-h-screen bg-[#f7f7f7]" dir="rtl" @scroll.passive="onScroll" ref="page">
+    <!-- Hidden SEO Content -->
+    <div v-if="seoData && seoData.hiddenContent" id="seo-hidden-content" style="display:none;visibility:hidden;" v-html="seoData.hiddenContent"></div>
     <!-- الهيدر (ثابت أعلى) -->
     <div class="w-full bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
       <div class="h-12 px-2 flex items-center justify-between">
@@ -488,27 +490,42 @@ const seoOgUrl = computed(() => seoData.value?.ogTags?.url || seoCanonical.value
 const seoTwTitle = computed(() => seoData.value?.twitterCard?.title || seoTitle.value)
 const seoTwDesc = computed(() => seoData.value?.twitterCard?.description || seoDesc.value)
 const seoTwImage = computed(() => seoData.value?.twitterCard?.image || currentCategory.value?.image || '')
+const seoTwTitle = computed(() => seoData.value?.twitterCard?.title || seoTitle.value)
+const seoTwDesc = computed(() => seoData.value?.twitterCard?.description || seoDesc.value)
+const seoTwImage = computed(() => seoData.value?.twitterCard?.image || currentCategory.value?.image || '')
 const seoSchema = computed(() => seoData.value?.schema || '')
+const seoKeywords = computed(() => seoData.value?.keywords || '')
+const seoAuthor = computed(() => seoData.value?.author || '')
 
 // Initialize Head (Synchronously)
 useHead({
   title: seoTitle,
   meta: [
     { name: 'description', content: seoDesc },
+    { name: 'keywords', content: seoKeywords },
     { name: 'robots', content: seoRobots },
+    { name: 'author', content: seoAuthor },
     { property: 'og:title', content: seoOgTitle },
     { property: 'og:description', content: seoOgDesc },
     { property: 'og:image', content: seoOgImage },
     { property: 'og:url', content: seoOgUrl },
     { property: 'og:type', content: 'website' },
-    { name: 'twitter:card', content: 'summary_large_image' },
+    { property: 'og:site_name', content: 'Jeeey' },
+    { name: 'twitter:card', content: computed(() => seoData.value?.twitterCard?.card || 'summary_large_image') },
     { name: 'twitter:title', content: seoTwTitle },
     { name: 'twitter:description', content: seoTwDesc },
     { name: 'twitter:image', content: seoTwImage },
   ],
-  link: [
-    { rel: 'canonical', href: seoCanonical }
-  ],
+  link: computed(() => {
+    const links: any[] = []
+    if (seoCanonical.value) links.push({ rel: 'canonical', href: seoCanonical.value })
+    if (seoData.value?.alternateLinks) {
+      for (const [lang, url] of Object.entries(seoData.value.alternateLinks)) {
+        links.push({ rel: 'alternate', hreflang: lang, href: url })
+      }
+    }
+    return links
+  }),
   script: [
     { type: 'application/ld+json', innerHTML: seoSchema }
   ]
