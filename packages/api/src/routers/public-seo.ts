@@ -208,12 +208,13 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                 select: {
                     titleSeo: true,
                     metaDescription: true,
+                    focusKeyword: true,  // Added - was missing
                     canonicalUrl: true,
                     metaRobots: true,
+                    ogTags: true,        // Added - was missing!
                     twitterCard: true,
                     schema: true,
                     hiddenContent: true,
-                    // Cast to any to bypass strict Prisma type checking until client regeneration
                     author: true,
                     sitemapPriority: true,
                     sitemapFrequency: true,
@@ -221,21 +222,51 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                 } as any
             });
             if (page) {
-                seoData = page;
-                // For Homepage, inject WebSite schema if missing
-                if (lookupId === '/' && (!page.schema || Object.keys(page.schema).length === 0)) {
-                    seoData.schema = JSON.stringify({
-                        "@context": "https://schema.org",
-                        "@type": "WebSite",
-                        "name": siteName,
-                        "url": baseUrl,
-                        "potentialAction": {
-                            "@type": "SearchAction",
-                            "target": `${baseUrl}/search?q={search_term_string}`,
-                            "query-input": "required name=search_term_string"
-                        }
-                    });
-                }
+                // Format response consistently
+                const pageUrl = lookupId === '/' ? baseUrl : `${baseUrl}${lookupId.startsWith('/') ? '' : '/'}${lookupId}`;
+
+                // Build OG tags from stored data or defaults
+                const ogFromDb = page.ogTags && typeof page.ogTags === 'object' && Object.keys(page.ogTags).length > 0
+                    ? page.ogTags
+                    : null;
+
+                // Build Twitter card from stored data or defaults
+                const twFromDb = page.twitterCard && typeof page.twitterCard === 'object' && Object.keys(page.twitterCard).length > 0
+                    ? page.twitterCard
+                    : null;
+
+                seoData = {
+                    ...page,
+                    // Include keywords from focusKeyword
+                    keywords: page.focusKeyword || '',
+                    // OG Tags: use stored or build defaults
+                    ogTags: ogFromDb || {
+                        title: page.titleSeo || siteName,
+                        description: page.metaDescription || '',
+                        url: page.canonicalUrl || pageUrl,
+                        type: 'website'
+                    },
+                    // Twitter Card: use stored or build defaults
+                    twitterCard: twFromDb || {
+                        title: page.titleSeo || siteName,
+                        description: page.metaDescription || '',
+                        card: 'summary_large_image'
+                    },
+                    // Schema: use stored or generate default for homepage
+                    schema: page.schema && Object.keys(page.schema).length > 0
+                        ? JSON.stringify(page.schema)
+                        : (lookupId === '/' ? JSON.stringify({
+                            "@context": "https://schema.org",
+                            "@type": "WebSite",
+                            "name": siteName,
+                            "url": baseUrl,
+                            "potentialAction": {
+                                "@type": "SearchAction",
+                                "target": `${baseUrl}/search?q={search_term_string}`,
+                                "query-input": "required name=search_term_string"
+                            }
+                        }) : '')
+                };
             }
         }
     }
@@ -329,6 +360,10 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                 seoData = {
                     titleSeo: p.seo?.seoTitle || p.name,
                     metaDescription: (p.seo?.seoDescription || p.description)?.substring(0, 160),
+                    // Include keywords from ProductSeo
+                    keywords: Array.isArray((p.seo as any)?.seoKeywords)
+                        ? (p.seo as any).seoKeywords.join(', ')
+                        : '',
                     canonicalUrl: p.seo?.canonicalUrl || productUrl,
                     ogTags: finalOg,
                     twitterCard: finalTw,
@@ -338,6 +373,8 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                     // Advanced SEO 
                     author: (p.seo as any)?.author,
                     alternateLinks: (p.seo as any)?.alternateLinks,
+                    sitemapPriority: (p.seo as any)?.sitemapPriority,
+                    sitemapFrequency: (p.seo as any)?.sitemapFrequency,
 
                     // Extended data for SSR
                     productData: {

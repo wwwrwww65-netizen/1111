@@ -516,7 +516,8 @@ const seoHead = ref({
   title: 'الفئات',
   meta: [] as any[],
   link: [] as any[],
-  hiddenContent: '' // Computed property for hidden content
+  script: [] as any[],
+  hiddenContent: ''
 })
 useHead(seoHead)
 
@@ -529,17 +530,27 @@ onMounted(async () => {
         title: seo.titleSeo || 'الفئات',
         meta: [
           { name: 'description', content: seo.metaDescription },
+          { name: 'keywords', content: seo.keywords },
           { name: 'robots', content: seo.metaRobots },
           { name: 'author', content: seo.author },
-          { property: 'og:title', content: seo.titleSeo },
-          { property: 'og:description', content: seo.metaDescription },
+          { property: 'og:title', content: seo.ogTags?.title || seo.titleSeo },
+          { property: 'og:description', content: seo.ogTags?.description || seo.metaDescription },
           { property: 'og:image', content: seo.ogTags?.image || seo.siteLogo },
           { property: 'og:url', content: seo.canonicalUrl },
+          { property: 'og:type', content: 'website' },
+          { property: 'og:site_name', content: 'Jeeey' },
+          { name: 'twitter:card', content: seo.twitterCard?.card || 'summary_large_image' },
+          { name: 'twitter:title', content: seo.twitterCard?.title || seo.titleSeo },
+          { name: 'twitter:description', content: seo.twitterCard?.description || seo.metaDescription },
+          { name: 'twitter:image', content: seo.twitterCard?.image || seo.ogTags?.image },
         ].filter(Boolean),
         link: [ 
           { rel: 'canonical', href: seo.canonicalUrl },
-          ...(seo.alternateLinks ? Object.entries(seo.alternateLinks).map(([lang, url]) => ({ rel: 'alternate', hreflang: lang, href: url })) : [])
+          ...(seo.alternateLinks ? Object.entries(seo.alternateLinks).map(([lang, url]) => ({ rel: 'alternate', hreflang: lang, href: String(url) })) : [])
         ].filter(x=>x.href),
+        script: [
+          seo.schema ? { type: 'application/ld+json', innerHTML: seo.schema } : undefined
+        ].filter(Boolean),
         hiddenContent: seo.hiddenContent
       }
     }

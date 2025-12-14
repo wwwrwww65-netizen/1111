@@ -1627,12 +1627,17 @@ function openReviewImage(img: string) {
   // TODO: Implement lightbox for review images
 }
 
-// Share function
+// Share function - uses SEO-optimized data when available
 async function share(){
   try{
-    const data = { title: title.value, text: title.value, url: location.href }
+    // Use SEO title/description if available, fallback to product title
+    const shareTitle = seoTitle.value || title.value
+    const shareText = seoDesc.value || seoOgDesc.value || title.value
+    const shareUrl = seoCanonical.value || location.href
+    
+    const data = { title: shareTitle, text: shareText, url: shareUrl }
     if ((navigator as any).share) await (navigator as any).share(data)
-    else await navigator.clipboard.writeText(location.href)
+    else await navigator.clipboard.writeText(shareUrl)
   }catch{}
 }
 

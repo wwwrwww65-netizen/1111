@@ -373,6 +373,17 @@ import ProductOptionsModal from '@/components/ProductOptionsModal.vue'
 import { markTrending } from '../../lib/trending'
 import { apiGet, API_BASE, isAuthenticated } from '../../lib/api'
 import { buildThumbUrl } from '../../lib/media'
+import { useHead } from '@unhead/vue'
+
+// SEO State
+const seoHead = ref({
+  title: 'نتائج البحث',
+  meta: [] as any[],
+  link: [] as any[],
+  script: [] as any[],
+  hiddenContent: ''
+})
+useHead(seoHead)
 
 const router = useRouter();
 const route = useRoute();
@@ -470,6 +481,40 @@ onMounted(() => {
   headerSearchQ.value = q
   activeQuery.value = q
   void bootstrap()
+  
+  // Fetch SEO data for search results page
+  apiGet<any>('/api/seo/meta?type=page&slug=/search-results').then(seo => {
+    if (seo) {
+      const searchQuery = q || 'بحث'
+      seoHead.value = {
+        title: seo.titleSeo ? `${seo.titleSeo} - ${searchQuery}` : `نتائج البحث: ${searchQuery}`,
+        meta: [
+          { name: 'description', content: seo.metaDescription || `نتائج البحث عن "${searchQuery}"` },
+          { name: 'keywords', content: seo.keywords || searchQuery },
+          { name: 'robots', content: seo.metaRobots || 'index, follow' },
+          { name: 'author', content: seo.author },
+          { property: 'og:title', content: seo.ogTags?.title || `نتائج البحث: ${searchQuery}` },
+          { property: 'og:description', content: seo.ogTags?.description || seo.metaDescription },
+          { property: 'og:image', content: seo.ogTags?.image || seo.siteLogo },
+          { property: 'og:url', content: seo.canonicalUrl || location.href },
+          { property: 'og:type', content: 'website' },
+          { property: 'og:site_name', content: 'Jeeey' },
+          { name: 'twitter:card', content: seo.twitterCard?.card || 'summary_large_image' },
+          { name: 'twitter:title', content: seo.twitterCard?.title || `نتائج البحث: ${searchQuery}` },
+          { name: 'twitter:description', content: seo.twitterCard?.description || seo.metaDescription },
+          { name: 'twitter:image', content: seo.twitterCard?.image || seo.ogTags?.image },
+        ].filter(Boolean),
+        link: [
+          { rel: 'canonical', href: seo.canonicalUrl || location.href },
+          ...(seo.alternateLinks ? Object.entries(seo.alternateLinks).map(([lang, url]) => ({ rel: 'alternate', hreflang: lang, href: String(url) })) : [])
+        ].filter(x=>x.href),
+        script: [
+          seo.schema ? { type: 'application/ld+json', innerHTML: seo.schema } : undefined
+        ].filter(Boolean),
+        hiddenContent: seo.hiddenContent
+      }
+    }
+  }).catch(()=>{})
 });
 
 onActivated(() => {
