@@ -373,8 +373,14 @@ jobs:
               
               # Check if jeeey.conf already includes mweb-ssr.conf
               if ! grep -q 'include /etc/nginx/snippets/mweb-ssr.conf' /etc/nginx/sites-available/jeeey.conf 2>/dev/null; then
-                # Find the line with "location ~ ^/(p|product|c|category)/" and insert include before it
-                sed -i '/location ~ \^\/\(p\|product\|c\|category\)\//i\  # SSR for system pages (social media bots)\n  include /etc/nginx/snippets/mweb-ssr.conf;\n' /etc/nginx/sites-available/jeeey.conf || true
+                # Use awk to insert include directive before the product/category location block
+                awk '/location ~ \^\/\(p\|product\|c\|category\)\// {
+                  print "  # SSR for system pages (social media bots)"
+                  print "  include /etc/nginx/snippets/mweb-ssr.conf;"
+                  print ""
+                }
+                {print}' /etc/nginx/sites-available/jeeey.conf > /tmp/jeeey.conf.tmp
+                mv /tmp/jeeey.conf.tmp /etc/nginx/sites-available/jeeey.conf
                 echo 'Added include directive for mweb-ssr.conf in jeeey.conf'
               else
                 echo 'mweb-ssr.conf already included in jeeey.conf'
