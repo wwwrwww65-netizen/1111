@@ -416,10 +416,10 @@ async function ensureCategoryColumnsAlways(): Promise<void> { return; }
 
 applySecurityMiddleware(app);
 app.use(cookieParser());
-app.use('/api/admin/seo', seoRouter);
 
 app.use('/api/admin', adminRest);
 app.use('/api/admin', adminExtra);
+app.use('/api/admin/seo', seoRouter);
 // Public shop API for mweb
 app.use('/api', shop);
 // Mount shipping webhooks (required by tests hitting /webhooks/shipping)

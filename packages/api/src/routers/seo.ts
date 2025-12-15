@@ -1,15 +1,41 @@
 import { Router } from 'express';
 import { db } from '@repo/db';
+import { readAdminTokenFromRequest } from '../utils/jwt';
+import { verifyToken } from '../middleware/auth';
 
 const seoRouter = Router();
 
-// Middleware to ensure admin access
+// Middleware to ensure admin access (compatible with cookie-based auth from admin panel)
 seoRouter.use((req: any, res, next) => {
-  const user = req.user;
-  if (!user || user.role !== 'ADMIN') {
-    return res.status(403).json({ error: 'Forbidden' });
+  try {
+    // Try to read token from Authorization header or cookie
+    let token = readAdminTokenFromRequest(req);
+
+    // If no token, check for auth_token cookie (same-site admin panel)
+    if (!token) {
+      const raw = (req.headers['cookie'] as string | undefined) || '';
+      const m = /(?:^|; )auth_token=([^;]+)/.exec(raw);
+      if (m) {
+        token = m[1];
+      }
+    }
+
+    if (!token) {
+      return res.status(403).json({ error: 'Forbidden: No token provided' });
+    }
+
+    // Verify token
+    const payload = verifyToken(token);
+
+    if (!payload || payload.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Forbidden: Admin access required' });
+    }
+
+    req.user = payload;
+    next();
+  } catch (e: any) {
+    return res.status(403).json({ error: 'Forbidden: ' + (e.message || 'Invalid token') });
   }
-  next();
 });
 
 // List SEO Pages
