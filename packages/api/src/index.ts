@@ -35,6 +35,7 @@ import { adminExtra } from './routers/admin-extra';
 import shippingWebhooks from './routers/webhooks';
 import rbac from './routers/rbac';
 import shop from './routers/shop';
+import seoRouter from './routers/seo';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import http from 'http';
@@ -415,8 +416,7 @@ async function ensureCategoryColumnsAlways(): Promise<void> { return; }
 
 applySecurityMiddleware(app);
 app.use(cookieParser());
-// import seoRouter from './routers/seo';
-// app.use('/api/admin/seo', seoRouter);
+app.use('/api/admin/seo', seoRouter);
 
 app.use('/api/admin', adminRest);
 app.use('/api/admin', adminExtra);
@@ -426,8 +426,6 @@ app.use('/api', shop);
 app.use('/webhooks', shippingWebhooks);
 app.use('/api/admin', rbac);
 
-// import seoRouter from './routers/seo';  <-- Removed/Moved
-// app.use('/api/admin/seo', seoRouter); <-- Removed/Moved
 import { mediaRouter } from './routers/media';
 app.use('/api/admin/media', mediaRouter);
 import { publicSeoRouter } from './routers/public-seo';
@@ -917,13 +915,15 @@ app.get('/api/admin/health', (_req, res) => res.json({ ok: true, ts: Date.now() 
   const forceListen = process.env.API_FORCE_LISTEN === '1';
   if (process.env.NODE_ENV !== 'test' || forceListen) {
     const server = http.createServer(app);
-    const io = new IOServer(server, {
+    // Socket.IO options with proper typing
+    const socketOptions: any = {
       cors: {
-        origin: [process.env.NEXT_PUBLIC_ADMIN_URL || 'https://admin.jeeey.com'],
+        origin: process.env.NEXT_PUBLIC_ADMIN_URL || 'https://admin.jeeey.com',
         credentials: true
       },
       path: '/socket.io'
-    });
+    };
+    const io = new IOServer(server, socketOptions);
     setIo(io);
     io.on('connection', (socket) => {
       socket.emit('hello', { ok: true });
