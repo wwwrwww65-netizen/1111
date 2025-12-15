@@ -221,7 +221,10 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                     alternateLinks: true
                 } as any
             });
+            console.log('[SEO Debug] Looking for page with slug:', lookupId);
+            console.log('[SEO Debug] Found page:', page ? 'YES' : 'NO');
             if (page) {
+                console.log('[SEO Debug] Page data:', JSON.stringify(page, null, 2));
                 // Format response consistently
                 const pageUrl = lookupId === '/' ? baseUrl : `${baseUrl}${lookupId.startsWith('/') ? '' : '/'}${lookupId}`;
 
