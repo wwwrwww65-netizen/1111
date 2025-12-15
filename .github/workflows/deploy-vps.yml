@@ -364,27 +364,6 @@ jobs:
               nginx -t || true
               echo 'Nginx config staged; reload will occur after ensure-https.'
             fi
-            echo '--- Install mweb SSR config for social media bots ---'
-            if [ -f nginx/mweb-ssr.conf ]; then
-              # Copy SSR config to snippets directory
-              mkdir -p /etc/nginx/snippets || true
-              cp nginx/mweb-ssr.conf /etc/nginx/snippets/mweb-ssr.conf
-              echo 'mweb-ssr.conf installed to /etc/nginx/snippets/'
-              
-              # Check if jeeey.conf already includes mweb-ssr.conf
-              if ! grep -q 'include /etc/nginx/snippets/mweb-ssr.conf' /etc/nginx/sites-available/jeeey.conf 2>/dev/null; then
-                # Use awk in single line to avoid DRONE_SSH error injection
-                awk '/location ~ \^\/\(p\|product\|c\|category\)\// { print "  # SSR for system pages (social media bots)"; print "  include /etc/nginx/snippets/mweb-ssr.conf;"; print "" } {print}' /etc/nginx/sites-available/jeeey.conf > /tmp/jeeey.conf.tmp && mv /tmp/jeeey.conf.tmp /etc/nginx/sites-available/jeeey.conf
-                echo 'Added include directive for mweb-ssr.conf in jeeey.conf'
-              else
-                echo 'mweb-ssr.conf already included in jeeey.conf'
-              fi
-              
-              # Test nginx config after adding SSR
-              nginx -t || true
-            else
-              echo 'nginx/mweb-ssr.conf not found; skipping SSR config installation'
-            fi
             echo '--- Ensure HTTPS (certbot if configured) ---'
             CERT_EMAIL='${{ secrets.CERTBOT_EMAIL || vars.CERTBOT_EMAIL }}'
             # Always run ensure-https.sh; it will skip issuance if CERTBOT_EMAIL is empty but still write SSL config
