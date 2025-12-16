@@ -191,14 +191,16 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
 
     if (url && typeof url === 'string') {
         const pMatch = url.match(/\/p\/([^\/\?]+)/) || url.match(/\/products\/([^\/\?]+)/);
-        if (pMatch) exactSlug = pMatch[1];
+        if (pMatch) exactSlug = decodeURIComponent(pMatch[1]);
         const cMatch = url.match(/\/c\/([^\/\?]+)/) || url.match(/\/category\/([^\/\?]+)/);
-        if (cMatch) exactSlug = cMatch[1];
+        if (cMatch) exactSlug = decodeURIComponent(cMatch[1]);
         // Handle Root
         if (url === '/' || url === '') exactSlug = '/';
     }
 
-    const lookupId = exactId || exactSlug || (slug as string);
+    // Ensure we decode the slug if it came directly from query params and wasn't decoded (though Express usually does)
+    const rawSlug = exactId || exactSlug || (slug as string);
+    const lookupId = rawSlug ? decodeURIComponent(rawSlug) : rawSlug;
 
     // A. Try fetching from SEO Pages first (covers Root '/' and system pages)
     if (!type || type === 'page' || lookupId === '/') {

@@ -5,6 +5,12 @@ map $http_user_agent $is_mobile {
   ~*(iphone|android|mobile|ipad|ipod) 1;
 }
 
+# Map for Social Media/Crawler Bots to trigger SSR
+map $http_user_agent $ssr_bot {
+  default 0;
+  "~*(facebookexternalhit|WhatsApp|Twitterbot|LinkedInBot|TelegramBot|Slackbot|Discordbot|Google-InspectionTool|Googlebot|bingbot|Baiduspider|YandexBot|DuckDuckBot)" 1;
+}
+
 # Proxy cache for image thumbnails (safe to define at http-level)
 proxy_cache_path /var/cache/nginx/thumbs levels=1:2 keys_zone=thumbs_cache:50m inactive=30d max_size=10g;
 # Micro-cache for public JSON GET endpoints (short TTL)
@@ -556,5 +562,28 @@ server {
     add_header Cache-Control "no-store, must-revalidate" always;
   }
 
-  location / { try_files $uri $uri/ /index.html; }
+  location / {
+    # SSR Logic: If it's a bot aiming for content pages, rewrite to internal SSR location
+    # Covers: Root (/), /p/..., /product/..., /c/..., /category/..., /products, /categories
+    if ($ssr_bot) {
+      rewrite ^/$ /ssr-internal/ last;
+      rewrite ^/((?:p|product|c|category|categories|products).*) /ssr-internal/$1 last;
+    }
+    
+    try_files $uri $uri/ /index.html;
+  }
+
+  # Internal location to proxy bots to Backend API for SSR
+  location ~ ^/ssr-internal/(.*)$ {
+    internal;
+    proxy_pass http://127.0.0.1:4000/$1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    # Ensure backend knows it's an SSR request if needed, though URL path is enough
+  }
 }
