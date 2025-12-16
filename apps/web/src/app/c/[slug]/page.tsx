@@ -8,7 +8,7 @@ type Props = {
 async function getCategory(slug: string): Promise<any> {
     const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
     try {
-        const res = await fetch(`${apiUrl}/api/shop/category/${encodeURIComponent(slug)}`, { cache: 'no-store' }); // Use the new endpoint
+        const res = await fetch(`${apiUrl}/api/category/${encodeURIComponent(slug)}`, { cache: 'no-store' }); // Use the new endpoint
         if (!res.ok) return null;
         const json = await res.json();
         return json.category || null;

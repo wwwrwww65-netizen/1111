@@ -250,6 +250,27 @@ server {
   gzip_types text/plain text/css application/json application/javascript application/xml image/svg+xml text/javascript;
   # Brotli disabled (module not available on some servers) — rely on gzip
 
+  # Ensure Next.js static assets are served directly by Nginx (Critical for Standalone mode)
+  location ^~ /_next/static/ {
+    alias /var/www/ecom/apps/web/.next/static/;
+    expires 365d;
+    access_log off;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+  }
+
+  # Pass other /_next/ requests (data, etc.) to Node.js
+  location ^~ /_next/ {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+  }
+
+
   # Google Verification HTML (Proxy to API)
   location ~ ^/google.*\.html$ {
     proxy_pass http://127.0.0.1:4000;
