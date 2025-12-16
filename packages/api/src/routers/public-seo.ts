@@ -156,13 +156,15 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
     let seoData: any = null;
 
     // Fetch Global Settings
-    const settings = await db.setting.findMany({ where: { key: { in: ['site_url', 'site_name', 'site_logo', 'twitter_site', 'google_verification', 'bing_verification'] } } });
+    // Fetch Global Settings
+    const settings = await db.setting.findMany({ where: { key: { in: ['site_url', 'site_name', 'site_logo', 'twitter_site', 'google_verification', 'bing_verification', 'currency'] } } });
     const getSetting = (key: string) => (settings.find(s => s.key === key)?.value as any)?.value;
 
     const baseUrl = getSetting('site_url') || process.env.NEXT_PUBLIC_SITE_URL || 'https://jeeey.com';
-    const siteName = getSetting('site_name') || 'جي jeeey'; // Default per user request
+    const siteName = getSetting('site_name') || 'جي jeeey';
     const siteLogo = getSetting('site_logo') || '';
     const twitterSite = getSetting('twitter_site') || '@jeeey_com';
+    const storeCurrency = getSetting('currency') || 'YER'; // Default to YER for Jeeey
     let googleVerification = getSetting('google_verification') || '';
     let bingVerification = getSetting('bing_verification') || '';
 
@@ -308,7 +310,7 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                 const offers = p.variants.length > 0 ? p.variants.map(v => ({
                     "@type": "Offer",
                     "url": `${productUrl}?variant=${v.id}`,
-                    "priceCurrency": "SAR",
+                    "priceCurrency": storeCurrency,
                     "price": v.price || p.price,
                     "sku": v.sku || v.id,
                     "name": v.name,
@@ -317,7 +319,7 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                 })) : [{
                     "@type": "Offer",
                     "url": productUrl,
-                    "priceCurrency": "SAR",
+                    "priceCurrency": storeCurrency,
                     "price": p.price,
                     "availability": p.isActive ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
                     "itemCondition": "https://schema.org/NewCondition"
@@ -345,9 +347,19 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                     url: productUrl,
                     type: 'product'
                 };
-                const finalOg = p.seo?.ogTags && typeof p.seo.ogTags === 'object'
+
+                // Helper to clean blob URLs (Auto-fix for incorrect admin input)
+                const cleanBlob = (tags: any) => {
+                    if (tags?.image && String(tags.image).startsWith('blob:')) {
+                        return { ...tags, image: imageUrl };
+                    }
+                    return tags;
+                };
+
+                const rawOg = p.seo?.ogTags && typeof p.seo.ogTags === 'object'
                     ? { ...defaultOg, ...p.seo.ogTags }
                     : defaultOg;
+                const finalOg = cleanBlob(rawOg);
 
                 const defaultTw = {
                     title: p.seo?.seoTitle || p.name,
@@ -355,9 +367,10 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                     image: imageUrl,
                     card: 'summary_large_image'
                 };
-                const finalTw = p.seo && (p.seo as any).twitterCard && typeof (p.seo as any).twitterCard === 'object'
+                const rawTw = p.seo && (p.seo as any).twitterCard && typeof (p.seo as any).twitterCard === 'object'
                     ? { ...defaultTw, ...(p.seo as any).twitterCard }
                     : defaultTw;
+                const finalTw = cleanBlob(rawTw);
 
                 seoData = {
                     titleSeo: p.seo?.seoTitle || p.name,
@@ -381,7 +394,7 @@ async function resolveSeoData(params: { slug?: string, type?: string, id?: strin
                     // Extended data for SSR
                     productData: {
                         price: p.variants?.[0]?.price || p.price,
-                        currency: 'SAR',
+                        currency: storeCurrency,
                         availability: p.isActive && (p.variants.every(v => v.stockQuantity > 0) || !p.variants.length) ? 'instock' : 'oos',
                         brand: p.brand || "Jeeey",
                         sku: p.sku || p.id
