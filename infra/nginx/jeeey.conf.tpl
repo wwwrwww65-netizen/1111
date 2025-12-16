@@ -563,11 +563,10 @@ server {
   }
 
   location / {
-    # SSR Logic: If it's a bot aiming for content pages, rewrite to internal SSR location
-    # Covers: Root (/), /p/..., /product/..., /c/..., /category/..., /products, /categories
+    # SSR Logic: Catch-ALL for bots to support any Custom SEO Page (Home, About, Privacy, etc.)
+    # Exclude static files just in case (though usually handled by other locations)
     if ($ssr_bot) {
-      rewrite ^/$ /ssr-internal/ last;
-      rewrite ^/((?:p|product|c|category|categories|products).*) /ssr-internal/$1 last;
+      rewrite ^/(.*)$ /ssr-internal/$1 last;
     }
     
     try_files $uri $uri/ /index.html;
