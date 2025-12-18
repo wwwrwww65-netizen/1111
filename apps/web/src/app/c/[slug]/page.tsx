@@ -68,19 +68,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         } catch { }
     }
 
-    // Extract Open Graph data
+    // Extract Open Graph data (matching mweb implementation)
     const ogData = seo?.ogTags || {};
     const ogTitle = ogData.title || titleText;
     const ogDescription = ogData.description || descriptionText;
     const ogImage = ogData.image || cat?.image || '';
     const ogUrl = ogData.url || seo?.canonicalUrl || `https://jeeey.com/c/${params.slug}`;
+    const ogType = ogData.type || 'website';
+    const ogLocale = ogData.locale || 'ar_SA';
 
-    // Extract Twitter Card data
+    // Extract Twitter Card data (matching mweb implementation)
     const twData = seo?.twitterCard || {};
     const twCard = twData.card || 'summary_large_image';
-    const twTitle = twData.title || titleText;
-    const twDescription = twData.description || descriptionText;
-    const twImage = twData.image || ogImage;
+    const twTitle = twData.title || ogTitle; // Fallback to OG title like mweb
+    const twDescription = twData.description || ogDescription; // Fallback to OG description
+    const twImage = twData.image || ogImage; // Fallback to OG image
+    const twSite = twData.site || seo?.twitterSite || undefined;
+    const twCreator = twData.creator || seo?.twitterCreator || undefined;
 
     return {
         title: titleText,
@@ -90,17 +94,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         openGraph: {
             title: ogTitle,
             description: ogDescription,
-            images: ogImage ? [{ url: ogImage }] : undefined,
+            images: ogImage ? [{ url: ogImage, alt: ogTitle }] : undefined,
             url: ogUrl,
             siteName: seo?.siteName || 'Jeeey',
-            type: 'website',
-            locale: 'ar_SA',
+            type: ogType as any,
+            locale: ogLocale,
         },
         twitter: {
             card: twCard as any,
             title: twTitle,
             description: twDescription,
             images: twImage ? [twImage] : undefined,
+            site: twSite,
+            creator: twCreator,
         },
         robots: {
             index: seo?.metaRobots ? !seo.metaRobots.includes('noindex') : true,
