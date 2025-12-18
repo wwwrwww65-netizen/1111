@@ -18,34 +18,61 @@ async function getSeoMetadata() {
 export async function generateMetadata(): Promise<Metadata> {
   const seo = await getSeoMetadata();
   const titleText = seo?.titleSeo || 'التصنيفات';
+  const descriptionText = seo?.metaDescription || 'تسوق حسب التصنيف - اكتشف أفضل العروض والمنتجات المميزة';
 
-  // Parse alternate links if they exist/are JSON
+  // Parse keywords (can be string or array)
+  let keywordsArray: string[] = [];
+  if (seo?.keywords) {
+    if (typeof seo.keywords === 'string') {
+      keywordsArray = seo.keywords.split(',').map((k: string) => k.trim()).filter(Boolean);
+    } else if (Array.isArray(seo.keywords)) {
+      keywordsArray = seo.keywords;
+    }
+  }
+
+  // Parse alternate links
   let languages = {};
   if (seo?.alternateLinks) {
-    try { languages = typeof seo.alternateLinks === 'string' ? JSON.parse(seo.alternateLinks) : seo.alternateLinks; } catch { }
+    try {
+      languages = typeof seo.alternateLinks === 'string' ? JSON.parse(seo.alternateLinks) : seo.alternateLinks;
+    } catch { }
   }
+
+  // Extract Open Graph data
+  const ogData = seo?.ogTags || {};
+  const ogTitle = ogData.title || titleText;
+  const ogDescription = ogData.description || descriptionText;
+  const ogImage = ogData.image || 'https://jeeey.com/images/og-default.jpg';
+  const ogUrl = ogData.url || seo?.canonicalUrl || 'https://jeeey.com/categories';
+
+  // Extract Twitter Card data
+  const twData = seo?.twitterCard || {};
+  const twCard = twData.card || 'summary_large_image';
+  const twTitle = twData.title || titleText;
+  const twDescription = twData.description || descriptionText;
+  const twImage = twData.image || ogImage;
 
   return {
     title: titleText,
-    description: seo?.metaDescription || 'تسوق حسب التصنيف - اكتشف أفضل العروض والمنتجات المميزة',
+    description: descriptionText,
     applicationName: seo?.siteName || 'Jeeey',
-    keywords: seo?.keywords ? seo.keywords.split(',').map((k: string) => k.trim()) : undefined,
+    keywords: keywordsArray.length > 0 ? keywordsArray.join(', ') : undefined,
     authors: seo?.author ? [{ name: seo.author }] : undefined,
-    openGraph: seo?.ogTags ? {
-      title: seo.ogTags.title || titleText,
-      description: seo.ogTags.description || seo.metaDescription,
-      images: seo.ogTags.image ? [{ url: seo.ogTags.image }] : undefined,
-      url: 'https://jeeey.com/categories',
-      siteName: seo.siteName || 'Jeeey',
+    openGraph: {
+      title: ogTitle,
+      description: ogDescription,
+      images: ogImage ? [{ url: ogImage }] : undefined,
+      url: ogUrl,
+      siteName: seo?.siteName || 'Jeeey',
       locale: 'ar_SA',
       type: 'website',
-    } : undefined,
-    twitter: seo?.twitterCard ? {
-      card: 'summary_large_image',
-      title: seo.twitterCard.title || titleText,
-      description: seo.twitterCard.description || seo.metaDescription,
-      images: seo.twitterCard.image ? [seo.twitterCard.image] : undefined,
-    } : undefined,
+    },
+    twitter: {
+      card: twCard as any,
+      title: twTitle,
+      description: twDescription,
+      images: twImage ? [twImage] : undefined,
+    },
     robots: {
       index: seo?.metaRobots ? !seo.metaRobots.includes('noindex') : true,
       follow: seo?.metaRobots ? !seo.metaRobots.includes('nofollow') : true,
@@ -59,8 +86,10 @@ export async function generateMetadata(): Promise<Metadata> {
       languages: Object.keys(languages).length > 0 ? languages : undefined,
     },
     other: {
-      'bing-site-verification': seo?.bingVerification,
-      'google-site-verification': seo?.googleVerification,
+      ...(seo?.sitemapPriority ? { 'sitemap-priority': String(seo.sitemapPriority) } : {}),
+      ...(seo?.sitemapFrequency ? { 'sitemap-frequency': seo.sitemapFrequency } : {}),
+      ...(seo?.bingVerification ? { 'bing-site-verification': seo.bingVerification } : {}),
+      ...(seo?.googleVerification ? { 'google-site-verification': seo.googleVerification } : {}),
     }
   };
 }
@@ -91,11 +120,20 @@ export default async function CategoriesPage() {
 
   return (
     <main className="min-h-screen p-0 bg-gray-50">
+      {/* Hidden SEO Content */}
+      {seo?.hiddenContent && (
+        <div
+          id="seo-hidden-content"
+          style={{ display: 'none', visibility: 'hidden' }}
+          dangerouslySetInnerHTML={{ __html: seo.hiddenContent }}
+        />
+      )}
+
       {/* Inject Advanced JSON-LD Schema if present */}
       {seo?.schema && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: seo.schema }}
+          dangerouslySetInnerHTML={{ __html: typeof seo.schema === 'string' ? seo.schema : JSON.stringify(seo.schema) }}
         />
       )}
 
