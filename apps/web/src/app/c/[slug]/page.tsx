@@ -9,9 +9,9 @@ type Props = {
 async function getSeoMetadata(slug: string) {
     const validApi = process.env.INTERNAL_API_URL || 'http://127.0.0.1:4000';
     const decoded = decodeURIComponent(slug);
-    // Note: type=product_category tells the system to look up category SEO logic
+    // Fixed: Send just the slug, not /c/ prefix - API handles path internally
     try {
-        const res = await fetch(`${validApi}/api/seo/meta?type=category&slug=/c/${encodeURIComponent(decoded)}`, {
+        const res = await fetch(`${validApi}/api/seo/meta?type=category&slug=${encodeURIComponent(decoded)}`, {
             next: { revalidate: 60 }
         });
         if (!res.ok) return null;
