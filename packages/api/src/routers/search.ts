@@ -77,7 +77,17 @@ export const searchRouter = router({
       }
 
       if (categoryId) {
-        where.categoryId = categoryId;
+        // Include products from the category and its direct subcategories
+        const related = await db.category.findMany({
+          where: { OR: [{ id: categoryId }, { parentId: categoryId }] },
+          select: { id: true }
+        });
+        const ids = related.map(c => c.id);
+        if (ids.length > 0) {
+          where.categoryId = { in: ids };
+        } else {
+          where.categoryId = categoryId;
+        }
       }
 
       if (minPrice !== undefined || maxPrice !== undefined) {
@@ -375,32 +385,40 @@ export const searchRouter = router({
       };
     }),
 
-  // Get search filters
+  // Get search filters - Optimized for performance
   getSearchFilters: publicProcedure
     .query(async () => {
-      const [categories, priceRanges, brands] = await Promise.all([
-        db.category.findMany({
-          select: { id: true, name: true, slug: true, image: true, _count: { select: { products: true } } },
-          orderBy: { name: 'asc' },
-        }),
-        db.product.aggregate({
-          _min: { price: true },
-          _max: { price: true },
-        }),
-        db.product.findMany({
-          where: { isActive: true, brand: { not: null } },
-          select: { brand: true },
-          distinct: ['brand'],
-        }),
-      ]);
+      try {
+        const [categories, priceRanges] = await Promise.all([
+          db.category.findMany({
+            select: { id: true, name: true, slug: true, image: true },
+            // Removed strict product check to allow categories to appear
+            orderBy: { sortOrder: 'asc' },
+            take: 100,
+          }),
+          db.product.aggregate({
+            _min: { price: true },
+            _max: { price: true },
+            where: { isActive: true },
+          }),
+        ]);
 
-      return {
-        categories: categories.filter((cat: any) => cat._count.products > 0),
-        priceRange: {
-          min: priceRanges._min.price || 0,
-          max: priceRanges._max.price || 1000,
-        },
-        brands: brands.map((b: any) => b.brand).filter(Boolean),
-      };
+        return {
+          categories,
+          priceRange: {
+            min: priceRanges._min.price || 0,
+            max: priceRanges._max.price || 10000,
+          },
+          brands: [], // Temporarily disabled for performance
+        };
+      } catch (error) {
+        console.error('Error fetching search filters:', error);
+        // Return safe defaults in case of error
+        return {
+          categories: [],
+          priceRange: { min: 0, max: 10000 },
+          brands: [],
+        };
+      }
     }),
 });

@@ -422,12 +422,14 @@ app.use('/api/admin', adminExtra);
 app.use('/api/admin/seo', seoRouter);
 // Public shop API for mweb
 app.use('/api', shop);
+
 // Mount shipping webhooks (required by tests hitting /webhooks/shipping)
 app.use('/webhooks', shippingWebhooks);
 app.use('/api/admin', rbac);
 
 import { mediaRouter } from './routers/media';
 app.use('/api/admin/media', mediaRouter);
+
 import { publicSeoRouter } from './routers/public-seo';
 app.use('/', publicSeoRouter);
 app.use('/api', publicSeoRouter); // Support /api/seo/meta calls from frontend
@@ -581,7 +583,7 @@ app.get('/metrics/basic', (_req, res) => {
   }
 });
 app.use(
-  '/trpc',
+  ['/trpc', '/api/trpc'],
   trpcExpress.createExpressMiddleware({
     router: appRouter,
     createContext,

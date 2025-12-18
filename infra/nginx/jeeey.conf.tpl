@@ -308,6 +308,41 @@ server {
 
   if ($is_mobile) { return 302 https://m.jeeey.com$request_uri; }
 
+  # Service Worker - Serve directly to avoid Next.js 404
+  location = /sw.js {
+    alias /var/www/ecom/apps/web/public/sw.js;
+    default_type application/javascript;
+    add_header Service-Worker-Allowed "/" always;
+    add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+    add_header X-Content-Type-Options "nosniff" always;
+  }
+
+  location = /favicon.ico {
+    alias /var/www/ecom/apps/web/public/favicon.ico;
+    access_log off;
+    expires 1d;
+  }
+
+  # Generic same-origin proxy to API for public endpoints
+  location ^~ /api/ {
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header Cookie $http_cookie;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_request_buffering off;
+    proxy_read_timeout 120s;
+    proxy_connect_timeout 30s;
+    proxy_send_timeout 120s;
+    proxy_buffers 8 16k;
+    proxy_busy_buffers_size 64k;
+    proxy_pass http://127.0.0.1:4000;
+  }
+
   location / {
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;

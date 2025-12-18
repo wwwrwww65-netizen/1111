@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import { db } from '@repo/db';
-import type { Prisma } from '@prisma/client';
 import { readTokenFromRequest, verifyJwt, signJwt } from '../utils/jwt';
 import type { Request } from 'express';
 import type { Response } from 'express';
@@ -84,7 +83,7 @@ function clearShopCookies(res: Response): void {
   const names = ['shop_auth_token', 'auth_token'];
   // Host-only clears
   for (const name of names) {
-    try { res.clearCookie(name, base); } catch { }
+    try { (res as any).clearCookie(name, base); } catch { }
   }
   // Domain clears for apex (e.g., .jeeey.com) when configured/known
   let domain = process.env.COOKIE_DOMAIN as string | undefined;
@@ -93,14 +92,14 @@ function clearShopCookies(res: Response): void {
   }
   if (domain) {
     for (const name of names) {
-      try { res.clearCookie(name, { ...base, domain }); } catch { }
+      try { (res as any).clearCookie(name, { ...base, domain }); } catch { }
     }
     // Also clear api subdomain variant for stricter browsers
     try {
       const root = domain.startsWith('.') ? domain.slice(1) : domain;
       if (root) {
         for (const name of names) {
-          try { res.clearCookie(name, { ...base, domain: `api.${root}` }); } catch { }
+          try { (res as any).clearCookie(name, { ...base, domain: `api.${root}` }); } catch { }
         }
       }
     } catch { }
@@ -575,6 +574,20 @@ shop.get('/tabs/list', async (_req: any, res) => {
     } as any);
     return res.json({ tabs: rows });
   } catch (e: any) { return res.status(500).json({ error: e?.message || 'tabs_list_failed' }); }
+});
+
+// List all active categories directly
+shop.get('/categories/all', async (req: any, res) => {
+  try {
+    setPublicCache(res, 60, 300); // 1 minute cache
+    const categories = await db.category.findMany({
+      select: { id: true, name: true, slug: true, image: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+    return res.json(categories);
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || 'categories_list_failed' });
+  }
 });
 
 // List published Categories tabs only (content.type === 'categories-v1')
@@ -5769,7 +5782,7 @@ shop.post('/payments/session', requireAuth, async (req: any, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message || 'failed' }) }
 })
 // Stripe webhook (signature validation omitted for brevity)
-shop.post('/webhooks/stripe', async (req: Request, res) => {
+shop.post('/webhooks/stripe', async (req: any, res) => {
   try {
     const event: any = req.body
     if (event?.type === 'checkout.session.completed') {

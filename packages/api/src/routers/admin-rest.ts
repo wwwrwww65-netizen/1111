@@ -1,4 +1,5 @@
 import express, { Router, Request, Response } from 'express';
+
 import { verifyToken, createToken } from '../middleware/auth';
 import { readTokenFromRequest, readAdminTokenFromRequest } from '../utils/jwt';
 import { setAuthCookies, clearAuthCookies } from '../utils/cookies';
@@ -9,7 +10,8 @@ import { Parser as CsvParser } from 'json2csv';
 import type * as XLSX from 'xlsx';
 import rateLimit from 'express-rate-limit';
 import PDFDocument from 'pdfkit';
-import { authenticator } from 'otplib';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { authenticator } = require('otplib');
 import { v2 as cloudinary } from 'cloudinary';
 import type { Readable } from 'stream';
 import { z } from 'zod';
@@ -500,9 +502,9 @@ const can = async (userId: string, permKey: string): Promise<boolean> => {
 
 const audit = async (req: Request, module: string, action: string, details?: any) => {
   try {
-    const user = (req as any).user as { userId: string } | undefined;
+    const user = req.user;
     const userId = process.env.NODE_ENV === 'test' ? null : (user?.userId || null);
-    await db.auditLog.create({ data: { userId, module, action, details, ip: req.ip, userAgent: req.headers['user-agent'] as string | undefined } });
+    await db.auditLog.create({ data: { userId, module, action, details, ip: req.ip || '', userAgent: req.headers['user-agent'] as string | undefined } });
   } catch { }
 };
 
@@ -538,7 +540,7 @@ adminRest.use((req: Request, res: Response, next) => {
       const raw = (req.headers['cookie'] as string | undefined) || '';
       const m = /(?:^|; )auth_token=([^;]+)/.exec(raw);
       if (m) {
-        (req as any).user = { userId: 'cookie-session', role: 'ADMIN' };
+        req.user = { userId: 'cookie-session', role: 'ADMIN' };
         return next();
       }
       return res.status(401).json({ error: 'No token provided' });
@@ -556,7 +558,7 @@ adminRest.use((req: Request, res: Response, next) => {
       }
     }
     if (payload.role !== 'ADMIN') return res.status(403).json({ error: 'Admin access required' });
-    (req as any).user = payload;
+    req.user = payload;
     next();
   } catch (e: any) {
     return res.status(401).json({ error: e.message || 'Unauthorized' });
@@ -566,7 +568,7 @@ adminRest.use((req: Request, res: Response, next) => {
 // Global 403 auditor for admin REST
 adminRest.use((req: Request, res: Response, next) => {
   const original = res.status.bind(res);
-  (res as any).status = (code: number) => {
+  res.status = (code: number) => {
     if (code === 403) { try { void audit(req, 'security', 'forbidden', { path: req.path }); } catch { } }
     return original(code);
   };
@@ -576,14 +578,14 @@ adminRest.use((req: Request, res: Response, next) => {
 // Roles & Permissions
 adminRest.get('/roles', async (req, res) => {
   try {
-    const u = (req as any).user; const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'users.manage')) || (await can(u.userId, 'roles.manage')); if (!allowed) return res.status(403).json({ error: 'forbidden' });
+    const u = req.user; const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'users.manage')) || (await can(u.userId, 'roles.manage')); if (!allowed) return res.status(403).json({ error: 'forbidden' });
     const list = await db.role.findMany({ include: { permissions: { include: { permission: true } } }, orderBy: { name: 'asc' } });
     res.json({ roles: list.map(r => ({ id: r.id, name: r.name, permissions: r.permissions.map(p => ({ id: p.permission.id, key: p.permission.key, description: p.permission.description })) })) });
   } catch (e: any) { res.status(500).json({ error: e.message || 'roles_list_failed' }); }
 });
 adminRest.post('/roles', async (req, res) => {
   try {
-    const u = (req as any).user; const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'roles.manage')); if (!allowed) return res.status(403).json({ error: 'forbidden' });
+    const u = req.user; const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'roles.manage')); if (!allowed) return res.status(403).json({ error: 'forbidden' });
     const name = String((req.body?.name || '')).trim(); if (!name) return res.status(400).json({ error: 'name_required' });
     const r = await db.role.create({ data: { name } }); await audit(req, 'roles', 'create', { id: r.id }); res.json({ role: r });
   } catch (e: any) { res.status(500).json({ error: e.message || 'role_create_failed' }); }
@@ -744,7 +746,7 @@ adminRest.post('/maintenance/bootstrap-pickup', async (req, res) => {
 });
 adminRest.get('/permissions', async (req, res) => {
   try {
-    const u = (req as any).user;
+    const u = req.user;
     const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'users.manage')) || (await can(u.userId, 'roles.manage'));
     if (!allowed) return res.status(403).json({ error: 'forbidden' });
     // Ensure Permission table exists to avoid crashes on fresh databases
@@ -810,14 +812,14 @@ adminRest.get('/permissions', async (req, res) => {
 });
 adminRest.post('/permissions', async (req, res) => {
   try {
-    const u = (req as any).user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error: 'forbidden' });
+    const u = req.user; if (!(await can(u.userId, 'settings.manage'))) return res.status(403).json({ error: 'forbidden' });
     const key = String((req.body?.key || '')).trim(); if (!key) return res.status(400).json({ error: 'key_required' });
     const p = await db.permission.create({ data: { key, description: req.body?.description || null } }); await audit(req, 'permissions', 'create', { id: p.id }); res.json({ permission: p });
   } catch (e: any) { res.status(500).json({ error: e.message || 'perm_create_failed' }); }
 });
 adminRest.post('/roles/:id/permissions', async (req, res) => {
   try {
-    const u = (req as any).user; const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'roles.manage')); if (!allowed) return res.status(403).json({ error: 'forbidden' });
+    const u = req.user; const allowed = (await can(u.userId, 'settings.manage')) || (await can(u.userId, 'roles.manage')); if (!allowed) return res.status(403).json({ error: 'forbidden' });
     const { id } = req.params; const permIds: string[] = Array.isArray(req.body?.permissionIds) ? req.body.permissionIds : [];
     const role = await db.role.findUnique({ where: { id } }); if (!role) return res.status(404).json({ error: 'role_not_found' });
     // Reset and set
@@ -829,7 +831,7 @@ adminRest.post('/roles/:id/permissions', async (req, res) => {
 });
 adminRest.post('/users/:id/assign-roles', async (req, res) => {
   try {
-    const u = (req as any).user; if (!(await can(u.userId, 'users.manage'))) return res.status(403).json({ error: 'forbidden' });
+    const u = req.user; if (!(await can(u.userId, 'users.manage'))) return res.status(403).json({ error: 'forbidden' });
     const { id } = req.params; const roleIds: string[] = Array.isArray(req.body?.roleIds) ? req.body.roleIds : [];
     await db.userRoleLink.deleteMany({ where: { userId: id } });
     for (const rid of roleIds) { await db.userRoleLink.create({ data: { userId: id, roleId: rid } }); }
@@ -838,13 +840,14 @@ adminRest.post('/users/:id/assign-roles', async (req, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message || 'user_assign_roles_failed' }); }
 });
 // Optional 2FA enforcement: if user has 2FA enabled, require X-2FA-Code header (placeholder validation)
+// Optional 2FA enforcement: if user has 2FA enabled, require X-2FA-Code header (placeholder validation)
 adminRest.use(async (req: Request, res: Response, next) => {
   const p = req.path || '';
   if (p.startsWith('/auth/login') || p.startsWith('/auth/logout') || p.startsWith('/auth/whoami') || p.startsWith('/health') || p.startsWith('/docs') || p.startsWith('/maintenance/fix-auth-columns') || p.startsWith('/maintenance/grant-admin') || p.startsWith('/maintenance/create-admin') || p.startsWith('/maintenance/ensure-rbac') || p.startsWith('/maintenance/ensure-category-seo') || p.startsWith('/maintenance/ensure-logistics')) {
     return next();
   }
   try {
-    const user = (req as any).user as { userId: string } | undefined;
+    const user = req.user as { userId: string } | undefined;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
     // Disabled 2FA gate to avoid column dependency
     return next();
@@ -8166,7 +8169,7 @@ adminRest.get('/analytics/products/table', async (req, res) => {
       res.setHeader('content-type', 'text/csv; charset=utf-8');
       res.setHeader('content-disposition', `attachment; filename="products_analytics.csv"`);
       const head = 'productId,name,views,addToCart,purchases,conversion\n';
-      const body = rows.map(r => `${r.productId},"${(r.product?.name || '').replace(/"/g, '""')}",${r.views},${r.addToCart},${r.purchases},${(r.conversion * 100).toFixed(2)}%`).join('\n');
+      const body = rows.map(r => `${r.productId},"${((r.product as any)?.name || '').replace(/"/g, '""')}",${r.views},${r.addToCart},${r.purchases},${(r.conversion * 100).toFixed(2)}%`).join('\n');
       return res.send(head + body);
     }
     res.json({ ok: true, rows });
@@ -8703,7 +8706,7 @@ adminRest.get('/analytics/ia/pages', async (req, res) => {
       res.setHeader('content-disposition', `attachment; filename="ia_pages.csv"`);
       const head = 'url,name,views,visitors,sessions\n';
       const body = out.map(p => {
-        const name = (p.product?.name || '').replace(/"/g, '""');
+        const name = ((p.product as any)?.name || '').replace(/"/g, '""');
         return `${p.url},"${name}",${p.views},${p.visitors},${p.sessions}`;
       }).join('\n');
       return res.send(head + body);
@@ -8930,7 +8933,7 @@ adminRest.get('/analytics/ia/products', async (req, res) => {
       res.setHeader('content-disposition', `attachment; filename="ia_products.csv"`);
       const head = 'productId,name,views,addToCart,sessions\n';
       const esc = (v: string) => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
-      const body = out.map(r => [String(r.productId), String(r.product?.name || ''), String(r.views), String(r.addToCart), String(r.sessions)].map(esc).join(',')).join('\n');
+      const body = out.map(r => [String(r.productId), String((r.product as any)?.name || ''), String(r.views), String(r.addToCart), String(r.sessions)].map(esc).join(',')).join('\n');
       return res.send(head + body);
     }
     return res.json({ ok: true, products: out });
@@ -11382,7 +11385,7 @@ adminRest.post('/categories/reorder', async (req, res) => {
 adminRest.post('/categories', async (req, res) => {
   try {
     const u = (req as any).user; if (!(await can(u.userId, 'categories.create'))) { await audit(req, 'categories', 'forbidden_create', { path: req.path }); return res.status(403).json({ error: 'forbidden' }); }
-    let { name, slug, description, image, parentId, seoTitle, seoDescription, seoKeywords, translations, canonicalUrl, metaRobots, hiddenContent, ogTags, twitterCard, schema } = req.body || {};
+    let { name, slug, description, image, parentId, seoTitle, seoDescription, seoKeywords, translations, canonicalUrl, metaRobots, hiddenContent, ogTags, twitterCard, schema, author, alternateLinks, sitemapPriority, sitemapFrequency } = req.body || {};
     if (!name || !name.trim()) return res.status(400).json({ error: 'name_required' });
 
     if (!slug) {
@@ -11416,7 +11419,11 @@ adminRest.post('/categories', async (req, res) => {
             hiddenContent: hiddenContent || null,
             ogTags: ogTags || undefined,
             twitterCard: twitterCard || undefined,
-            schema: schema || undefined
+            schema: schema || undefined,
+            author: author || undefined,
+            alternateLinks: alternateLinks || undefined,
+            sitemapPriority: sitemapPriority ? Number(sitemapPriority) : undefined,
+            sitemapFrequency: sitemapFrequency || undefined
           }
         }
       }
@@ -11433,11 +11440,15 @@ adminRest.post('/categories', async (req, res) => {
 const categoryUpdateHandler = async (req: any, res: any) => {
   const { id } = req.params;
   try {
-    const u = (req as any).user; if (!(await can(u.userId, 'categories.update'))) { await audit(req, 'categories', 'forbidden_update', { path: req.path, id }); return res.status(403).json({ error: 'forbidden' }); }
+    const u = (req as any).user;
+    if (!(await can(u.userId, 'categories.update'))) {
+      await audit(req, 'categories', 'forbidden_update', { path: req.path, id });
+      return res.status(403).json({ error: 'forbidden' });
+    }
 
     // Fetch old slug for redirect
     const oldCat = await db.category.findUnique({ where: { id }, select: { slug: true } });
-    const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder, canonicalUrl, metaRobots, hiddenContent, ogTags, twitterCard, schema } = req.body || {};
+    const { name, description, image, parentId, slug, seoTitle, seoDescription, seoKeywords, translations, sortOrder, canonicalUrl, metaRobots, hiddenContent, ogTags, twitterCard, schema, author, alternateLinks, sitemapPriority, sitemapFrequency } = req.body || {};
 
     if (slug && typeof slug === 'string') {
       try {
@@ -11467,7 +11478,11 @@ const categoryUpdateHandler = async (req: any, res: any) => {
               hiddenContent: hiddenContent || null,
               ogTags: ogTags || undefined,
               twitterCard: twitterCard || undefined,
-              schema: schema || undefined
+              schema: schema || undefined,
+              author: author || undefined,
+              alternateLinks: alternateLinks || undefined,
+              sitemapPriority: sitemapPriority ? Number(sitemapPriority) : undefined,
+              sitemapFrequency: sitemapFrequency || undefined
             },
             update: {
               canonicalUrl: canonicalUrl ?? undefined,
@@ -11475,7 +11490,11 @@ const categoryUpdateHandler = async (req: any, res: any) => {
               hiddenContent: hiddenContent ?? undefined,
               ogTags: ogTags ?? undefined,
               twitterCard: twitterCard ?? undefined,
-              schema: schema ?? undefined
+              schema: schema ?? undefined,
+              author: author ?? undefined,
+              alternateLinks: alternateLinks ?? undefined,
+              sitemapPriority: sitemapPriority !== undefined ? Number(sitemapPriority) : undefined,
+              sitemapFrequency: sitemapFrequency ?? undefined
             }
           }
         }
@@ -12318,3 +12337,6 @@ adminRest.delete('/seo/pages/:id', async (req, res) => {
 });
 
 export default adminRest;
+
+
+

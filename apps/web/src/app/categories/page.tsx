@@ -1,42 +1,141 @@
-"use client";
-import { trpc } from "../providers";
-import Image from "next/image";
+import { Metadata } from 'next';
 
-export default function CategoriesPage(): JSX.Element {
-  const q: any = trpc as any;
-  const { data, isLoading, error } = q.search.getSearchFilters.useQuery();
+// Shared data fetcher to enable request deduping
+async function getSeoMetadata() {
+  const validApi = process.env.INTERNAL_API_URL || 'http://127.0.0.1:4000';
+  try {
+    const res = await fetch(`${validApi}/api/seo/meta?type=page&slug=/categories`, {
+      next: { revalidate: 60 }
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    console.error('Metadata fetch error:', e);
+    return null;
+  }
+}
 
-  if (isLoading) return <main className="p-8">Loading...</main>;
-  if (error) return <main className="p-8">Error: {(error as any).message}</main>;
+export async function generateMetadata(): Promise<Metadata> {
+  const seo = await getSeoMetadata();
+  const titleText = seo?.titleSeo || 'التصنيفات';
 
-  const categories = data?.categories ?? [];
+  // Parse alternate links if they exist/are JSON
+  let languages = {};
+  if (seo?.alternateLinks) {
+    try { languages = typeof seo.alternateLinks === 'string' ? JSON.parse(seo.alternateLinks) : seo.alternateLinks; } catch { }
+  }
+
+  return {
+    title: titleText,
+    description: seo?.metaDescription || 'تسوق حسب التصنيف - اكتشف أفضل العروض والمنتجات المميزة',
+    applicationName: seo?.siteName || 'Jeeey',
+    keywords: seo?.keywords ? seo.keywords.split(',').map((k: string) => k.trim()) : undefined,
+    authors: seo?.author ? [{ name: seo.author }] : undefined,
+    openGraph: seo?.ogTags ? {
+      title: seo.ogTags.title || titleText,
+      description: seo.ogTags.description || seo.metaDescription,
+      images: seo.ogTags.image ? [{ url: seo.ogTags.image }] : undefined,
+      url: 'https://jeeey.com/categories',
+      siteName: seo.siteName || 'Jeeey',
+      locale: 'ar_SA',
+      type: 'website',
+    } : undefined,
+    twitter: seo?.twitterCard ? {
+      card: 'summary_large_image',
+      title: seo.twitterCard.title || titleText,
+      description: seo.twitterCard.description || seo.metaDescription,
+      images: seo.twitterCard.image ? [seo.twitterCard.image] : undefined,
+    } : undefined,
+    robots: {
+      index: seo?.metaRobots ? !seo.metaRobots.includes('noindex') : true,
+      follow: seo?.metaRobots ? !seo.metaRobots.includes('nofollow') : true,
+      googleBot: {
+        index: seo?.metaRobots ? !seo.metaRobots.includes('noindex') : true,
+        follow: seo?.metaRobots ? !seo.metaRobots.includes('nofollow') : true,
+      }
+    },
+    alternates: {
+      canonical: seo?.canonicalUrl || 'https://jeeey.com/categories',
+      languages: Object.keys(languages).length > 0 ? languages : undefined,
+    },
+    other: {
+      'bing-site-verification': seo?.bingVerification,
+      'google-site-verification': seo?.googleVerification,
+    }
+  };
+}
+
+async function getCategories() {
+  const validApi = process.env.INTERNAL_API_URL || 'http://127.0.0.1:4000';
+  try {
+    const res = await fetch(`${validApi}/api/categories/all`, {
+      next: { revalidate: 0 },
+      cache: 'no-store'
+    });
+    if (!res.ok) {
+      console.error(`[CategoriesPage] Fetch failed: ${res.status}`);
+      return [];
+    }
+    const json = await res.json();
+    return Array.isArray(json) ? json : [];
+  } catch (e: any) {
+    console.error('[CategoriesPage] Network/Fetch error:', e);
+    return [];
+  }
+}
+
+export default async function CategoriesPage() {
+  const categoriesRaw = await getCategories();
+  const categories = Array.isArray(categoriesRaw) ? categoriesRaw : [];
+  const seo = await getSeoMetadata(); // Reuse for schema injection
 
   return (
-    <main className="min-h-screen p-0">
+    <main className="min-h-screen p-0 bg-gray-50">
+      {/* Inject Advanced JSON-LD Schema if present */}
+      {seo?.schema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: seo.schema }}
+        />
+      )}
+
       {/* Hero */}
-      <section className="relative w-full h-40 md:h-52 bg-[#800020] text-white flex items-center">
-        <div className="max-w-5xl mx-auto px-4">
-          <h1 className="text-2xl md:text-3xl font-bold">التصنيفات</h1>
-          <p className="opacity-90 text-sm md:text-base mt-1">اكتشف تشكيلاتنا حسب التصنيف</p>
+      <section className="relative w-full h-40 md:h-48 bg-gradient-to-r from-[#800020] to-[#a01135] text-white flex items-center shadow-md">
+        <div className="max-w-7xl mx-auto px-4 w-full">
+          <h1 className="text-3xl md:text-4xl font-bold mb-2">التصنيفات</h1>
+          <p className="opacity-90 text-sm md:text-base font-light">تصفح جميع الأقسام والمنتجات المميزة</p>
         </div>
       </section>
-      <div className="p-4 md:p-8 max-w-5xl mx-auto">
-        <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4">
-          {categories.map((c: any) => (
-            <li key={c.id} className="group rounded-lg overflow-hidden border bg-white">
-              <a href={`/c/${c.slug || c.id}`} className="block">
-                <div className="relative w-full aspect-[3/4] bg-gray-100">
-                  {/* Use plain img to avoid next/image optimizer when running standalone */}
-                  <img src={c.image || "/images/placeholder-category.jpg"} alt={c.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                </div>
-                <div className="p-2.5 flex items-center justify-between text-sm">
-                  <span className="font-medium truncate text-gray-900">{c.name}</span>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#800020" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-0 group-hover:opacity-100 transition"><path d="M9 18l6-6-6-6" /></svg>
-                </div>
-              </a>
-            </li>
-          ))}
-        </ul>
+
+      <div className="p-4 md:p-8 max-w-7xl mx-auto">
+        {categories.length === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-gray-500">لا توجد تصنيفات حالياً.</p>
+          </div>
+        ) : (
+          <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-6">
+            {categories.map((c: any) => (
+              <li key={c.id} className="group relative bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden border border-gray-100">
+                <a href={`/c/${c.slug || c.id}`} className="block h-full flex flex-col">
+                  <div className="relative w-full aspect-square bg-gray-100 overflow-hidden">
+                    <img
+                      src={c.image || "https://placehold.co/600x600/f3f4f6/a01135?text=Jeeey"}
+                      alt={c.name}
+                      loading="lazy"
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-colors" />
+                  </div>
+                  <div className="p-4 bg-white flex-1 flex flex-col justify-center text-center">
+                    <h2 className="font-semibold text-gray-900 group-hover:text-[#800020] transition-colors line-clamp-2">
+                      {c.name}
+                    </h2>
+                  </div>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </main>
   );
