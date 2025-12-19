@@ -51,8 +51,10 @@ self.addEventListener('fetch', (event) => {
       const fetched = fetch(req).then((res) => {
         if (!res || !res.ok || res.type !== 'basic') return res;
         // Cache successful static responses
-        const copy = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+        if (req.url.startsWith('http')) {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+        }
         return res;
       }).catch(() => null); // If fetch fails, swallow error (we have cached)
 

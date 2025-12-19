@@ -150,62 +150,74 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 // 4. Page Component
 export default async function Page({ params }: Props) {
-  const seo = await getProductSeo(params.slug);
-  const product = await getProduct(params.slug);
+  try {
+    const seo = await getProductSeo(params.slug);
+    const product = await getProduct(params.slug);
 
-  // JSON-LD Schema (from DB or generated fallback - matching mweb)
-  let jsonLd: any = null;
-  if (seo?.schema) {
-    // Use schema from database (set in Admin Panel)
-    jsonLd = typeof seo.schema === 'string' ? JSON.parse(seo.schema) : seo.schema;
-  } else if (product) {
-    // Fallback: Generate Product schema
-    jsonLd = {
-      "@context": "https://schema.org/",
-      "@type": "Product",
-      "name": product.name,
-      "description": product.description,
-      "image": product.images || [],
-      "sku": product.sku,
-      "brand": product.brand ? { "@type": "Brand", "name": product.brand } : undefined,
-      "offers": {
-        "@type": "Offer",
-        "url": `https://jeeey.com/p/${params.slug}`,
-        "priceCurrency": "QAR",
-        "price": product.price,
-        "availability": product.stockQuantity > 0
-          ? "https://schema.org/InStock"
-          : "https://schema.org/OutOfStock"
-      }
-    };
+    // JSON-LD Schema (from DB or generated fallback - matching mweb)
+    let jsonLd: any = null;
+    if (seo?.schema) {
+      jsonLd = seo.schema;
+    } else if (product) {
+      // Fallback Schema Generator if DB Schema is missing
+      jsonLd = {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": product.name,
+        "description": product.description || seo?.metaDescription,
+        "image": product.images?.[0] || product.image,
+        "sku": product.sku || product.id,
+        "brand": product.brand ? { "@type": "Brand", "name": product.brand } : undefined,
+        "offers": {
+          "@type": "Offer",
+          "url": `https://jeeey.com/p/${params.slug}`,
+          "priceCurrency": "QAR",
+          "price": product.price,
+          "availability": product.stockQuantity > 0
+            ? "https://schema.org/InStock"
+            : "https://schema.org/OutOfStock"
+        }
+      };
+    }
+
+    const showProduct = !!product;
+
+    return (
+      <>
+        {/* Debug Info (Hidden) - to help diagnose 500 errors if needed */}
+        {/* <div style={{display:'none'}} data-slug={params.slug} data-has-product={showProduct}></div> */}
+
+        {/* Hidden SEO Content */}
+        {seo?.hiddenContent && (
+          <div
+            id="seo-hidden-content"
+            style={{ display: 'none', visibility: 'hidden' }}
+            dangerouslySetInnerHTML={{ __html: seo.hiddenContent }}
+          />
+        )}
+
+        {/* JSON-LD Schema */}
+        {jsonLd && (
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: typeof jsonLd === 'string' ? jsonLd : JSON.stringify(jsonLd) }}
+          />
+        )}
+
+        {/* Product Detail Client Component */}
+        {/* Only render client if we have a slug, otherwise handle error gracefuly */}
+        <ProductDetailClient slug={params.slug} />
+      </>
+    );
+  } catch (error) {
+    console.error(`Error rendering product page for slug: ${params.slug}`, error);
+    // Return a graceful fallback instead of 500
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-4 text-center">
+        <h1 className="text-xl font-bold text-gray-800 mb-2">عذراً، حدث خطأ غير متوقع</h1>
+        <p className="text-gray-600 mb-4">لا يمكن عرض هذا المنتج حالياً.</p>
+        <a href="/" className="text-blue-600 hover:underline">العودة للرئيسية</a>
+      </div>
+    );
   }
-
-  // Product not found
-  if (!product && !seo) {
-    return <div className="p-20 text-center text-gray-500">المنتج غير موجود</div>;
-  }
-
-  return (
-    <>
-      {/* Hidden SEO Content (matching mweb Product.vue line 4) */}
-      {seo?.hiddenContent && (
-        <div
-          id="seo-hidden-content"
-          style={{ display: 'none', visibility: 'hidden' }}
-          dangerouslySetInnerHTML={{ __html: seo.hiddenContent }}
-        />
-      )}
-
-      {/* JSON-LD Schema for Rich Snippets */}
-      {jsonLd && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-      )}
-
-      {/* Product Detail Client Component */}
-      <ProductDetailClient slug={params.slug} />
-    </>
-  );
 }
