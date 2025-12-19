@@ -24,9 +24,10 @@ function themeBg(theme?: string): string {
     }
 }
 
-export default function ProductDetailClient({ id }: { id: string }): JSX.Element {
+export default function ProductDetailClient({ slug }: { slug: string }): JSX.Element {
     const { t } = useI18n();
-    const { data, isLoading, error } = trpc.products.getById.useQuery({ id });
+    // Use slug to fetch product - supports both slug and id lookup
+    const { data, isLoading, error } = trpc.products.getById.useQuery({ id: slug });
     const rpc = trpc;
     const addItem = trpc.cart.addItem.useMutation();
     const createReview = trpc.reviews.create.useMutation();
@@ -409,7 +410,7 @@ function RecommendedGrid(): JSX.Element {
                         rating: (p.reviews && p.reviews.length) ? (p.reviews.reduce((a: any, b: any) => a + (b.rating || 0), 0) / p.reviews.length) : 0,
                         reviewCount: p.reviews?.length || 0
                     }}
-                    onViewDetails={(id) => (window.location.href = `/p/${id}`)}
+                    onViewDetails={(id) => (window.location.href = `/p/${(p as any).slug || id}`)}
                 />
             ))}
         </div>

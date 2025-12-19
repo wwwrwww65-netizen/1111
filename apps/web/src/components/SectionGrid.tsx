@@ -28,7 +28,7 @@ export function SectionGrid({ title, products }: SectionGridProps): JSX.Element 
               rating: 0,
               reviewCount: 0,
             }}
-            onViewDetails={(id) => (window.location.href = `/p/${id}`)}
+            onViewDetails={(id) => (window.location.href = `/p/${(p as any).slug || (p.seo as any)?.slug || id}`)}
           />
         ))}
       </div>
