@@ -47,105 +47,114 @@ async function getProduct(slugOrId: string): Promise<any> {
 
 // 3. generateMetadata - Full SEO Implementation (Matching mweb Product.vue)
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const seo = await getProductSeo(params.slug);
-  const product = !seo ? await getProduct(params.slug) : null;
+  try {
+    const seo = await getProductSeo(params.slug);
+    const product = !seo ? await getProduct(params.slug) : null;
 
-  // Fallback title
-  const titleText = seo?.titleSeo || product?.name || 'المنتج - Jeeey';
-  const descriptionText = seo?.metaDescription || product?.description || '';
+    // Fallback title
+    const titleText = seo?.titleSeo || product?.name || 'المنتج - Jeeey';
+    const descriptionText = seo?.metaDescription || product?.description || '';
 
-  // Parse keywords
-  let keywordsArray: string[] = [];
-  if (seo?.keywords) {
-    if (typeof seo.keywords === 'string') {
-      keywordsArray = seo.keywords.split(',').map((k: string) => k.trim()).filter(Boolean);
-    } else if (Array.isArray(seo.keywords)) {
-      keywordsArray = seo.keywords;
+    // Parse keywords
+    let keywordsArray: string[] = [];
+    if (seo?.keywords) {
+      if (typeof seo.keywords === 'string') {
+        keywordsArray = seo.keywords.split(',').map((k: string) => k.trim()).filter(Boolean);
+      } else if (Array.isArray(seo.keywords)) {
+        keywordsArray = seo.keywords;
+      }
     }
-  }
 
-  // Parse alternate links (for hreflang)
-  let languages: Record<string, string> = {};
-  if (seo?.alternateLinks) {
-    try {
-      languages = typeof seo.alternateLinks === 'string'
-        ? JSON.parse(seo.alternateLinks)
-        : seo.alternateLinks;
-    } catch { }
-  }
+    // Parse alternate links (for hreflang)
+    let languages: Record<string, string> = {};
+    if (seo?.alternateLinks) {
+      try {
+        languages = typeof seo.alternateLinks === 'string'
+          ? JSON.parse(seo.alternateLinks)
+          : seo.alternateLinks;
+      } catch { }
+    }
 
-  // Open Graph data (matching mweb Product.vue)
-  const ogData = seo?.ogTags || {};
-  const ogTitle = ogData.title || titleText;
-  const ogDescription = ogData.description || descriptionText;
-  const ogImage = ogData.image || product?.images?.[0] || '';
-  const ogUrl = ogData.url || seo?.canonicalUrl || `https://jeeey.com/p/${params.slug}`;
-  const ogType = ogData.type || 'product'; // Products use 'product' type
-  const ogLocale = ogData.locale || 'ar_SA';
+    // Open Graph data (matching mweb Product.vue)
+    const ogData = seo?.ogTags || {};
+    const ogTitle = ogData.title || titleText;
+    const ogDescription = ogData.description || descriptionText;
+    const ogImage = ogData.image || product?.images?.[0] || '';
+    const ogUrl = ogData.url || seo?.canonicalUrl || `https://jeeey.com/p/${params.slug}`;
+    const ogType = ogData.type || 'product'; // Products use 'product' type
+    const ogLocale = ogData.locale || 'ar_SA';
 
-  // Twitter Card data (matching mweb Product.vue)
-  const twData = seo?.twitterCard || {};
-  const twCard = twData.card || 'summary_large_image';
-  const twTitle = twData.title || ogTitle;
-  const twDescription = twData.description || ogDescription;
-  const twImage = twData.image || ogImage;
-  const twSite = twData.site || seo?.twitterSite || undefined;
-  const twCreator = twData.creator || seo?.twitterCreator || undefined;
+    // Twitter Card data (matching mweb Product.vue)
+    const twData = seo?.twitterCard || {};
+    const twCard = twData.card || 'summary_large_image';
+    const twTitle = twData.title || ogTitle;
+    const twDescription = twData.description || ogDescription;
+    const twImage = twData.image || ogImage;
+    const twSite = twData.site || seo?.twitterSite || undefined;
+    const twCreator = twData.creator || seo?.twitterCreator || undefined;
 
-  // Meta robots
-  const robotsContent = seo?.metaRobots || 'index, follow';
-  const shouldIndex = !robotsContent.includes('noindex');
-  const shouldFollow = !robotsContent.includes('nofollow');
+    // Meta robots
+    const robotsContent = seo?.metaRobots || 'index, follow';
+    const shouldIndex = !robotsContent.includes('noindex');
+    const shouldFollow = !robotsContent.includes('nofollow');
 
-  return {
-    title: titleText,
-    description: descriptionText,
-    keywords: keywordsArray.length > 0 ? keywordsArray.join(', ') : undefined,
-    authors: seo?.author ? [{ name: seo.author }] : undefined,
+    return {
+      title: titleText,
+      description: descriptionText,
+      keywords: keywordsArray.length > 0 ? keywordsArray.join(', ') : undefined,
+      authors: seo?.author ? [{ name: seo.author }] : undefined,
 
-    // Open Graph (Full implementation - matching mweb)
-    openGraph: {
-      title: ogTitle,
-      description: ogDescription,
-      images: ogImage ? [{ url: ogImage, alt: ogTitle }] : undefined,
-      url: ogUrl,
-      siteName: seo?.siteName || 'Jeeey',
-      type: ogType as any,
-      locale: ogLocale,
-    },
+      // Open Graph (Full implementation - matching mweb)
+      openGraph: {
+        title: ogTitle,
+        description: ogDescription,
+        images: ogImage ? [{ url: ogImage, alt: ogTitle }] : undefined,
+        url: ogUrl,
+        siteName: seo?.siteName || 'Jeeey',
+        type: ogType as any,
+        locale: ogLocale,
+      },
 
-    // Twitter Card (Full implementation - matching mweb)
-    twitter: {
-      card: twCard as any,
-      title: twTitle,
-      description: twDescription,
-      images: twImage ? [twImage] : undefined,
-      site: twSite,
-      creator: twCreator,
-    },
+      // Twitter Card (Full implementation - matching mweb)
+      twitter: {
+        card: twCard as any,
+        title: twTitle,
+        description: twDescription,
+        images: twImage ? [twImage] : undefined,
+        site: twSite,
+        creator: twCreator,
+      },
 
-    // Robots
-    robots: {
-      index: shouldIndex,
-      follow: shouldFollow,
-      googleBot: {
+      // Robots
+      robots: {
         index: shouldIndex,
         follow: shouldFollow,
+        googleBot: {
+          index: shouldIndex,
+          follow: shouldFollow,
+        }
+      },
+
+      // Alternates (Canonical + hreflang)
+      alternates: {
+        canonical: seo?.canonicalUrl || `https://jeeey.com/p/${params.slug}`,
+        languages: Object.keys(languages).length > 0 ? languages : undefined,
+      },
+
+      // Other meta tags
+      other: {
+        ...(seo?.sitemapPriority ? { 'sitemap-priority': String(seo.sitemapPriority) } : {}),
+        ...(seo?.sitemapFrequency ? { 'sitemap-frequency': seo.sitemapFrequency } : {}),
       }
-    },
-
-    // Alternates (Canonical + hreflang)
-    alternates: {
-      canonical: seo?.canonicalUrl || `https://jeeey.com/p/${params.slug}`,
-      languages: Object.keys(languages).length > 0 ? languages : undefined,
-    },
-
-    // Other meta tags
-    other: {
-      ...(seo?.sitemapPriority ? { 'sitemap-priority': String(seo.sitemapPriority) } : {}),
-      ...(seo?.sitemapFrequency ? { 'sitemap-frequency': seo.sitemapFrequency } : {}),
-    }
-  };
+    };
+  } catch (error) {
+    console.error(`Error generating metadata for product: ${params.slug}`, error);
+    // Return minimal valid metadata to prevent 500
+    return {
+      title: 'المنتج - Jeeey',
+      description: '',
+    };
+  }
 }
 
 // 4. Page Component
