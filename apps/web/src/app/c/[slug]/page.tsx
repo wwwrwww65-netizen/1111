@@ -43,8 +43,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const cat = !seo ? await getCategory(decodedSlug) : null;
 
     // Construct title
+    // Priority: 1. SEO API (Best) -> 2. Category Name (Safe Fallback)
+    // We intentionally skip `cat.seo.seoTitle` because it may contain legacy/malformed data (like long descriptions)
     let titleText = seo?.titleSeo;
-    if (!titleText && cat) titleText = cat.seo?.seoTitle || cat.name;
+    if (!titleText && cat) titleText = cat.name;
     if (!titleText) titleText = decodedSlug;
 
     // Construct description
