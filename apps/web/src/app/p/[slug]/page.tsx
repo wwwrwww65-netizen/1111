@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import ProductDetailClient from './client';
 
 type Props = {
-  params: { id: string };
+  params: { slug: string };
   searchParams: { [key: string]: string | string[] | undefined };
 };
 
@@ -47,8 +47,8 @@ async function getProduct(slugOrId: string): Promise<any> {
 
 // 3. generateMetadata - Full SEO Implementation (Matching mweb Product.vue)
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const seo = await getProductSeo(params.id);
-  const product = !seo ? await getProduct(params.id) : null;
+  const seo = await getProductSeo(params.slug);
+  const product = !seo ? await getProduct(params.slug) : null;
 
   // Fallback title
   const titleText = seo?.titleSeo || product?.name || 'المنتج - Jeeey';
@@ -79,7 +79,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const ogTitle = ogData.title || titleText;
   const ogDescription = ogData.description || descriptionText;
   const ogImage = ogData.image || product?.images?.[0] || '';
-  const ogUrl = ogData.url || seo?.canonicalUrl || `https://jeeey.com/p/${params.id}`;
+  const ogUrl = ogData.url || seo?.canonicalUrl || `https://jeeey.com/p/${params.slug}`;
   const ogType = ogData.type || 'product'; // Products use 'product' type
   const ogLocale = ogData.locale || 'ar_SA';
 
@@ -136,7 +136,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
     // Alternates (Canonical + hreflang)
     alternates: {
-      canonical: seo?.canonicalUrl || `https://jeeey.com/p/${params.id}`,
+      canonical: seo?.canonicalUrl || `https://jeeey.com/p/${params.slug}`,
       languages: Object.keys(languages).length > 0 ? languages : undefined,
     },
 
@@ -150,8 +150,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 // 4. Page Component
 export default async function Page({ params }: Props) {
-  const seo = await getProductSeo(params.id);
-  const product = await getProduct(params.id);
+  const seo = await getProductSeo(params.slug);
+  const product = await getProduct(params.slug);
 
   // JSON-LD Schema (from DB or generated fallback - matching mweb)
   let jsonLd: any = null;
@@ -170,7 +170,7 @@ export default async function Page({ params }: Props) {
       "brand": product.brand ? { "@type": "Brand", "name": product.brand } : undefined,
       "offers": {
         "@type": "Offer",
-        "url": `https://jeeey.com/p/${params.id}`,
+        "url": `https://jeeey.com/p/${params.slug}`,
         "priceCurrency": "QAR",
         "price": product.price,
         "availability": product.stockQuantity > 0
@@ -205,7 +205,7 @@ export default async function Page({ params }: Props) {
       )}
 
       {/* Product Detail Client Component */}
-      <ProductDetailClient slug={params.id} />
+      <ProductDetailClient slug={params.slug} />
     </>
   );
 }

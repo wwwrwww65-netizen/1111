@@ -178,6 +178,8 @@ rm -rf "$ROOT_DIR/apps/web/.next" "$ROOT_DIR/apps/admin/.next" || true
 # Next.js builds (ensure next bin exists per app)
  (cd "$ROOT_DIR/apps/web" && pnpm install --no-frozen-lockfile --prod=false) || true
  (cd "$ROOT_DIR/apps/admin" && pnpm install --no-frozen-lockfile --prod=false) || true
+# Clean legacy conflicting route [id] to allow [slug]
+rm -rf "$ROOT_DIR/apps/web/src/app/p/[id]" || true
 pnpm --filter web build || (cd "$ROOT_DIR/apps/web" && ./node_modules/.bin/next build)
 pnpm --filter admin build || (cd "$ROOT_DIR/apps/admin" && ./node_modules/.bin/next build)
 # Ensure Category SEO columns (opt-in). Disabled by default to avoid 54011 on legacy wide tables.
