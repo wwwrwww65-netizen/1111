@@ -44,17 +44,28 @@ export default function ProductDetailClient({ slug }: { slug: string }): JSX.Ele
     const [reviewSort, setReviewSort] = React.useState<'newest' | 'highest' | 'lowest'>('newest');
     const [reviewStarFilter, setReviewStarFilter] = React.useState<number | null>(null);
 
+    // IMPORTANT: All hooks MUST be called before any conditional return (React Rules of Hooks)
+    const [clubMeta, setClubMeta] = React.useState<any>(null);
+    const productId = data?.id;
+    React.useEffect(() => {
+        if (!productId) return;
+        (async () => {
+            try {
+                const r = await fetch(`/api/product/${encodeURIComponent(productId)}/meta`, { headers: { 'accept': 'application/json' } });
+                const j = await r.json();
+                setClubMeta(j?.meta?.clubBanner || null);
+            } catch {
+                setClubMeta(null);
+            }
+        })();
+    }, [productId]);
+
+    // Conditional returns AFTER all hooks
     if (isLoading) return <main className="p-8">Loading product...</main>;
     if (error) return <main className="p-8">Error: {error.message}</main>;
     if (!data) return <main className="p-8">Not found</main>;
 
     const product = data;
-    const [clubMeta, setClubMeta] = React.useState<any>(null);
-    React.useEffect(() => {
-        (async () => {
-            try { const r = await fetch(`/api/product/${encodeURIComponent(product.id)}/meta`, { headers: { 'accept': 'application/json' } }); const j = await r.json(); setClubMeta(j?.meta?.clubBanner || null); } catch { setClubMeta(null); }
-        })();
-    }, [product.id]);
     const images = product.images && product.images.length ? product.images : ["/images/placeholder-product.jpg"];
     const variants = Array.isArray((product as any).variants) ? (product as any).variants : [];
     // Build dimension sets from server-provided attributes (preferred) or derive from variants
