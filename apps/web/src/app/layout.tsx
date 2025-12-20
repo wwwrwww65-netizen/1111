@@ -13,7 +13,7 @@ const tajawal = Tajawal({ subsets: ["arabic"], weight: ["400", "500", "700", "80
 
 // Shared fetcher logic
 async function fetchSeoData() {
-  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
+  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:4000';
   try {
     // Fetch root seo meta
     const res = await fetch(`${apiUrl}/api/seo/meta?slug=/`, { cache: 'no-store' });

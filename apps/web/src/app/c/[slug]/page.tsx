@@ -7,7 +7,7 @@ type Props = {
 
 // 1. Unified SEO Fetcher (Best Practice - connects to Admin Panel SEO Engine)
 async function getSeoMetadata(slug: string) {
-    const validApi = process.env.INTERNAL_API_URL || 'http://127.0.0.1:4000';
+    const validApi = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:4000';
     const decoded = decodeURIComponent(slug);
     // Fixed: Send just the slug, not /c/ prefix - API handles path internally
     try {
@@ -24,7 +24,7 @@ async function getSeoMetadata(slug: string) {
 
 // 2. Data Fetcher for Page Content (Category Info Only)
 async function getCategory(slug: string): Promise<any> {
-    const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
+    const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:4000';
     try {
         const decodedSlug = decodeURIComponent(slug); // Try decoding first to match DB if stored with spaces
         const res = await fetch(`${apiUrl}/api/category/${encodeURIComponent(decodedSlug)}`, { cache: 'no-store' });

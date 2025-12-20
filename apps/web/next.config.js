@@ -31,6 +31,10 @@ const nextConfig = {
       source: '/uploads/:path*',
       destination: `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/uploads/:path*`,
     },
+    {
+      source: '/api/:path*',
+      destination: `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'}/api/:path*`,
+    },
   ])
 };
 
