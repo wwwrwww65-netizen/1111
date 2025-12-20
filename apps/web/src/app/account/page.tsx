@@ -9,6 +9,15 @@ export default function AccountPage(): JSX.Element {
   if (me.isLoading || orders.isLoading) return <main className="p-8">Loading...</main>;
   if (me.error) return <main className="p-8">Error: {(me.error as any).message}</main>;
 
+  if (!me.data) {
+    return (
+      <main className="min-h-screen p-8 text-center">
+        <p className="mb-4">يرجى تسجيل الدخول لعرض تفاصيل حسابك</p>
+        <a href="/login" className="px-4 py-2 bg-[#800020] text-white rounded">تسجيل الدخول</a>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen p-4 md:p-8 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">حسابي</h1>

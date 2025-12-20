@@ -1,12 +1,18 @@
 import { z } from 'zod';
-import { router } from '../trpc-setup';
-import { protectedProcedure } from '../middleware/auth';
+import { router, publicProcedure } from '../trpc-setup';
+import { protectedProcedure, optionalAuthMiddleware } from '../middleware/auth';
 import { db } from '@repo/db';
 
 export const cartRouter = router({
-  getCart: protectedProcedure
+  getCart: publicProcedure
+    .use(optionalAuthMiddleware)
     .query(async ({ ctx }) => {
-      const userId = ctx.user!.userId;
+      const userId = ctx.user?.userId;
+
+      if (!userId) {
+        return { cart: null, subtotal: 0 };
+      }
+
       let cart = await db.cart.findUnique({
         where: { userId },
         include: {

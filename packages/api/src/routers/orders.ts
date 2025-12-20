@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { router } from '../trpc-setup';
-import { protectedProcedure } from '../middleware/auth';
+import { router, publicProcedure } from '../trpc-setup';
+import { protectedProcedure, optionalAuthMiddleware } from '../middleware/auth';
 import { db } from '@repo/db';
 
 export const ordersRouter = router({
@@ -45,9 +45,13 @@ export const ordersRouter = router({
             return { order };
         }),
 
-    listOrders: protectedProcedure
+    listOrders: publicProcedure
+        .use(optionalAuthMiddleware)
         .query(async ({ ctx }) => {
-            const userId = ctx.user!.userId;
+            const userId = ctx.user?.userId;
+            if (!userId) {
+                return { orders: [] };
+            }
             const orders = await db.order.findMany({
                 where: { userId },
                 include: {

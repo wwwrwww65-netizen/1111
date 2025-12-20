@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { publicProcedure, router } from '../trpc-setup';
-import { authMiddleware, createToken } from '../middleware/auth';
+import { authMiddleware, optionalAuthMiddleware, createToken } from '../middleware/auth';
 import { setAuthCookies, clearAuthCookies } from '../utils/cookies';
 import bcrypt from 'bcryptjs';
 import { db } from '@repo/db';
@@ -219,11 +219,16 @@ export const authRouter = router({
     }),
 
   // Get current user profile
+  // Get current user profile
   me: publicProcedure
-    .use(authMiddleware)
+    .use(optionalAuthMiddleware)
     .query(async ({ ctx }) => {
+      if (!ctx.user?.userId) {
+        return null;
+      }
+
       const user = await db.user.findUnique({
-        where: { id: ctx.user!.userId },
+        where: { id: ctx.user.userId },
         select: {
           id: true,
           email: true,
@@ -237,7 +242,9 @@ export const authRouter = router({
       });
 
       if (!user) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'المستخدم غير موجود' });
+        // If token valid but user missing in DB, return null or throw? 
+        // Returning null allows frontend to treat as guest.
+        return null;
       }
 
       return user;
