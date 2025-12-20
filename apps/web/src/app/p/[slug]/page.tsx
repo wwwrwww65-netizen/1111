@@ -81,7 +81,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const ogDescription = ogData.description || descriptionText;
     const ogImage = ogData.image || product?.images?.[0] || '';
     const ogUrl = ogData.url || seo?.canonicalUrl || `https://jeeey.com/p/${params.slug}`;
-    const ogType = ogData.type || 'product'; // Products use 'product' type
+    // Next.js 14 Metadata API only supports: website, article, book, profile
+    // Product-specific metadata is handled via JSON-LD structured data
+    const ogType = 'website';
     const ogLocale = ogData.locale || 'ar_SA';
 
     // Twitter Card data (matching mweb Product.vue)
