@@ -36,7 +36,15 @@
       "cookie": "^0.7.0",
       "path-to-regexp": "^0.1.12",
       "next": "^14.2.32",
+      "request>uuid": "^3.4.0",
+      "data-uri-to-buffer": "^3.0.1",
+      "cheerio": "^1.0.0",
+      "node-fetch": "^2.6.7",
       "@expo/metro-config": "~0.18.11"
+    },
+    "patchedDependencies": {
+      "request@2.88.2": "patches/request@2.88.2.patch",
+      "parse5@7.3.0": "patches/parse5@7.3.0.patch"
     }
   },
   "dependencies": {

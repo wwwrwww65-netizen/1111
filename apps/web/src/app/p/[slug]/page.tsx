@@ -8,7 +8,7 @@ type Props = {
 
 // 1. SEO Data Fetcher - Best Practice (Next.js 14+ Metadata API)
 async function getProductSeo(slugOrId: string): Promise<any> {
-  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:4000';
+  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
   const decoded = decodeURIComponent(slugOrId);
   try {
     // Try slug first, then id - flexible lookup
@@ -32,7 +32,7 @@ async function getProductSeo(slugOrId: string): Promise<any> {
 
 // 2. Product Data Fetcher (for fallbacks)
 async function getProduct(slugOrId: string): Promise<any> {
-  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:4000';
+  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
   const decoded = decodeURIComponent(slugOrId);
   try {
     const res = await fetch(`${apiUrl}/api/product/${encodeURIComponent(decoded)}`, {

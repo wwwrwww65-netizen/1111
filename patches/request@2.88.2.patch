@@ -1,0 +1,21 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+deleted file mode 100644
+index d3ffcd00d2e6236ca7e2e8b315739a9d5622d1db..0000000000000000000000000000000000000000
+diff --git a/lib/auth.js b/lib/auth.js
+index 02f203869324c352bdca561be51eba0eb2aabf75..3f25f6a81874babd25cb24ca419fa6dc270d204a 100644
+--- a/lib/auth.js
++++ b/lib/auth.js
+@@ -1,7 +1,7 @@
+ 'use strict'
+ 
+ var caseless = require('caseless')
+-var uuid = require('uuid/v4')
++var uuid = require('uuid'); if (uuid.v4) uuid = uuid.v4;
+ var helpers = require('./helpers')
+ 
+ var md5 = helpers.md5
+@@ -165,3 +165,4 @@ Auth.prototype.onResponse = function (response) {
+ }
+ 
+ exports.Auth = Auth
++

@@ -1,0 +1,9 @@
+diff --git a/dist/cjs/tokenizer/index.js b/dist/cjs/tokenizer/index.js
+index 90a6876e765311e0ea288218c33261693cf53a65..4dcfe78487767c8df16867a113f86dc07647b6c0 100644
+--- a/dist/cjs/tokenizer/index.js
++++ b/dist/cjs/tokenizer/index.js
+@@ -2712,3 +2712,4 @@ class Tokenizer {
+     }
+ }
+ exports.Tokenizer = Tokenizer;
++
