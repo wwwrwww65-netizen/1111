@@ -1,0 +1,38 @@
+name: Hostinger SSH Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      cmd:
+        description: "Optional command to run on server"
+        required: false
+        default: "uname -a && node -v || echo 'node missing' && echo $SHELL"
+
+jobs:
+  ssh_check:
+    name: Verify SSH connectivity to Hostinger
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required secrets
+        run: |
+          test -n "${{ secrets.HOSTINGER_HOST }}" || { echo 'HOSTINGER_HOST missing'; exit 1; }
+          test -n "${{ secrets.HOSTINGER_USER }}" || { echo 'HOSTINGER_USER missing'; exit 1; }
+          test -n "${{ secrets.HOSTINGER_SSH_KEY }}" || { echo 'HOSTINGER_SSH_KEY missing'; exit 1; }
+          echo "All required secrets are present."
+
+      - name: SSH to Hostinger and run command
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT || '22' }}
+          script: |
+            set -e
+            echo "Connected to $(hostname)"
+            mkdir -p "${{ secrets.HOSTINGER_PROJECT_DIR }}"
+            cd "${{ secrets.HOSTINGER_PROJECT_DIR }}"
+            echo "Project dir: $(pwd)"
+            ${{ github.event.inputs.cmd }}
+            echo "SSH check OK"
+
